@@ -1,40 +1,41 @@
-# KIRAHT AI (V0.1)
+# KIRAHT AI (V0.1 - Local Ollama Edition)
 
-A clean, minimalist, and beginner-friendly terminal-based AI assistant built in Python using the official OpenAI SDK.
+A clean, minimalist, and beginner-friendly terminal-based AI assistant built in Python powered locally by Ollama and Qwen3:8b.
 
 ---
 
 ## 1. Project Title
-**KIRAHT AI — Version 0.1**
+**KIRAHT AI — Version 0.1 (Local Edition)**
 
 ---
 
 ## 2. What Kiraht AI is
-**KIRAHT AI** is an interactive command-line AI chatbot developed in Python. It provides a direct, responsive terminal interface that connects users to state-of-the-art language models through the official OpenAI API. Designed with clean code and security best practices in mind, KIRAHT AI never hardcodes secrets, loads configuration safely via environment variables, and provides a dependable foundation for conversational AI experiments.
+**KIRAHT AI** is an interactive command-line AI chatbot developed in Python. It provides a direct, responsive terminal interface that connects users to locally hosted language models through Ollama (specifically `qwen3:8b`). Designed with clean code and complete privacy in mind, KIRAHT AI runs 100% locally with zero cloud API keys, zero external data sharing, and zero subscription costs.
 
 ---
 
 ## 3. What V0.1 Currently Does
-In this initial release (V0.1), KIRAHT AI provides essential terminal chat functionality:
+In this local release (V0.1), KIRAHT AI provides essential terminal chat functionality:
 - **Terminal Chat Loop**: Continuous conversational loop right inside your shell.
 - **In-Memory Multi-Turn Context**: Remembers previous questions and answers during the active session so you can ask follow-ups naturally.
-- **Secure Key Management**: Loads the OpenAI API key securely from a `.env` file using `python-dotenv`.
-- **Friendly Error Handling**: Gracefully handles missing API keys, invalid credentials, rate limits, and network errors without crashing or dumping messy tracebacks.
+- **100% Local Inference**: Runs via Ollama at `http://localhost:11434` without sending data to any cloud service.
+- **No Cloud API Keys**: No OpenAI API key or cloud credentials required.
+- **Friendly Error Handling**: Gracefully detects if Ollama is not running or if the required model is missing, giving clear troubleshooting instructions.
 - **Simple Exit Control**: Type `exit`, `quit`, or `bye` (or press `Ctrl+C`) anytime to cleanly exit.
 
 ---
 
 ## 4. How the Architecture Works
-KIRAHT AI follows a straightforward, synchronous request-response flow:
+KIRAHT AI follows a straightforward, local request-response flow:
 
 ```
 User
 ↓
-Python terminal application
+Python terminal application (KIRAHT AI)
 ↓
-OpenAI API
+Ollama Local Server (http://localhost:11434)
 ↓
-AI model
+AI Model (qwen3:8b)
 ↓
 Response
 ↓
@@ -44,10 +45,10 @@ Terminal
 1. **User**: Enters a prompt in the terminal.
 2. **Python terminal application (`main.py`)**:
    - Reads the input and appends it to an in-memory list of conversation messages.
-   - Packages the message history into an OpenAI Chat Completion request.
-3. **OpenAI API**: Validates the API key and forwards the conversation payload securely over HTTPS.
-4. **AI model (`gpt-4o-mini`)**: Processes the dialogue history and generates a context-aware response.
-5. **Response**: The API sends the text completion back to the local application.
+   - Packages the message history into an Ollama chat request using the native `ollama` Python SDK.
+3. **Ollama Local Server (`http://localhost:11434`)**: Receives the request locally via HTTP REST endpoint.
+4. **AI model (`qwen3:8b`)**: Executes inference locally on your hardware, processing the dialogue history.
+5. **Response**: Ollama returns the generated response back to the local application.
 6. **Terminal**: The application prints the assistant's reply and stores it in conversation memory for subsequent turns.
 
 ---
@@ -57,10 +58,10 @@ Terminal
 ```text
 KIRAHT AI/
 ├── main.py              # Main application logic and terminal chat loop
-├── .env                 # Local environment file containing your OpenAI API key (ignored by Git)
-├── .env.example         # Example template for setting up .env safely
+├── .env                 # Optional local configuration (ignored by Git)
+├── .env.example         # Example template for setting up .env
 ├── .gitignore           # Git ignore file protecting .env and temporary files
-├── requirements.txt     # Python project dependencies
+├── requirements.txt     # Python project dependencies (ollama, python-dotenv)
 └── README.md            # Comprehensive project documentation
 ```
 
@@ -69,8 +70,12 @@ KIRAHT AI/
 ## 6. Prerequisites
 Before running KIRAHT AI, ensure you have:
 - **Python 3.8+** installed on your system (Python 3.10+ recommended).
-- A valid **OpenAI API key** from the [OpenAI Developer Platform](https://platform.openai.com/api-keys).
-- An active internet connection.
+- **Ollama** installed from [ollama.com](https://ollama.com).
+- The **`qwen3:8b`** model pulled locally in Ollama:
+  ```bash
+  ollama pull qwen3:8b
+  ```
+- No API keys or internet connection required during inference!
 
 ---
 
@@ -95,11 +100,11 @@ Before running KIRAHT AI, ensure you have:
 
 ---
 
-## 8. How to Create and Configure the `.env` File
+## 8. How to Configure the `.env` File (Optional)
 
-KIRAHT AI requires an OpenAI API key stored in a `.env` file.
+KIRAHT AI runs out of the box with defaults (`http://localhost:11434` and `qwen3:8b`). If you want to customize the host or model:
 
-1. Locate or create the `.env` file in the project root directory (you can copy `.env.example`):
+1. Copy `.env.example` to `.env`:
    - On Windows (PowerShell):
      ```powershell
      Copy-Item .env.example .env
@@ -109,13 +114,11 @@ KIRAHT AI requires an OpenAI API key stored in a `.env` file.
      cp .env.example .env
      ```
 
-2. Open `.env` in any text editor (e.g., Notepad, VS Code) and set your key:
+2. Customize if needed:
    ```env
-   OPENAI_API_KEY=sk-proj-yourActualOpenAiApiKeyGoesHere
+   OLLAMA_HOST=http://localhost:11434
+   AI_MODEL=qwen3:8b
    ```
-
-> [!WARNING]
-> Never commit your `.env` file or share your API key publicly. The `.gitignore` file included in this repository already prevents `.env` from being tracked.
 
 ---
 
@@ -128,20 +131,30 @@ pip install -r requirements.txt
 ```
 
 This installs:
-- **`openai`** (>=1.0.0): Official OpenAI Python SDK.
+- **`ollama`** (>=0.4.0): Official Ollama Python SDK.
 - **`python-dotenv`** (>=1.0.0): Library for loading configuration from `.env`.
 
 ---
 
 ## 10. How to Run the Application
 
-Execute `main.py` using Python:
+1. Ensure Ollama is running:
+   ```bash
+   ollama serve
+   ```
+   *(On Windows, Ollama usually runs automatically in the system tray).*
 
-```bash
-python main.py
-```
+2. Make sure the `qwen3:8b` model is downloaded:
+   ```bash
+   ollama pull qwen3:8b
+   ```
 
-If the API key is not configured or still set to the placeholder, KIRAHT AI will alert you with clear instructions without crashing. Once configured, you will see the chat prompt.
+3. Execute `main.py` using Python:
+   ```bash
+   python main.py
+   ```
+
+If Ollama is not running or the model is missing, KIRAHT AI will display helpful instructions on how to start Ollama or pull the model.
 
 ---
 
@@ -154,11 +167,11 @@ Type 'exit' to quit.
 
 You: What is Python?
 
-kiraht AI: Python is a high-level programming language known for its clear syntax and versatility. It is widely used in web development, data science, automation, and artificial intelligence.
+kiraht AI: Python is a versatile, high-level programming language known for its readability and clean syntax. It is widely used for web development, machine learning, data analysis, and automation.
 
 You: What did I just ask?
 
-kiraht AI: You asked about Python.
+kiraht AI: You asked what Python is.
 
 You: exit
 
@@ -168,12 +181,11 @@ Goodbye!
 ---
 
 ## 12. Current Limitations
-Because this is strictly **V0.1**, the following constraints apply:
+Because this is strictly **V0.1 Local Edition**, the following constraints apply:
 - **In-Memory Only**: Conversation history resets when the application is closed.
-- **Single-Threaded Terminal Interface**: Does not have a graphical interface, web UI, or mobile app.
-- **No External Web Access**: Cannot browse the live web or access files outside the chat session.
-- **Text-Only**: Does not support voice input/output or image generation/analysis.
-- **Context Window Limit**: Extremely long conversations will eventually grow in token size until the model's single-request limit is reached.
+- **Single-Threaded Terminal Interface**: Terminal interaction only; no graphical interface or web UI yet.
+- **Hardware-Dependent**: Inference speed depends on your local CPU / GPU capabilities.
+- **Context Window Limit**: Extremely long conversations will eventually grow in token size until the model's context window is reached.
 
 ---
 
@@ -183,12 +195,12 @@ Future iterations are planned to expand KIRAHT AI incrementally:
 
 - **V0.2**:
   - Persistent chat history (save/load past conversations to local JSON/SQLite).
-  - Configurable model selection and system persona through `.env` or CLI arguments.
   - Streaming token responses for real-time typewriter output in the terminal.
+  - Interactive model switcher command.
 - **V0.3**:
-  - Local tool usage (e.g. calculator, local system time, basic file reading).
+  - Local tool usage (calculator, local system time, basic file reading).
   - Rich terminal styling with color highlights and markdown rendering.
 - **V0.4+**:
-  - Voice input/output (STT/TTS).
-  - Retrieval-Augmented Generation (RAG) for querying custom documents.
+  - Voice input/output (local STT/TTS).
+  - Local Retrieval-Augmented Generation (RAG) for querying personal documents.
   - Web UI / Desktop interface.
