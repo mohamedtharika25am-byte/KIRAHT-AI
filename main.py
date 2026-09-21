@@ -21,6 +21,7 @@ import sys
 from dotenv import load_dotenv
 import httpx
 import ollama
+from tools import execute_system_command
 
 # Attempt imports for DuckDuckGo search (supports both ddgs and duckduckgo_search)
 try:
@@ -183,6 +184,13 @@ def should_trigger_search(user_text: str) -> tuple[bool, str]:
         r"\bnow\b",
         r"\b2025\b",
         r"\b2026\b",
+        r"\bcm\b",
+        r"\bpm\b",
+        r"\bchief minister\b",
+        r"\bprime minister\b",
+        r"\bpresident\b",
+        r"\bceo\b",
+        r"^who is\b",
     ]
 
     lower = cleaned.lower()
@@ -263,6 +271,7 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
     print("=" * 60)
     print(f"  KIRAHT AI — J.A.R.V.I.S. Edition")
     print(f"  Model: {model}  |  Status: {status_icon}")
+    print(f"  Laptop Tools: Active (Apps, Battery, Volume, Web, Folders)")
     print(f"  Commands: /memory, /callme <title>, /name <name>, /search <query>, /clear, exit")
     print("=" * 60)
     print(f"\nkiraht AI: Online and ready, {call_me}. How may I assist you?")
@@ -318,6 +327,14 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
             if user_input.lower() == "/clear":
                 messages = [{"role": "system", "content": system_prompt}]
                 print(f"\nkiraht AI: Conversation context cleared, {call_me}.")
+                continue
+
+            # Check for laptop / OS operation commands
+            handled, action_result = execute_system_command(user_input, call_me)
+            if handled:
+                print(f"\nkiraht AI: {action_result}")
+                messages.append({"role": "user", "content": user_input})
+                messages.append({"role": "assistant", "content": action_result})
                 continue
 
             # Check if live web search is needed
