@@ -40,6 +40,7 @@ if sys.platform == "win32":
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 MEMORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "memory.json")
+KNOWLEDGE_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "knowledge_cache.json")
 
 DEFAULT_MEMORY = {
     "user_name": "Tharika",
@@ -156,6 +157,109 @@ def search_web(query: str, max_results: int = 3) -> str:
         return ""
 
 
+# ==========================================
+# 2. KNOWLEDGE CACHE & IDENTITY GUARD
+# ==========================================
+def load_knowledge_cache() -> dict:
+    """
+    Loads persistent knowledge cache from knowledge_cache.json.
+    """
+    if not os.path.exists(KNOWLEDGE_CACHE_FILE):
+        return {}
+    try:
+        with open(KNOWLEDGE_CACHE_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_knowledge_cache(cache: dict) -> None:
+    """
+    Saves the knowledge cache to knowledge_cache.json.
+    """
+    try:
+        with open(KNOWLEDGE_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(cache, f, indent=2, ensure_ascii=False)
+    except Exception as err:
+        print(f"\n[!] Warning: Failed to save knowledge cache: {err}")
+
+
+def find_cached_knowledge(user_text: str, cache: dict) -> tuple[bool, str]:
+    """
+    Checks if the user query matches any learned topic in knowledge_cache.json.
+    Returns (found, summary).
+    """
+    if not cache:
+        return False, ""
+
+    clean_query = re.sub(r"[^\w\s]", " ", user_text.lower()).strip()
+    query_words = set(clean_query.split())
+
+    for key, data in cache.items():
+        clean_key = re.sub(r"[^\w\s]", " ", key.lower()).strip()
+        topic = re.sub(r"[^\w\s]", " ", data.get("topic", "").lower()).strip()
+
+        # Direct phrase match in query
+        if clean_key and clean_key in clean_query:
+            return True, data.get("summary", "")
+        if topic and topic in clean_query:
+            return True, data.get("summary", "")
+
+        # Key words subset check (e.g. key='tn cm', query='who is the tn cm now')
+        key_words = set(clean_key.split())
+        if key_words and key_words.issubset(query_words):
+            return True, data.get("summary", "")
+
+    return False, ""
+
+
+def add_to_knowledge_cache(query: str, answer: str) -> None:
+    """
+    Caches a newly searched fact into knowledge_cache.json for future instant lookup.
+    """
+    if not answer or len(answer.strip()) < 10:
+        return
+
+    # Normalize query into a concise topic key
+    clean = re.sub(r"^(who is|what is|tell me about|how is|which is|search for|latest|current)\s+", "", query.lower().strip())
+    clean = re.sub(r"[^\w\s]", " ", clean).strip()
+    key = clean if clean else query.lower()[:30]
+
+    cache = load_knowledge_cache()
+    from datetime import date
+    cache[key] = {
+        "topic": query.strip(),
+        "summary": answer.strip(),
+        "updated_at": str(date.today()),
+    }
+    save_knowledge_cache(cache)
+
+
+def is_identity_query(user_text: str) -> bool:
+    """
+    Returns True if the query asks about the user, assistant creator, or boss identity.
+    Prevents accidental web searches for personal identity queries.
+    """
+    lower = user_text.lower().strip()
+
+    # Boss / Creator words (substring matching catches typos and compound words)
+    boss_indicators = ("boss", "creator", "created", "developer", "master", "owner", "maker", "made you", "programmed you")
+    if any(b in lower for b in boss_indicators):
+        return True
+
+    # User identity phrases
+    user_phrases = ("who am i", "my name", "about me", "my college", "my project", "my degree", "what is my name", "do you know me")
+    if any(phrase in lower for phrase in user_phrases):
+        return True
+
+    # Assistant identity phrases
+    asst_phrases = ("who are you", "what are you", "what is your name", "your name", "tell me about yourself")
+    if any(phrase in lower for phrase in asst_phrases):
+        return True
+
+    return False
+
+
 def should_trigger_search(user_text: str) -> tuple[bool, str]:
     """
     Determines if the user's input asks for current/real-time information
@@ -163,6 +267,10 @@ def should_trigger_search(user_text: str) -> tuple[bool, str]:
     Returns (needs_search, search_query).
     """
     cleaned = user_text.strip()
+
+    # Never trigger web search for identity or personal queries
+    if is_identity_query(cleaned):
+        return False, ""
 
     # Explicit command trigger: /search <query> or search: <query>
     if cleaned.lower().startswith("/search "):
@@ -197,16 +305,6 @@ def should_trigger_search(user_text: str) -> tuple[bool, str]:
     ]
 
     lower = cleaned.lower()
-
-    # Never trigger web search for assistant identity or user identity queries
-    personal_keywords = [
-        "your boss", "your creator", "your developer", "your master", "your owner", "your maker",
-        "who are you", "who am i", "my name", "about me", "my college", "my project",
-        "who made you", "who built you", "who programmed you"
-    ]
-    if any(pk in lower for pk in personal_keywords):
-        return False, ""
-
     for pattern in triggers:
         if re.search(pattern, lower):
             return True, cleaned

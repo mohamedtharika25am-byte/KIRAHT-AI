@@ -53,11 +53,20 @@ A local, intelligent AI assistant inspired by Iron Man's J.A.R.V.I.S. Powered by
 | Command | Description |
 | :--- | :--- |
 | `/memory` | View your saved profile and personality directives in `memory.json`. |
+| `/knowledge` | View self-learned facts saved in `knowledge_cache.json`. |
 | `/callme <title>` | Change what KIRAHT calls you (e.g. `/callme Boss` or `/callme Sir`). |
 | `/name <name>` | Update your registered user name in `memory.json`. |
 | `/search <query>` | Explicitly force a real-time web search for any query. |
 | `/clear` | Clear the current conversation history while keeping system instructions intact. |
 | `exit` / `quit` / `bye` | Gracefully shut down the assistant. |
+
+---
+
+## 🧠 Self-Learning Knowledge Cache
+
+When KIRAHT searches the web for current facts (e.g., "who is the current tn cm?"), it automatically saves the fact into `knowledge_cache.json`.
+- **Sub-Second Speed**: On future questions on the same topic, KIRAHT answers instantly (`⚡ Retrieved from Local Knowledge Cache`) without waiting for web search.
+- **100% Offline Ready**: Cached facts remain available even when disconnected from the internet.
 
 ---
 
@@ -84,6 +93,7 @@ KIRAHT AI/
 ├── main.py              # Main J.A.R.V.I.S. logic, streaming, search, and chat loop
 ├── tools.py             # Windows PC automation engine (Apps, Hardware, Audio)
 ├── memory.json          # Persistent user profile and memory
+├── knowledge_cache.json # Self-learned persistent fact cache
 ├── .env                 # Local configuration (model name, Ollama host)
 ├── .env.example         # Example template for .env
 ├── .gitignore           # Git ignore rules
