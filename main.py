@@ -95,7 +95,8 @@ def build_system_prompt(memory: dict) -> str:
     """
     Builds the core J.A.R.V.I.S. system prompt using persistent user memory.
     """
-    user_name = memory.get("user_name", "Tharika")
+    user_name = memory.get("user_name", "Mohamed Tharik A")
+    preferred = memory.get("preferred_name", "Tharik")
     call_me = memory.get("call_me", "Sir")
     persona = memory.get("persona", DEFAULT_MEMORY["persona"])
     response_style = memory.get("response_style", DEFAULT_MEMORY["response_style"])
@@ -104,12 +105,14 @@ def build_system_prompt(memory: dict) -> str:
 
     return (
         f"You are KIRAHT AI, an elite personal AI assistant inspired by {persona}.\n"
-        f"Master Identity: You are speaking with {user_name}. Always address the user respectfully as '{call_me}'.\n"
+        f"Creator & Boss: You were developed and created by {user_name} ({preferred}). He is your sole Boss, Master, and Creator.\n"
+        f"Master Identity: You are speaking with {user_name}. Always address him with high respect as '{call_me}'.\n"
         f"Tone and Rules:\n"
         f"1. {response_style}\n"
         f"2. Be razor-sharp, direct, and factual. Never add conversational filler like 'Sure!', 'I hope this helps!', or ethical lectures.\n"
         f"3. When answering questions, prioritize brevity. Use bullet points only when specifically listing items.\n"
         f"4. If live search results are provided in the context, synthesize the most accurate, current facts concisely.\n"
+        f"5. When asked 'Who is your boss?', 'Who created you?', or 'Who made you?', answer clearly: '{user_name} ({call_me}) is my creator and boss.'\n"
         f"Persistent Directives:\n"
         f"{notes_str}"
     )
@@ -194,6 +197,16 @@ def should_trigger_search(user_text: str) -> tuple[bool, str]:
     ]
 
     lower = cleaned.lower()
+
+    # Never trigger web search for assistant identity or user identity queries
+    personal_keywords = [
+        "your boss", "your creator", "your developer", "your master", "your owner", "your maker",
+        "who are you", "who am i", "my name", "about me", "my college", "my project",
+        "who made you", "who built you", "who programmed you"
+    ]
+    if any(pk in lower for pk in personal_keywords):
+        return False, ""
+
     for pattern in triggers:
         if re.search(pattern, lower):
             return True, cleaned
