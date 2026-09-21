@@ -292,10 +292,18 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
 
             # Command: /memory
             if user_input.lower() == "/memory":
+                profile = memory.get("user_profile", {})
+                edu = profile.get("education", {})
                 print(f"\n[Persistent Memory Profile]")
-                print(f"  Name: {memory.get('user_name')}")
+                print(f"  Name: {memory.get('user_name')} ({profile.get('preferred_name', 'Tharik')})")
                 print(f"  Title: {memory.get('call_me')}")
-                print(f"  Personality: {memory.get('persona')}")
+                if edu:
+                    print(f"  Education: {edu.get('degree')} - {edu.get('specialization')} ({edu.get('year')})")
+                    print(f"  College: {edu.get('college')}")
+                projects = profile.get("projects", [])
+                if projects:
+                    proj_names = ", ".join(p.get("name") for p in projects)
+                    print(f"  Projects: {proj_names}")
                 print(f"  Style: {memory.get('response_style')}")
                 continue
 
