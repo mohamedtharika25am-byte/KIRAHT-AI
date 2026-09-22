@@ -43,7 +43,7 @@ MEMORY_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "memory.j
 KNOWLEDGE_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "knowledge_cache.json")
 
 DEFAULT_MEMORY = {
-    "user_name": "Tharika",
+    "user_name": "Tharik",
     "call_me": "Sir",
     "assistant_name": "KIRAHT AI",
     "persona": "J.A.R.V.I.S. - polite, razor-sharp, direct, and intelligent",
@@ -103,9 +103,12 @@ def build_system_prompt(memory: dict) -> str:
     response_style = memory.get("response_style", DEFAULT_MEMORY["response_style"])
     notes = memory.get("custom_notes", [])
     notes_str = "\n".join(f"- {n}" for n in notes)
+    import datetime
+    current_dt = datetime.datetime.now().strftime("%A, %d %B %Y %I:%M %p")
 
     return (
         f"You are KIRAHT AI, an elite personal AI assistant inspired by {persona}.\n"
+        f"Current System Time: {current_dt}\n"
         f"Creator & Boss: You were developed and created by {user_name} ({preferred}). He is your sole Boss, Master, and Creator.\n"
         f"Master Identity: You are speaking with {user_name}. Always address him with high respect as '{call_me}'.\n"
         f"Tone and Rules:\n"
@@ -416,6 +419,8 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
     print(f"\nkiraht AI: Online and ready, {call_me}. How may I assist you?")
 
     messages = [{"role": "system", "content": system_prompt}]
+    last_system_command = ""
+    last_chat_prompt = ""
 
     while True:
         try:
@@ -423,6 +428,18 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
 
             if not user_input:
                 continue
+
+            # Check for repeat / again / now command
+            if user_input.lower() in ("again", "now", "repeat", "once more", "one more time", "/again"):
+                if last_system_command:
+                    print(f"\n[KIRAHT AI: 🔄 Repeating last command: '{last_system_command}']")
+                    user_input = last_system_command
+                elif last_chat_prompt:
+                    print(f"\n[KIRAHT AI: 🔄 Re-explaining with fresh clarity: '{last_chat_prompt}']")
+                    user_input = f"Provide a fresh, simpler explanation or alternative practical perspective on: {last_chat_prompt}"
+                else:
+                    print(f"\nkiraht AI: No previous command or question to repeat, {call_me}.")
+                    continue
 
             # Check for exit
             if user_input.lower() in ("exit", "quit", "bye"):
@@ -510,6 +527,8 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
                 print(f"\nkiraht AI: {action_result}")
                 messages.append({"role": "user", "content": user_input})
                 messages.append({"role": "assistant", "content": action_result})
+                last_system_command = user_input
+                last_chat_prompt = ""
                 continue
 
             # Check if live web search is needed
@@ -537,6 +556,8 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
             # Add to messages history
             # In history, store the user's prompt (with search context for this turn)
             messages.append({"role": "user", "content": prompt_content})
+            last_chat_prompt = user_input
+            last_system_command = ""
 
             # Stream generation with low temperature for concise, direct responses
             try:

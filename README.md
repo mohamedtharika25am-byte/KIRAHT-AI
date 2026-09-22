@@ -74,12 +74,15 @@ KIRAHT AI executes local Windows operations instantly (sub-100ms) right from the
 | **File Size & Info** | `size of main.py`, `file_tools.py size enna`, `info of memory.json` | Shows file size (Bytes, KB, MB), total lines, location, and modified date. |
 | **Open File in Editor** | `open main.py`, `open file memory.json` | Opens files directly in Visual Studio Code (`code <file>`) or default editor. |
 | **Directory & Code Explorer** | `list files`, `read requirements.txt`, `explain file_tools.py` | Lists workspace files and streams code into terminal or LLM context for review. |
+| **Precision Audio** | `vol 50`, `set volume 70`, `vol up`, `vol down`, `increase volume by 15` | Sets exact volume (0-100%) or adjusts by default ±10% or custom delta via Windows Core Audio. |
+| **Repeat / Dispatcher** | `again`, `now`, `repeat`, `once more` | Re-executes last system command (battery, time, wifi) or re-explains previous chat topic. |
+| **Time & Date** | `time`, `what is the time`, `today date`, `current date` | Reports live system clock, day of the week, and formatted date. |
+| **Screen Capture** | `take screenshot`, `screen shot`, `capture screen` | Fast native Windows screen capture saved to `Pictures\Screenshots` (0.05s). |
+| **Quick Notes** | `note: meeting at 4pm`, `show notes`, `clear notes` | Local quick notepad for developer tasks and ideas saved in `notes.json`. |
+| **Network & Ping** | `wifi status`, `ping`, `check ping`, `network latency` | Reports Wi-Fi SSID/signal quality and tests latency. |
+| **System Maintenance** | `empty recycle bin`, `lock pc`, `battery status` | Empties Recycle Bin, locks workstation, or reports battery with low-battery alerts. |
 | **Clipboard Access** | `clipboard`, `copy <text>`, `clear clipboard` | Reads, copies, or clears text on the Windows clipboard. |
 | **Terminal & Dev Runner** | `run git status`, `run python file_tools.py`, `pip list` | Runs terminal commands and captures output with safety guardrails. |
-| **Screen Capture** | `take screenshot`, `screenshot` | Captures screen and saves to `Pictures\Screenshots` with timestamp. |
-| **Network & Wi-Fi** | `wifi`, `wifi status`, `network status` | Reports active Wi-Fi SSID, connection state, and signal quality percentage. |
-| **System Maintenance** | `empty recycle bin`, `lock pc`, `battery status` | Empties Recycle Bin, locks workstation, or reports battery and CPU/RAM metrics. |
-| **Audio Controls** | `mute`, `unmute`, `volume up`, `volume down` | Controls master system volume via Windows APIs. |
 | **Web & Media** | `open youtube and search AR Rahman`, `open github`, `open gmail` | Launches URLs or searches directly in default browser. |
 
 ---
