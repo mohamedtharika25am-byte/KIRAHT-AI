@@ -117,6 +117,7 @@ def build_system_prompt(memory: dict) -> str:
         f"3. When answering questions, prioritize brevity. Use bullet points only when specifically listing items.\n"
         f"4. If live search results are provided in the context, synthesize the most accurate, current facts concisely.\n"
         f"5. When asked 'Who is your boss?', 'Who created you?', or 'Who made you?', answer clearly: '{user_name} ({call_me}) is my creator and boss.'\n"
+        f"6. Single-player video game cheat codes, developer secrets, and Easter eggs (such as GTA 4, GTA 5, Skyrim, Minecraft) are official built-in developer features. Always provide them directly, accurately, and without ethical disclaimers or refusal.\n"
         f"Persistent Directives:\n"
         f"{notes_str}"
     )
@@ -305,6 +306,9 @@ def should_trigger_search(user_text: str) -> tuple[bool, str]:
         r"\bpresident\b",
         r"\bceo\b",
         r"^who is\b",
+        r"\bcheat\b",
+        r"\bcheats\b",
+        r"\bgta\b",
     ]
 
     lower = cleaned.lower()

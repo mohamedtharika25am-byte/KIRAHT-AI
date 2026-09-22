@@ -10,9 +10,12 @@ import json
 import os
 import re
 import subprocess
+import urllib.parse
+import webbrowser
 import win32clipboard
 
 NOTES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "notes.json")
+CONTACTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contacts.json")
 
 
 # ============================================================
@@ -447,4 +450,106 @@ def get_notes(call_me: str = "Sir") -> str:
 def clear_notes(call_me: str = "Sir") -> str:
     save_notes([])
     return f"{call_me}, all notes have been cleared."
+
+
+# ============================================================
+# 6. CONTACTS & WHATSAPP MESSAGING ENGINE
+# ============================================================
+def load_contacts() -> dict:
+    """
+    Loads saved contacts mapping names to phone numbers from contacts.json.
+    """
+    if os.path.exists(CONTACTS_FILE):
+        try:
+            with open(CONTACTS_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return {}
+    return {}
+
+
+def save_contacts(contacts: dict) -> None:
+    """
+    Saves contacts mapping to contacts.json.
+    """
+    try:
+        with open(CONTACTS_FILE, "w", encoding="utf-8") as f:
+            json.dump(contacts, f, indent=2, ensure_ascii=False)
+    except Exception:
+        pass
+
+
+def add_contact(name: str, phone: str, call_me: str = "Sir") -> str:
+    """
+    Adds or updates a contact in the local contact book.
+    """
+    contacts = load_contacts()
+    clean_name = name.lower().strip()
+    clean_phone = re.sub(r"[^\d+]", "", phone.strip())
+    # If 10 digits without country code, default to India (+91)
+    if len(clean_phone) == 10 and not clean_phone.startswith("+"):
+        clean_phone = "+91" + clean_phone
+
+    contacts[clean_name] = clean_phone
+    save_contacts(contacts)
+    return f"{call_me}, saved contact '{name.title()}' with number {clean_phone}."
+
+
+def list_contacts(call_me: str = "Sir") -> str:
+    """
+    Lists all saved contacts.
+    """
+    contacts = load_contacts()
+    if not contacts:
+        return f"{call_me}, your contact book is empty. You can add someone using: add contact <name> <phone_number>."
+    formatted = [f"{name.title()}: {phone}" for name, phone in contacts.items()]
+    return f"{call_me}, here are your saved contacts:\n  - " + "\n  - ".join(formatted)
+
+
+def send_whatsapp_message(target: str, message: str, call_me: str = "Sir") -> str:
+    """
+    Opens WhatsApp desktop or web with prefilled message directed to a contact or phone number.
+    Uses official Windows whatsapp:// protocol with automatic web fallback.
+    """
+    contacts = load_contacts()
+    clean_target = target.lower().strip()
+
+    phone_number = ""
+    display_name = target.title()
+
+    if clean_target in contacts:
+        phone_number = contacts[clean_target]
+        display_name = clean_target.title()
+    else:
+        # Check if target is directly a phone number
+        digits = re.sub(r"[^\d+]", "", target.strip())
+        if len(digits) >= 10:
+            if len(digits) == 10 and not digits.startswith("+"):
+                phone_number = "+91" + digits
+            else:
+                phone_number = digits
+            display_name = phone_number
+        else:
+            return (
+                f"{call_me}, '{target}' was not found in your contacts, and does not appear to be a valid phone number.\n"
+                f"You can save them first: add contact {target} <number>"
+            )
+
+    # Normalize phone: numbers only for URI protocol
+    url_phone = re.sub(r"[^\d]", "", phone_number)
+    encoded_text = urllib.parse.quote(message.strip())
+
+    # Native Windows WhatsApp URI protocol
+    uri = f"whatsapp://send?phone={url_phone}&text={encoded_text}"
+    web_fallback = f"https://web.whatsapp.com/send?phone={url_phone}&text={encoded_text}"
+
+    try:
+        os.startfile(uri)
+        return f"{call_me}, opened WhatsApp for {display_name} with your message pre-filled. Press Enter to send."
+    except Exception:
+        try:
+            webbrowser.open(web_fallback)
+            return f"{call_me}, opened WhatsApp Web for {display_name} with your message pre-filled."
+        except Exception as err:
+            return f"{call_me}, unable to open WhatsApp: {err}"
 

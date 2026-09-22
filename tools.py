@@ -56,6 +56,9 @@ from system_tools import (
     add_note,
     get_notes,
     clear_notes,
+    add_contact,
+    list_contacts,
+    send_whatsapp_message,
 )
 
 # Virtual-Key codes for Windows user32 keybd_event fallback
@@ -334,12 +337,25 @@ def get_system_stats(call_me: str = "Sir") -> str:
 
 def close_app(app_name: str, call_me: str = "Sir") -> str:
     """
-    Terminates a running application by process name using Windows taskkill.
+    Terminates a running application by process name using alias resolution,
+    fuzzy matching, and dynamic process inspection via psutil.
     """
     clean_name = app_name.lower().strip()
+    # 1. Resolve known aliases (e.g. chatgbt -> chatgpt, vs code -> vscode)
+    clean_name = APP_ALIASES.get(clean_name, clean_name)
+
+    # 2. Fuzzy match against PROCESS_NAMES or APP_ALIASES
+    if clean_name not in PROCESS_NAMES:
+        candidate_keys = list(PROCESS_NAMES.keys()) + list(APP_ALIASES.keys())
+        close_keys = difflib.get_close_matches(clean_name, candidate_keys, n=1, cutoff=0.55)
+        if close_keys:
+            resolved = close_keys[0]
+            clean_name = APP_ALIASES.get(resolved, resolved)
+
     target_procs = PROCESS_NAMES.get(clean_name, [f"{clean_name}.exe"])
     closed_any = False
 
+    # 3. Direct taskkill attempt on target process names
     for proc in target_procs:
         try:
             res = subprocess.run(
@@ -352,8 +368,30 @@ def close_app(app_name: str, call_me: str = "Sir") -> str:
         except Exception:
             continue
 
+    # 4. Dynamic inspection via psutil for matching processes
+    if not closed_any:
+        try:
+            for p in psutil.process_iter(["pid", "name"]):
+                try:
+                    p_name = (p.info.get("name") or "").lower()
+                    if clean_name in p_name or any(tp.lower() in p_name for tp in target_procs):
+                        p.terminate()
+                        closed_any = True
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+        except Exception:
+            pass
+
     if closed_any:
         return f"{call_me}, {clean_name.title()} has been closed."
+
+    # 5. Helpful guidance if it is a known web application running in a browser tab
+    if clean_name in ("chatgpt", "chatgbt", "youtube", "github", "gmail", "linkedin", "twitter") or clean_name in WEB_SITES:
+        return (
+            f"{call_me}, no standalone desktop process found for '{clean_name.title()}'.\n"
+            f"If it is currently open inside your web browser, please close that browser tab."
+        )
+
     return f"{call_me}, no active process found for {clean_name.title()}."
 
 
@@ -597,20 +635,56 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         target_folder = folder_match.group(1).strip()
         return True, open_folder(target_folder, call_me=call_me)
 
-    # 20. Close Application
+    # 20. Contacts & WhatsApp Messaging Engine
+    contact_add_match = re.search(
+        r"^(?:please\s+)?(?:add\s+contact|save\s+contact)\s+([a-zA-Z0-9_\s]+?)\s+([+0-9\s\-]+)$",
+        user_text.strip(),
+        re.IGNORECASE,
+    )
+    if contact_add_match:
+        c_name = contact_add_match.group(1).strip()
+        c_phone = contact_add_match.group(2).strip()
+        return True, add_contact(c_name, c_phone, call_me)
+
+    if re.search(r"\b(list contacts|show contacts|view contacts|contacts list|my contacts)\b", cleaned):
+        return True, list_contacts(call_me)
+
+    wa_match = (
+        re.search(
+            r"^(?:please\s+)?(?:send\s+(?:a\s+)?(?:whatsapp\s+)?(?:message|msg)\s+to|send\s+whatsapp\s+to|whatsapp)\s+([a-zA-Z0-9_\+]+)\s+(?:saying|msg|message|text|that|:)\s+(.+)$",
+            user_text.strip(),
+            re.IGNORECASE,
+        )
+        or re.search(
+            r"^(?:please\s+)?(?:send\s+msg\s+to|send\s+message\s+to)\s+([a-zA-Z0-9_\+]+)\s+on\s+whatsapp\s*(?::|saying|that)?\s*(.+)$",
+            user_text.strip(),
+            re.IGNORECASE,
+        )
+        or re.search(
+            r"^(?:please\s+)?whatsapp\s+([a-zA-Z0-9_\+]+)\s*:\s*(.+)$",
+            user_text.strip(),
+            re.IGNORECASE,
+        )
+    )
+    if wa_match:
+        recipient = wa_match.group(1).strip()
+        msg_text = wa_match.group(2).strip()
+        return True, send_whatsapp_message(recipient, msg_text, call_me)
+
+    # 21. Close Application
     close_match = re.search(r"^(?:please\s+)?(?:close|kill|quit|terminate)\s+([a-zA-Z0-9\s]+)\b", cleaned)
     if close_match:
         app_to_close = close_match.group(1).strip()
         return True, close_app(app_to_close, call_me=call_me)
 
-    # 21. Open File in Editor (e.g. "open main.py", "open file memory.json")
+    # 22. Open File in Editor (e.g. "open main.py", "open file memory.json")
     open_file_match = re.search(r"^(?:please\s+)?open\s+(?:file\s+)?([a-zA-Z0-9_\-\./\\]+)\b", cleaned)
     if open_file_match:
         target_item = open_file_match.group(1).strip()
         if is_file_target(target_item):
             return True, open_file_in_editor(target_item, call_me)
 
-    # 22. Open Desktop Application (Native Laptop App First, with Browser Fallback)
+    # 23. Open Desktop Application (Native Laptop App First, with Browser Fallback)
     open_app_match = re.search(r"^(?:please\s+)?(?:open|launch|start|run)\s+([a-zA-Z0-9\s\-]+)\b", cleaned)
     if open_app_match:
         app_to_open = open_app_match.group(1).strip()

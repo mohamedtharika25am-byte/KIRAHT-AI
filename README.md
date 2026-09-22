@@ -70,7 +70,10 @@ KIRAHT AI executes local Windows operations instantly (sub-100ms) right from the
 
 | Action Category | Example Commands | Description |
 | :--- | :--- | :--- |
+| **WhatsApp Messaging** | `send whatsapp to rahul saying I will be late`, `whatsapp mom: reach home safely`, `whatsapp +919876543210 msg: check this` | Directly focuses WhatsApp desktop with contact chat and prefilled message via Windows URI scheme. |
+| **Contacts Book** | `add contact rahul 9876543210`, `list contacts` | Manages local contact book saved securely in `contacts.json`. |
 | **Desktop App Launcher** | `open whatsapp`, `open chatgpt`, `open android studio`, `open vs code`, `open cursor` | Automatically launches **native Windows desktop applications** (170+ apps indexed). |
+| **Intelligent App Closer** | `close chatgbt`, `close spotify`, `close notepad` | Terminates processes with fuzzy matching, alias resolution, and browser tab guidance. |
 | **File Size & Info** | `size of main.py`, `file_tools.py size enna`, `info of memory.json` | Shows file size (Bytes, KB, MB), total lines, location, and modified date. |
 | **Open File in Editor** | `open main.py`, `open file memory.json` | Opens files directly in Visual Studio Code (`code <file>`) or default editor. |
 | **Directory & Code Explorer** | `list files`, `read requirements.txt`, `explain file_tools.py` | Lists workspace files and streams code into terminal or LLM context for review. |

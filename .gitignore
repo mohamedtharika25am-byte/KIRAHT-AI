@@ -26,5 +26,6 @@ Thumbs.db
 # Machine-specific application cache
 apps_cache.json
 
-# Local user notes
+# Local user notes & personal contacts
 notes.json
+contacts.json
