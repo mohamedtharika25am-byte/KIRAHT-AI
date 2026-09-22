@@ -312,6 +312,34 @@ def should_trigger_search(user_text: str) -> tuple[bool, str]:
     return False, ""
 
 
+def check_file_context(user_text: str) -> str:
+    """
+    If the user asks to explain, review, or debug a workspace file,
+    reads the initial lines of that file and returns context for the LLM.
+    """
+    lower = user_text.lower()
+    keywords = ("explain", "review", "analyze", "what does", "check", "debug", "fix", "summarize", "look at")
+    if not any(k in lower for k in keywords):
+        return ""
+
+    workspace_dir = os.path.dirname(os.path.abspath(__file__))
+    try:
+        entries = os.listdir(workspace_dir)
+        for entry in entries:
+            if entry.startswith(".") or entry in ("__pycache__", "apps_cache.json"):
+                continue
+            if entry.lower() in lower:
+                filepath = os.path.join(workspace_dir, entry)
+                if os.path.isfile(filepath):
+                    with open(filepath, "r", encoding="utf-8", errors="replace") as f:
+                        lines = [f.readline() for _ in range(80)]
+                        snippet = "".join(lines).rstrip()
+                    return f"[Workspace Code Context for '{entry}' ({len(lines)} lines)]:\n{snippet}\n\n"
+    except Exception:
+        pass
+    return ""
+
+
 # ==========================================
 # 3. OLLAMA CLIENT & INITIALIZATION
 # ==========================================
@@ -382,8 +410,8 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
     print("=" * 60)
     print(f"  KIRAHT AI — J.A.R.V.I.S. Edition")
     print(f"  Model: {model}  |  Status: {status_icon}")
-    print(f"  Laptop Tools: Active (Apps, Battery, Volume, Web, Folders)")
-    print(f"  Commands: /memory, /callme <title>, /name <name>, /search <query>, /clear, exit")
+    print(f"  Laptop Tools: Active (Apps, Files, Clipboard, Terminal, Screenshot, Wi-Fi, Hardware)")
+    print(f"  Commands: /memory, /callme <title>, /name <name>, /scan_apps, /search <query>, /clear, exit")
     print("=" * 60)
     print(f"\nkiraht AI: Online and ready, {call_me}. How may I assist you?")
 
@@ -448,7 +476,35 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
                 print(f"\nkiraht AI: Conversation context cleared, {call_me}.")
                 continue
 
-            # Check for laptop / OS operation commands
+            # Command: /scan_apps
+            if user_input.lower() in ("/scan_apps", "/scanapps", "scan apps"):
+                from tools import scan_installed_apps
+                print(f"\n[KIRAHT AI: Scanning installed applications on your laptop...]")
+                apps = scan_installed_apps()
+                print(f"\nkiraht AI: Scanned and indexed {len(apps)} installed desktop apps into apps_cache.json, {call_me}.")
+                continue
+
+            # Intent: Create file with content (with safety confirmation guardrail)
+            create_file_match = re.search(
+                r"^create\s+file\s+([a-zA-Z0-9_\-\./\\]+)\s+with\s+(.+)$",
+                user_input,
+                re.DOTALL | re.IGNORECASE,
+            )
+            if create_file_match:
+                target_name = create_file_match.group(1).strip()
+                new_code = create_file_match.group(2).strip()
+                confirm = input(f"\nkiraht AI: Sir, are you sure you want to write to '{target_name}'? (y/n): ").strip().lower()
+                if confirm in ("y", "yes"):
+                    from file_tools import safe_create_or_modify_file
+                    res = safe_create_or_modify_file(target_name, new_code, call_me=call_me)
+                    print(f"\nkiraht AI: {res}")
+                    messages.append({"role": "user", "content": user_input})
+                    messages.append({"role": "assistant", "content": res})
+                else:
+                    print(f"\nkiraht AI: Operation cancelled, {call_me}. '{target_name}' was not modified.")
+                continue
+
+            # Check for laptop / OS operation commands (Desktop Apps, Files, Hardware)
             handled, action_result = execute_system_command(user_input, call_me)
             if handled:
                 print(f"\nkiraht AI: {action_result}")
@@ -472,6 +528,11 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
                         )
                 else:
                     print(f"\n[KIRAHT AI: 📴 Offline mode — relying on internal knowledge]")
+
+            # Check if workspace file code context should be injected
+            file_context = check_file_context(user_input)
+            if file_context and prompt_content == user_input:
+                prompt_content = f"{file_context}[User Question]:\n{user_input}"
 
             # Add to messages history
             # In history, store the user's prompt (with search context for this turn)
