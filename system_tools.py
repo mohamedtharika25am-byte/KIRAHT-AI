@@ -15,9 +15,12 @@ import subprocess
 import urllib.parse
 import webbrowser
 import win32clipboard
+import threading
+import time
 
 NOTES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "notes.json")
 CONTACTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contacts.json")
+WHATSAPP_CONTACTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "whatsapp_contacts.json")
 
 
 # ============================================================
@@ -516,6 +519,78 @@ def load_contacts() -> dict:
     return flat
 
 
+def load_all_groups() -> dict:
+    """
+    Loads all WhatsApp groups from whatsapp_contacts.json and contacts.json.
+    Returns mapping of normalized_name -> {"raw_name": ..., "jid": ..., "clean_name": ..., "display": ...}
+    """
+    groups_map = {}
+
+    # 1. Load from whatsapp_contacts.json
+    if os.path.exists(WHATSAPP_CONTACTS_FILE):
+        try:
+            with open(WHATSAPP_CONTACTS_FILE, "r", encoding="utf-8") as f:
+                wa_data = json.load(f)
+                wa_groups = wa_data.get("groups", {})
+                for raw_name, jid in wa_groups.items():
+                    clean = re.sub(r"[^\w\s]", " ", raw_name).strip().lower()
+                    clean = re.sub(r"\s+", " ", clean).strip()
+                    if clean:
+                        groups_map[clean] = {
+                            "raw_name": raw_name,
+                            "jid": jid,
+                            "clean_name": clean,
+                            "display": clean.title(),
+                        }
+        except Exception:
+            pass
+
+    # 2. Load from contacts.json
+    try:
+        data = load_contacts_data()
+        for gname, gid in data.get("groups", {}).items():
+            clean = re.sub(r"[^\w\s]", " ", gname).strip().lower()
+            clean = re.sub(r"\s+", " ", clean).strip()
+            if clean and clean not in groups_map:
+                groups_map[clean] = {
+                    "raw_name": gname,
+                    "jid": gid,
+                    "clean_name": clean,
+                    "display": clean.title(),
+                }
+    except Exception:
+        pass
+
+    return groups_map
+
+
+def resolve_group(query: str) -> tuple[dict | None, list]:
+    """
+    Finds a group from loaded groups by clean name, substring, or fuzzy match.
+    Returns: (group_info_dict_or_None, list_of_related_group_dicts)
+    """
+    groups = load_all_groups()
+    clean_q = re.sub(r"[^\w\s]", " ", query).strip().lower()
+    clean_q = re.sub(r"\s+", " ", clean_q).strip()
+
+    if not clean_q:
+        return None, []
+
+    # 1. Exact match
+    if clean_q in groups:
+        return groups[clean_q], []
+
+    # 2. Prefix or Substring match
+    for k, info in groups.items():
+        if clean_q == k or k.startswith(clean_q + " ") or clean_q in k:
+            return info, []
+
+    # 3. Fuzzy match for Related Groups
+    close = difflib.get_close_matches(clean_q, list(groups.keys()), n=4, cutoff=0.35)
+    related = [groups[c] for c in close if c in groups]
+    return None, related
+
+
 def resolve_contact(query: str) -> tuple[str | None, str, list]:
     """
     Resolves a name, alias, or query to a phone number or group ID.
@@ -693,36 +768,90 @@ def import_google_contacts_csv(filepath: str = "googlecontacts.csv", call_me: st
         return f"{call_me}, failed to import contacts from {filepath}: {err}"
 
 
-def send_whatsapp_message(target: str, message: str, call_me: str = "Sir", is_group: bool = False) -> str:
+VK_CONTROL = 0x11
+VK_F = 0x46
+VK_V = 0x56
+VK_RETURN = 0x0D
+
+def _press_key(vk: int):
+    ctypes.windll.user32.keybd_event(vk, 0, 0, 0)
+    time.sleep(0.05)
+    ctypes.windll.user32.keybd_event(vk, 0, 2, 0)
+
+def _hotkey_ctrl(vk: int):
+    ctypes.windll.user32.keybd_event(VK_CONTROL, 0, 0, 0)
+    time.sleep(0.05)
+    ctypes.windll.user32.keybd_event(vk, 0, 0, 0)
+    time.sleep(0.05)
+    ctypes.windll.user32.keybd_event(vk, 0, 2, 0)
+    time.sleep(0.05)
+    ctypes.windll.user32.keybd_event(VK_CONTROL, 0, 2, 0)
+
+def _set_clipboard_text(text: str):
+    try:
+        subprocess.run("clip", input=text.encode("utf-16le"), check=True)
+    except Exception:
+        pass
+
+def _delayed_press_enter(delay: float = 2.0):
+    time.sleep(delay)
+    _press_key(VK_RETURN)
+
+def dispatch_whatsapp_group(group_search_term: str, message: str, auto_send: bool = True):
     """
-    Opens WhatsApp desktop or web with prefilled message directed to a contact or phone number.
-    Uses official Windows whatsapp:// protocol with automatic web fallback.
+    Opens WhatsApp Desktop, searches for group name, focuses chat, pastes message, and optionally sends.
     """
-    data = load_contacts_data()
-    groups = data.get("groups", {})
-    clean_target = target.lower().strip()
+    try:
+        os.startfile("whatsapp://")
+    except Exception:
+        pass
+    time.sleep(1.0)
 
-    # Check if this is a group
-    if is_group or clean_target in groups or str(target).endswith("@g.us"):
-        display_group = groups.get(clean_target, target.title())
-        # Auto-register group name if not already saved
-        if clean_target not in groups:
-            data.setdefault("groups", {})[clean_target] = display_group
-            save_contacts_data(data)
+    # Focus search bar (Ctrl + F)
+    _hotkey_ctrl(VK_F)
+    time.sleep(0.4)
 
-        encoded_text = urllib.parse.quote(message.strip())
-        uri = f"whatsapp://send?text={encoded_text}"
-        web_fallback = f"https://web.whatsapp.com/"
-        try:
-            os.startfile(uri)
-            return f"{call_me}, opened WhatsApp Desktop with message '{message}' pre-filled for group '{display_group}'. Select '{display_group}' and press Send."
-        except Exception:
-            try:
-                webbrowser.open(web_fallback)
-                return f"{call_me}, opened WhatsApp Web for group '{display_group}'. Select '{display_group}' and send."
-            except Exception as err:
-                return f"{call_me}, unable to open WhatsApp: {err}"
+    # Paste group search term
+    _set_clipboard_text(group_search_term)
+    _hotkey_ctrl(VK_V)
+    time.sleep(0.7)
 
+    # Press Enter to open the group chat
+    _press_key(VK_RETURN)
+    time.sleep(0.6)
+
+    # Paste message
+    _set_clipboard_text(message)
+    _hotkey_ctrl(VK_V)
+    time.sleep(0.4)
+
+    # If auto-send, press Enter
+    if auto_send:
+        time.sleep(0.2)
+        _press_key(VK_RETURN)
+
+
+def send_whatsapp_message(target: str, message: str, call_me: str = "Sir", is_group: bool = False, auto_send: bool = False) -> str:
+    """
+    Opens WhatsApp desktop or web with prefilled message directed to a contact or group.
+    - If is_group: looks up group in whatsapp_contacts.json, focuses group, pastes message, and optionally auto-sends.
+    - If individual: uses whatsapp:// URI, pastes message, and optionally auto-sends via Enter key.
+    """
+    # 1. GROUP MESSAGING
+    if is_group:
+        g_info, related_groups = resolve_group(target)
+        if not g_info:
+            rel_str = ", ".join([r["display"] for r in related_groups]) if related_groups else ""
+            rel_msg = f"\nRelated groups found: {rel_str}" if rel_str else ""
+            return f"{call_me}, group '{target}' was not found in your WhatsApp contacts.{rel_msg}"
+
+        dispatch_whatsapp_group(g_info["display"], message, auto_send=auto_send)
+        if auto_send:
+            return f"{call_me}, dispatched WhatsApp message to group '{g_info['display']}': '{message}'."
+        else:
+            return f"{call_me}, opened WhatsApp group '{g_info['display']}' with your message pre-filled. Press Enter to send."
+
+    # 2. INDIVIDUAL CONTACT MESSAGING
     phone_number, display_name, related = resolve_contact(target)
 
     if not phone_number:
@@ -753,7 +882,11 @@ def send_whatsapp_message(target: str, message: str, call_me: str = "Sir", is_gr
 
     try:
         os.startfile(uri)
-        return f"{call_me}, opened WhatsApp for {display_name} with your message pre-filled. Press Enter to send."
+        if auto_send:
+            threading.Thread(target=_delayed_press_enter, args=(2.0,), daemon=True).start()
+            return f"{call_me}, dispatched WhatsApp message to {display_name}: '{message}'."
+        else:
+            return f"{call_me}, opened WhatsApp for {display_name} with your message pre-filled. Press Enter to send."
     except Exception:
         try:
             webbrowser.open(web_fallback)

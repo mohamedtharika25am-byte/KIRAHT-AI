@@ -62,6 +62,7 @@ from system_tools import (
     list_contacts,
     import_google_contacts_csv,
     resolve_contact,
+    resolve_group,
     send_whatsapp_message,
 )
 
@@ -963,9 +964,13 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     WA_TRIGS = r"(?:whatsapp|whatsap|watsapp|whapp|whasap|whtsp|whtsapp|wp|wa)"
     GRP_TRIGS = r"(?:group|grp|grop|grup|groupp)"
 
-    wa_pattern = rf"^(?:please\s+)?(?:send\s+(?:a\s+)?(?:{WA_TRIGS}\s+)?(?:message|msg)\s+to|send\s+{WA_TRIGS}\s+to|{WA_TRIGS})\s+(.*)$"
+    wa_pattern = rf"^(?:please\s+)?(?:send\s+(?:a\s+)?(?:{WA_TRIGS}\s+)?(?:message|msg)\s+(?:to\s+)?|send\s+{WA_TRIGS}(?:\s+to)?|{WA_TRIGS})\s+(.*)$"
     wa_match = re.search(wa_pattern, user_text.strip(), re.IGNORECASE)
     if wa_match:
+        # Check if user explicitly used 'send' (auto-send) or just 'whatsapp' (review mode)
+        is_auto_send = bool(re.search(r"^\s*(?:please\s+)?send\s+(?:a\s+)?(?:whatsapp|whatsap|watsapp|whapp|whasap|whtsp|whtsapp|wp|wa|message|msg)\b", user_text.strip(), re.IGNORECASE))
+        send_flag = "send" if is_auto_send else "review"
+
         rest = wa_match.group(1).strip()
         is_group = False
 
@@ -1018,26 +1023,36 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
                         target = words[0]
                         msg_text = " ".join(words[1:])
 
-        # Check if user did not provide a message
+        # Check if it's a group:
+        if is_group:
+            g_info, related_groups = resolve_group(target)
+            if not msg_text:
+                if g_info:
+                    return True, f"__NEED_MESSAGE__:{g_info['display']}:{g_info['display']}:group:{send_flag}"
+                else:
+                    rel_list = [{"name": r["display"], "phone": ""} for r in related_groups]
+                    return True, f"__NEED_GROUP__:{target}::{json.dumps(rel_list)}:{send_flag}"
+            else:
+                if not g_info:
+                    rel_list = [{"name": r["display"], "phone": ""} for r in related_groups]
+                    return True, f"__NEED_GROUP__:{target}:{msg_text}:{json.dumps(rel_list)}:{send_flag}"
+                else:
+                    return True, send_whatsapp_message(g_info["display"], msg_text, call_me, is_group=True, auto_send=is_auto_send)
+
+        # Individual contact:
         if not msg_text:
             phone, display_name, related = resolve_contact(target)
-            grp_flag = "group" if is_group else "individual"
-            return True, f"__NEED_MESSAGE__:{target}:{display_name}:{grp_flag}"
+            return True, f"__NEED_MESSAGE__:{target}:{display_name}:individual:{send_flag}"
 
-        # If it's a group:
-        if is_group:
-            return True, send_whatsapp_message(target, msg_text, call_me, is_group=True)
-
-        # Individual contact: check if recipient is known
         phone, display_name, related = resolve_contact(target)
         if not phone:
             digits = re.sub(r"\D", "", target)
             if len(digits) >= 10:
-                return True, send_whatsapp_message(target, msg_text, call_me)
+                return True, send_whatsapp_message(target, msg_text, call_me, is_group=False, auto_send=is_auto_send)
             else:
-                return True, f"__NEED_PHONE__:{target}:{msg_text}:{json.dumps(related)}"
+                return True, f"__NEED_PHONE__:{target}:{msg_text}:{json.dumps(related)}:{send_flag}"
 
-        return True, send_whatsapp_message(target, msg_text, call_me)
+        return True, send_whatsapp_message(target, msg_text, call_me, is_group=False, auto_send=is_auto_send)
 
     # 21. Close Application
     close_match = re.search(r"^(?:please\s+)?(?:close|kill|quit|terminate)\s+([a-zA-Z0-9\s]+)\b", cleaned)

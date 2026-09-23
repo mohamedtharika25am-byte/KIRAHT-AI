@@ -434,23 +434,48 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
             if not user_input:
                 continue
 
-            # Multi-turn WhatsApp interactive resolution (missing message or phone number)
+            # Multi-turn WhatsApp interactive resolution (missing message, phone number, or group)
             if pending_whatsapp:
                 if user_input.lower() in ("cancel", "abort", "no", "stop"):
                     pending_whatsapp = None
                     print(f"\nkiraht AI: Operation cancelled, {call_me}.")
                     continue
 
-                if pending_whatsapp.get("type") == "need_message":
+                p_type = pending_whatsapp.get("type")
+                auto_send = pending_whatsapp.get("auto_send", False)
+
+                if p_type == "need_message":
                     rec = pending_whatsapp["target"]
                     is_group = pending_whatsapp.get("is_group", False)
                     pending_whatsapp = None
                     from system_tools import send_whatsapp_message
-                    res = send_whatsapp_message(rec, user_input, call_me, is_group=is_group)
+                    res = send_whatsapp_message(rec, user_input, call_me, is_group=is_group, auto_send=auto_send)
                     print(f"\nkiraht AI: {res}")
                     continue
 
-                elif pending_whatsapp.get("type") == "need_phone":
+                elif p_type == "need_group":
+                    user_choice = user_input.strip()
+                    related = pending_whatsapp.get("related", [])
+                    msg = pending_whatsapp.get("message", "")
+                    target_grp = None
+
+                    if user_choice.isdigit() and 1 <= int(user_choice) <= len(related):
+                        target_grp = related[int(user_choice) - 1]["name"]
+                    else:
+                        for item in related:
+                            if user_choice.lower() in item["name"].lower():
+                                target_grp = item["name"]
+                                break
+                        if not target_grp:
+                            target_grp = user_choice
+
+                    pending_whatsapp = None
+                    from system_tools import send_whatsapp_message
+                    res = send_whatsapp_message(target_grp, msg, call_me, is_group=True, auto_send=auto_send)
+                    print(f"\nkiraht AI: {res}")
+                    continue
+
+                elif p_type == "need_phone":
                     user_choice = user_input.strip()
                     related = pending_whatsapp.get("related", [])
                     msg = pending_whatsapp.get("message", "")
@@ -461,7 +486,7 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
                         chosen = related[int(user_choice) - 1]
                         pending_whatsapp = None
                         from system_tools import send_whatsapp_message
-                        res = send_whatsapp_message(chosen["phone"], msg, call_me)
+                        res = send_whatsapp_message(chosen["phone"], msg, call_me, auto_send=auto_send)
                         print(f"\nkiraht AI: Selected {chosen['name']} ({chosen['phone']}). {res}")
                         continue
 
@@ -474,7 +499,7 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
                     if matched_opt:
                         pending_whatsapp = None
                         from system_tools import send_whatsapp_message
-                        res = send_whatsapp_message(matched_opt["phone"], msg, call_me)
+                        res = send_whatsapp_message(matched_opt["phone"], msg, call_me, auto_send=auto_send)
                         print(f"\nkiraht AI: Selected {matched_opt['name']} ({matched_opt['phone']}). {res}")
                         continue
 
@@ -485,7 +510,7 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
                         add_contact(rec, digits, call_me)
                         pending_whatsapp = None
                         if msg:
-                            res = send_whatsapp_message(rec, msg, call_me)
+                            res = send_whatsapp_message(rec, msg, call_me, auto_send=auto_send)
                             print(f"\nkiraht AI: Saved contact '{rec.title()}' (+91{digits[-10:]}) and {res}")
                         else:
                             print(f"\nkiraht AI: Saved contact '{rec.title()}' with number +91{digits[-10:]}, {call_me}.")
@@ -596,19 +621,55 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
                     rec = parts[1]
                     display = parts[2] if len(parts) > 2 else rec.title()
                     grp_flag = parts[3] if len(parts) > 3 else "individual"
+                    send_flag = parts[4] if len(parts) > 4 else "review"
                     is_group = (grp_flag == "group")
-                    pending_whatsapp = {"type": "need_message", "target": rec, "display": display, "is_group": is_group}
+                    auto_send = (send_flag == "send")
+                    pending_whatsapp = {"type": "need_message", "target": rec, "display": display, "is_group": is_group, "auto_send": auto_send}
                     if is_group:
                         print(f"\nkiraht AI: Sir, what message would you like to send to group '{display}'?")
                     else:
                         print(f"\nkiraht AI: Sir, what message would you like to send to {display}?")
                     continue
 
+                if action_result.startswith("__NEED_GROUP__:"):
+                    parts = action_result.split(":", 4)
+                    target = parts[1]
+                    msg = parts[2] if len(parts) > 2 else ""
+                    related_raw = parts[3] if len(parts) > 3 else "[]"
+                    send_flag = parts[4] if len(parts) > 4 else "review"
+                    auto_send = (send_flag == "send")
+                    try:
+                        related_list = json.loads(related_raw)
+                    except Exception:
+                        related_list = []
+
+                    pending_whatsapp = {
+                        "type": "need_group",
+                        "target": target,
+                        "message": msg,
+                        "related": related_list,
+                        "auto_send": auto_send,
+                    }
+                    if related_list:
+                        opts = "\n".join([f"    [{i+1}] {item['name']}" for i, item in enumerate(related_list)])
+                        print(
+                            f"\nkiraht AI: Sir, group '{target}' was not found in your WhatsApp groups.\n"
+                            f"  Related group options:\n{opts}\n\n"
+                            f"  Reply with:\n"
+                            f"    * Option number (1-{len(related_list)}) or group name to select\n"
+                            f"    * Or 'cancel' to abort"
+                        )
+                    else:
+                        print(f"\nkiraht AI: Sir, group '{target}' was not found in your WhatsApp groups (or type 'cancel').")
+                    continue
+
                 if action_result.startswith("__NEED_PHONE__:"):
-                    parts = action_result.split(":", 3)
+                    parts = action_result.split(":", 4)
                     rec = parts[1]
                     msg = parts[2] if len(parts) > 2 else ""
                     related_raw = parts[3] if len(parts) > 3 else "[]"
+                    send_flag = parts[4] if len(parts) > 4 else "review"
+                    auto_send = (send_flag == "send")
                     try:
                         related_list = json.loads(related_raw)
                     except Exception:
@@ -619,6 +680,7 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
                         "target": rec,
                         "message": msg,
                         "related": related_list,
+                        "auto_send": auto_send,
                     }
                     valid_opts = [item for item in related_list if item.get("phone")]
                     if valid_opts:
