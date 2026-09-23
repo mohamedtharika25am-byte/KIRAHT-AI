@@ -356,7 +356,7 @@ def get_client_and_model():
     """
     load_dotenv()
     host = os.getenv("OLLAMA_HOST", "http://localhost:11434").strip() or "http://localhost:11434"
-    model = os.getenv("AI_MODEL", "qwen3:4b").strip() or "qwen3:4b"
+    model = os.getenv("AI_MODEL", "qwen2.5:3b").strip() or "qwen2.5:3b"
     client = ollama.Client(host=host)
     return client, model, host
 
