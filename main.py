@@ -356,7 +356,7 @@ def get_client_and_model():
     """
     load_dotenv()
     host = os.getenv("OLLAMA_HOST", "http://localhost:11434").strip() or "http://localhost:11434"
-    model = os.getenv("AI_MODEL", "qwen3:8b").strip() or "qwen3:8b"
+    model = os.getenv("AI_MODEL", "qwen3:4b").strip() or "qwen3:4b"
     client = ollama.Client(host=host)
     return client, model, host
 
@@ -738,7 +738,11 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
                     model=model,
                     messages=messages,
                     stream=True,
-                    options={"temperature": 0.35},
+                    options={
+                        "temperature": 0.35,
+                        "num_thread": 8,
+                        "num_ctx": 2048,
+                    },
                 )
 
                 print(f"\nkiraht AI: ", end="", flush=True)
