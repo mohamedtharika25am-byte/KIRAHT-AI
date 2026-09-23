@@ -443,14 +443,42 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
 
                 if pending_whatsapp.get("type") == "need_message":
                     rec = pending_whatsapp["target"]
+                    is_group = pending_whatsapp.get("is_group", False)
                     pending_whatsapp = None
-                    handled, action_result = execute_system_command(f"whatsapp {rec} : {user_input}", call_me)
-                    print(f"\nkiraht AI: {action_result}")
+                    from system_tools import send_whatsapp_message
+                    res = send_whatsapp_message(rec, user_input, call_me, is_group=is_group)
+                    print(f"\nkiraht AI: {res}")
                     continue
 
                 elif pending_whatsapp.get("type") == "need_phone":
-                    rec = pending_whatsapp["target"]
+                    user_choice = user_input.strip()
+                    related = pending_whatsapp.get("related", [])
                     msg = pending_whatsapp.get("message", "")
+                    rec = pending_whatsapp["target"]
+
+                    # 1. Check if user selected an option number (1, 2, 3...)
+                    if user_choice.isdigit() and 1 <= int(user_choice) <= len(related):
+                        chosen = related[int(user_choice) - 1]
+                        pending_whatsapp = None
+                        from system_tools import send_whatsapp_message
+                        res = send_whatsapp_message(chosen["phone"], msg, call_me)
+                        print(f"\nkiraht AI: Selected {chosen['name']} ({chosen['phone']}). {res}")
+                        continue
+
+                    # 2. Check if user typed a name matching one of the related options
+                    matched_opt = None
+                    for item in related:
+                        if user_choice.lower() in item["name"].lower() and item.get("phone"):
+                            matched_opt = item
+                            break
+                    if matched_opt:
+                        pending_whatsapp = None
+                        from system_tools import send_whatsapp_message
+                        res = send_whatsapp_message(matched_opt["phone"], msg, call_me)
+                        print(f"\nkiraht AI: Selected {matched_opt['name']} ({matched_opt['phone']}). {res}")
+                        continue
+
+                    # 3. Check if user entered a 10-digit phone number
                     digits = re.sub(r"\D", "", user_input)
                     if len(digits) >= 10:
                         from system_tools import add_contact, send_whatsapp_message
@@ -461,9 +489,12 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
                             print(f"\nkiraht AI: Saved contact '{rec.title()}' (+91{digits[-10:]}) and {res}")
                         else:
                             print(f"\nkiraht AI: Saved contact '{rec.title()}' with number +91{digits[-10:]}, {call_me}.")
+                        continue
                     else:
-                        print(f"\nkiraht AI: That does not appear to be a valid 10-digit phone number, {call_me}. Please provide a valid phone number (or type 'cancel'):")
-                    continue
+                        rel_count = len(related)
+                        opt_hint = f"option number (1-{rel_count}) or a " if rel_count > 0 else ""
+                        print(f"\nkiraht AI: Please enter a valid {opt_hint}10-digit phone number (or type 'cancel'):")
+                        continue
 
             # Check for repeat / again / now command
             if user_input.lower() in ("again", "now", "repeat", "once more", "one more time", "/again"):
@@ -564,18 +595,44 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
                     parts = action_result.split(":")
                     rec = parts[1]
                     display = parts[2] if len(parts) > 2 else rec.title()
-                    pending_whatsapp = {"type": "need_message", "target": rec, "display": display}
-                    print(f"\nkiraht AI: Sir, what message would you like to send to {display}?")
+                    grp_flag = parts[3] if len(parts) > 3 else "individual"
+                    is_group = (grp_flag == "group")
+                    pending_whatsapp = {"type": "need_message", "target": rec, "display": display, "is_group": is_group}
+                    if is_group:
+                        print(f"\nkiraht AI: Sir, what message would you like to send to group '{display}'?")
+                    else:
+                        print(f"\nkiraht AI: Sir, what message would you like to send to {display}?")
                     continue
 
                 if action_result.startswith("__NEED_PHONE__:"):
                     parts = action_result.split(":", 3)
                     rec = parts[1]
                     msg = parts[2] if len(parts) > 2 else ""
-                    related_str = parts[3] if len(parts) > 3 else ""
-                    pending_whatsapp = {"type": "need_phone", "target": rec, "message": msg}
-                    extra_rel = f"\n  [{related_str}]" if related_str else ""
-                    print(f"\nkiraht AI: Sir, '{rec.title()}' is not in your contacts.{extra_rel}\n  Please provide their phone number to proceed (or type 'cancel'):")
+                    related_raw = parts[3] if len(parts) > 3 else "[]"
+                    try:
+                        related_list = json.loads(related_raw)
+                    except Exception:
+                        related_list = []
+
+                    pending_whatsapp = {
+                        "type": "need_phone",
+                        "target": rec,
+                        "message": msg,
+                        "related": related_list,
+                    }
+                    valid_opts = [item for item in related_list if item.get("phone")]
+                    if valid_opts:
+                        opts = "\n".join([f"    [{i+1}] {item['name']} ({item['phone']})" for i, item in enumerate(valid_opts)])
+                        print(
+                            f"\nkiraht AI: Sir, '{rec.title()}' is not in your contacts.\n"
+                            f"  Related contact options:\n{opts}\n\n"
+                            f"  Reply with:\n"
+                            f"    * Option number (1-{len(valid_opts)}) to send to that contact\n"
+                            f"    * Or a 10-digit phone number to save '{rec.title()}'\n"
+                            f"    * Or 'cancel' to abort"
+                        )
+                    else:
+                        print(f"\nkiraht AI: Sir, '{rec.title()}' is not in your contacts.\n  Please provide their 10-digit phone number to save and proceed (or type 'cancel'):")
                     continue
 
                 print(f"\nkiraht AI: {action_result}")

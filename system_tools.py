@@ -539,16 +539,16 @@ def resolve_contact(query: str) -> tuple[str | None, str, list]:
 
     # 3. Direct Group Match
     if clean_query in groups:
-        return groups[clean_query], groups[clean_query], []
+        return "group", groups[clean_query].title(), []
 
     # 4. Prefix / Substring Match in Contacts
     for name, phone in contacts.items():
-        if name.startswith(clean_query) or clean_query in name:
+        if name == clean_query or name.startswith(clean_query + " ") or (len(clean_query) >= 3 and clean_query in name):
             return phone, name.title(), []
 
     # 5. Check aliases prefix/substring
     for alias, target in aliases.items():
-        if alias.startswith(clean_query) or clean_query in alias:
+        if alias == clean_query or alias.startswith(clean_query + " "):
             t_clean = target.lower().strip()
             if t_clean in contacts:
                 return contacts[t_clean], t_clean.title(), []
@@ -556,20 +556,33 @@ def resolve_contact(query: str) -> tuple[str | None, str, list]:
     # 6. Check Groups substring
     for gname, gid in groups.items():
         if clean_query in gname or gname.startswith(clean_query):
-            return gid, gname.title(), []
+            return "group", gname.title(), []
 
     # 7. Fuzzy matching for Related Contacts
     all_names = list(contacts.keys()) + list(aliases.keys())
-    close_matches = difflib.get_close_matches(clean_query, all_names, n=3, cutoff=0.45)
+    close_matches = difflib.get_close_matches(clean_query, all_names, n=4, cutoff=0.35)
     related = []
+    seen_phones = set()
     for match in close_matches:
         match_phone = contacts.get(match) or contacts.get(aliases.get(match, "").lower(), "")
-        if match_phone:
-            related.append(f"{match.title()} ({match_phone})")
-        else:
-            related.append(match.title())
+        if match_phone and match_phone not in seen_phones:
+            seen_phones.add(match_phone)
+            related.append({"name": match.title(), "phone": match_phone})
+        elif not match_phone:
+            related.append({"name": match.title(), "phone": ""})
 
     return None, query.title(), related
+
+
+def add_group(group_name: str, call_me: str = "Sir") -> str:
+    """
+    Adds or registers a group name in the contact book under 'groups'.
+    """
+    data = load_contacts_data()
+    clean_name = group_name.lower().strip()
+    data.setdefault("groups", {})[clean_name] = group_name.title()
+    save_contacts_data(data)
+    return f"{call_me}, added group '{group_name.title()}' to your WhatsApp groups."
 
 
 def add_contact(name: str, phone: str, call_me: str = "Sir") -> str:
@@ -680,11 +693,36 @@ def import_google_contacts_csv(filepath: str = "googlecontacts.csv", call_me: st
         return f"{call_me}, failed to import contacts from {filepath}: {err}"
 
 
-def send_whatsapp_message(target: str, message: str, call_me: str = "Sir") -> str:
+def send_whatsapp_message(target: str, message: str, call_me: str = "Sir", is_group: bool = False) -> str:
     """
     Opens WhatsApp desktop or web with prefilled message directed to a contact or phone number.
     Uses official Windows whatsapp:// protocol with automatic web fallback.
     """
+    data = load_contacts_data()
+    groups = data.get("groups", {})
+    clean_target = target.lower().strip()
+
+    # Check if this is a group
+    if is_group or clean_target in groups or str(target).endswith("@g.us"):
+        display_group = groups.get(clean_target, target.title())
+        # Auto-register group name if not already saved
+        if clean_target not in groups:
+            data.setdefault("groups", {})[clean_target] = display_group
+            save_contacts_data(data)
+
+        encoded_text = urllib.parse.quote(message.strip())
+        uri = f"whatsapp://send?text={encoded_text}"
+        web_fallback = f"https://web.whatsapp.com/"
+        try:
+            os.startfile(uri)
+            return f"{call_me}, opened WhatsApp Desktop with message '{message}' pre-filled for group '{display_group}'. Select '{display_group}' and press Send."
+        except Exception:
+            try:
+                webbrowser.open(web_fallback)
+                return f"{call_me}, opened WhatsApp Web for group '{display_group}'. Select '{display_group}' and send."
+            except Exception as err:
+                return f"{call_me}, unable to open WhatsApp: {err}"
+
     phone_number, display_name, related = resolve_contact(target)
 
     if not phone_number:
@@ -699,21 +737,12 @@ def send_whatsapp_message(target: str, message: str, call_me: str = "Sir") -> st
                 phone_number = "+" + digits
             display_name = phone_number
         else:
-            related_msg = f"\nRelated contacts found: {', '.join(related)}" if related else ""
+            related_str = ", ".join([f"{r['name']} ({r['phone']})" for r in related if r.get('phone')]) if related else ""
+            related_msg = f"\nRelated contacts found: {related_str}" if related_str else ""
             return (
                 f"{call_me}, '{target}' was not found in your contacts.{related_msg}\n"
                 f"You can save them first: add contact {target} <number>"
             )
-
-    # Check if target is a group (ends with @g.us)
-    if str(phone_number).endswith("@g.us"):
-        encoded_text = urllib.parse.quote(message.strip())
-        uri = f"whatsapp://send?text={encoded_text}"
-        try:
-            os.startfile(uri)
-            return f"{call_me}, opened WhatsApp with message pre-filled for group '{display_name}'. Select group and press Send."
-        except Exception:
-            return f"{call_me}, opened WhatsApp for group '{display_name}'."
 
     # Normalize phone: numbers only for URI protocol
     url_phone = re.sub(r"[^\d]", "", phone_number)

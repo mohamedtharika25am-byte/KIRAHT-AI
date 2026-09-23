@@ -58,6 +58,7 @@ from system_tools import (
     clear_notes,
     add_contact,
     add_contact_alias,
+    add_group,
     list_contacts,
     import_google_contacts_csv,
     resolve_contact,
@@ -924,8 +925,17 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     if contact_add_match:
         c_name = contact_add_match.group(1).strip()
         c_phone = contact_add_match.group(2).strip()
-        if c_name.lower() not in ("alias", "nickname", "note"):
+        if c_name.lower() not in ("alias", "nickname", "note", "group", "grp"):
             return True, add_contact(c_name, c_phone, call_me)
+
+    grp_add_match = re.search(
+        r"^(?:please\s+)?(?:add\s+group|save\s+group|add\s+grp)\s+([a-zA-Z0-9_\s]+)$",
+        user_text.strip(),
+        re.IGNORECASE,
+    )
+    if grp_add_match:
+        g_name = grp_add_match.group(1).strip()
+        return True, add_group(g_name, call_me)
 
     alias_match = (
         re.search(
@@ -953,34 +963,81 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     WA_TRIGS = r"(?:whatsapp|whatsap|watsapp|whapp|whasap|whtsp|whtsapp|wp|wa)"
     GRP_TRIGS = r"(?:group|grp|grop|grup|groupp)"
 
-    wa_match = re.search(
-        rf"^(?:please\s+)?(?:send\s+(?:a\s+)?(?:{WA_TRIGS}\s+)?(?:message|msg)\s+to|send\s+{WA_TRIGS}\s+to|{WA_TRIGS})\s+"
-        rf"(?:{GRP_TRIGS}\s+)?"
-        rf"([a-zA-Z0-9_\+\.\s]+?)"
-        rf"(?:\s*(?::|-|saying|msg|message|text|that)\s*(.*))?$",
-        user_text.strip(),
-        re.IGNORECASE,
-    )
+    wa_pattern = rf"^(?:please\s+)?(?:send\s+(?:a\s+)?(?:{WA_TRIGS}\s+)?(?:message|msg)\s+to|send\s+{WA_TRIGS}\s+to|{WA_TRIGS})\s+(.*)$"
+    wa_match = re.search(wa_pattern, user_text.strip(), re.IGNORECASE)
     if wa_match:
-        recipient = wa_match.group(1).strip()
-        msg_text = (wa_match.group(2) or "").strip()
+        rest = wa_match.group(1).strip()
+        is_group = False
+
+        # Check if starts with group keyword (e.g. "grp roombies" or "group clg project")
+        grp_match = re.search(rf"^{GRP_TRIGS}\s+(.*)$", rest, re.IGNORECASE)
+        if grp_match:
+            is_group = True
+            rest = grp_match.group(1).strip()
+
+        target = ""
+        msg_text = ""
+
+        # Case A: explicit delimiter (: or - or saying or msg or text)
+        delim_match = re.search(r"^(.*?)\s*(?::|-|saying|msg|message|text|that)\s*(.*)$", rest, re.IGNORECASE)
+        if delim_match:
+            target = delim_match.group(1).strip()
+            msg_text = delim_match.group(2).strip()
+        elif is_group:
+            # Case B: For group, check words
+            words = rest.split()
+            if len(words) == 1:
+                target = rest
+                msg_text = ""
+            else:
+                target = words[0]
+                msg_text = " ".join(words[1:])
+        else:
+            # Case C: Check if entire rest is a known contact or alias
+            phone, dname, rel = resolve_contact(rest)
+            if phone:
+                target = rest
+                msg_text = ""
+            else:
+                # Case D: Check if first N words match a known contact (greedy 3 words down to 1)
+                words = rest.split()
+                matched_prefix = False
+                for n in range(min(3, len(words) - 1), 0, -1):
+                    cand = " ".join(words[:n])
+                    c_phone, c_dname, c_rel = resolve_contact(cand)
+                    if c_phone:
+                        target = cand
+                        msg_text = " ".join(words[n:])
+                        matched_prefix = True
+                        break
+                if not matched_prefix:
+                    if len(words) <= 2:
+                        target = rest
+                        msg_text = ""
+                    else:
+                        target = words[0]
+                        msg_text = " ".join(words[1:])
 
         # Check if user did not provide a message
         if not msg_text:
-            phone, display_name, related = resolve_contact(recipient)
-            return True, f"__NEED_MESSAGE__:{recipient}:{display_name}"
+            phone, display_name, related = resolve_contact(target)
+            grp_flag = "group" if is_group else "individual"
+            return True, f"__NEED_MESSAGE__:{target}:{display_name}:{grp_flag}"
 
-        # If message was provided, check if recipient is known
-        phone, display_name, related = resolve_contact(recipient)
+        # If it's a group:
+        if is_group:
+            return True, send_whatsapp_message(target, msg_text, call_me, is_group=True)
+
+        # Individual contact: check if recipient is known
+        phone, display_name, related = resolve_contact(target)
         if not phone:
-            digits = re.sub(r"\D", "", recipient)
+            digits = re.sub(r"\D", "", target)
             if len(digits) >= 10:
-                return True, send_whatsapp_message(recipient, msg_text, call_me)
+                return True, send_whatsapp_message(target, msg_text, call_me)
             else:
-                related_info = f"Related contacts found: {', '.join(related)}" if related else ""
-                return True, f"__NEED_PHONE__:{recipient}:{msg_text}:{related_info}"
+                return True, f"__NEED_PHONE__:{target}:{msg_text}:{json.dumps(related)}"
 
-        return True, send_whatsapp_message(recipient, msg_text, call_me)
+        return True, send_whatsapp_message(target, msg_text, call_me)
 
     # 21. Close Application
     close_match = re.search(r"^(?:please\s+)?(?:close|kill|quit|terminate)\s+([a-zA-Z0-9\s]+)\b", cleaned)
