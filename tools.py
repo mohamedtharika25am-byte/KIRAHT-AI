@@ -71,7 +71,6 @@ APPS_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "apps
 
 # Nickname & common typo aliases for instant matching
 APP_ALIASES = {
-    # 1. VS Code / Code Editors
     "vscode": "visual studio code",
     "vs code": "visual studio code",
     "vsc": "visual studio code",
@@ -84,8 +83,6 @@ APP_ALIASES = {
     "vstudio": "visual studio code",
     "vs code editor": "visual studio code",
     "code editor": "visual studio code",
-
-    # 2. WhatsApp
     "whatsapp": "whatsapp",
     "whatsap": "whatsapp",
     "whatapp": "whatsapp",
@@ -100,8 +97,6 @@ APP_ALIASES = {
     "wp": "whatsapp",
     "wa": "whatsapp",
     "whats app": "whatsapp",
-
-    # 3. ChatGPT & AI Tools
     "chatgpt": "chatgpt",
     "chatgbt": "chatgpt",
     "chat gpt": "chatgpt",
@@ -121,8 +116,6 @@ APP_ALIASES = {
     "ai copilot": "microsoft 365 copilot",
     "ollama": "ollama",
     "olama": "ollama",
-
-    # 4. IDEs & Developer Environments
     "studio": "android studio",
     "android studio": "android studio",
     "androidstudio": "android studio",
@@ -140,8 +133,6 @@ APP_ALIASES = {
     "antigravity ide": "antigravity ide",
     "agy": "antigravity ide",
     "agy ide": "antigravity ide",
-
-    # 5. Web Browsers
     "chrome": "google chrome",
     "google chrome": "google chrome",
     "chrom": "google chrome",
@@ -166,8 +157,6 @@ APP_ALIASES = {
     "msedge": "microsoft edge",
     "microsoft edge": "microsoft edge",
     "msedg": "microsoft edge",
-
-    # 6. Notepad & Text Editors
     "notepad": "notepad",
     "notepd": "notepad",
     "note pad": "notepad",
@@ -179,8 +168,6 @@ APP_ALIASES = {
     "stickynotes": "sticky notes (new)",
     "sticky": "sticky notes (new)",
     "notes app": "sticky notes (new)",
-
-    # 7. Calculator & Math
     "calc": "calculator",
     "calculator": "calculator",
     "calculater": "calculator",
@@ -189,8 +176,6 @@ APP_ALIASES = {
     "calci": "calculator",
     "calculate": "calculator",
     "clac": "calculator",
-
-    # 8. Media Players & Audio
     "spotify": "spotify",
     "spotfy": "spotify",
     "spoty": "spotify",
@@ -207,8 +192,6 @@ APP_ALIASES = {
     "voice recorder": "sound recorder",
     "audio recorder": "sound recorder",
     "recorder": "sound recorder",
-
-    # 9. Terminal, Shells & Git
     "terminal": "terminal",
     "windows terminal": "terminal",
     "wt": "terminal",
@@ -228,8 +211,6 @@ APP_ALIASES = {
     "github": "github desktop",
     "github desktop": "github desktop",
     "gh desktop": "github desktop",
-
-    # 10. Microsoft Office & Productivity
     "word": "word",
     "ms word": "word",
     "microsoft word": "word",
@@ -259,8 +240,6 @@ APP_ALIASES = {
     "ms access": "access",
     "publisher": "publisher",
     "ms publisher": "publisher",
-
-    # 11. Communication & Meetings
     "teams": "microsoft teams classic (work or school)",
     "ms teams": "microsoft teams classic (work or school)",
     "microsoft teams": "microsoft teams classic (work or school)",
@@ -270,8 +249,6 @@ APP_ALIASES = {
     "telegram": "telegram web",
     "telegram web": "telegram web",
     "tg": "telegram web",
-
-    # 12. Windows System & Hardware Tools
     "settings": "settings",
     "windows settings": "settings",
     "setting": "settings",
@@ -304,8 +281,6 @@ APP_ALIASES = {
     "msinfo32": "system information",
     "registry editor": "registry editor",
     "regedit": "registry editor",
-
-    # 13. Graphics, Screen Capture & Utility
     "paint": "paint",
     "mspaint": "paint",
     "ms paint": "paint",
@@ -330,15 +305,11 @@ APP_ALIASES = {
     "phonelink": "phone link",
     "quick assist": "quick assist",
     "user guide": "user guide",
-
-    # 14. Compression & Archives
     "7zip": "7-zip file manager",
     "7-zip": "7-zip file manager",
     "7z": "7-zip file manager",
     "zip": "7-zip file manager",
     "winzip": "7-zip file manager",
-
-    # 15. Databases & Programming Environments
     "mysql": "mysql 9.7 command line client",
     "mysql client": "mysql 9.7 command line client",
     "sql": "mysql 9.7 command line client",
@@ -353,8 +324,6 @@ APP_ALIASES = {
     "wsl": "wsl",
     "ubuntu": "ubuntu",
     "linux": "ubuntu",
-
-    # 16. Lenovo & Audio Utilities
     "lenovo vantage": "lenovo vantage",
     "vantage": "lenovo vantage",
     "lenovo": "lenovo vantage",
