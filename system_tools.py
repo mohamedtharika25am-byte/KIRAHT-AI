@@ -5,7 +5,9 @@ precision volume control, and network latency diagnostics.
 """
 
 import ctypes
+import csv
 import datetime
+import difflib
 import json
 import os
 import re
@@ -455,55 +457,227 @@ def clear_notes(call_me: str = "Sir") -> str:
 # ============================================================
 # 6. CONTACTS & WHATSAPP MESSAGING ENGINE
 # ============================================================
-def load_contacts() -> dict:
+def load_contacts_data() -> dict:
     """
-    Loads saved contacts mapping names to phone numbers from contacts.json.
+    Loads contacts database supporting structured format:
+    {"contacts": {}, "aliases": {}, "groups": {}}
+    and gracefully handles legacy flat format {"name": "phone"}.
     """
-    if os.path.exists(CONTACTS_FILE):
-        try:
-            with open(CONTACTS_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            return {}
-    return {}
+    default_data = {"contacts": {}, "aliases": {}, "groups": {}}
+    if not os.path.exists(CONTACTS_FILE):
+        return default_data
+
+    try:
+        with open(CONTACTS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if not isinstance(data, dict):
+                return default_data
+            # If flat dict (no 'contacts' key), migrate to structured format
+            if "contacts" not in data and "aliases" not in data:
+                return {"contacts": data, "aliases": {}, "groups": {}}
+            if "contacts" not in data:
+                data["contacts"] = {}
+            if "aliases" not in data:
+                data["aliases"] = {}
+            if "groups" not in data:
+                data["groups"] = {}
+            return data
+    except Exception:
+        return default_data
 
 
-def save_contacts(contacts: dict) -> None:
+def save_contacts_data(data: dict) -> None:
     """
-    Saves contacts mapping to contacts.json.
+    Saves contacts structured database to contacts.json.
     """
     try:
         with open(CONTACTS_FILE, "w", encoding="utf-8") as f:
-            json.dump(contacts, f, indent=2, ensure_ascii=False)
+            json.dump(data, f, indent=2, ensure_ascii=False)
     except Exception:
         pass
+
+
+def load_contacts() -> dict:
+    """
+    Returns combined flat dictionary of contacts and nicknames for lookup.
+    """
+    data = load_contacts_data()
+    flat = {}
+    contacts = data.get("contacts", {})
+    aliases = data.get("aliases", {})
+    for name, phone in contacts.items():
+        flat[name.lower()] = phone
+    for alias, target in aliases.items():
+        t_clean = target.lower().strip()
+        if t_clean in contacts:
+            flat[alias.lower()] = contacts[t_clean]
+        elif target in flat:
+            flat[alias.lower()] = flat[target]
+    return flat
+
+
+def resolve_contact(query: str) -> tuple[str | None, str, list]:
+    """
+    Resolves a name, alias, or query to a phone number or group ID.
+    Returns: (phone_number_or_none, resolved_display_name, related_matches_list)
+    """
+    data = load_contacts_data()
+    contacts = data.get("contacts", {})
+    aliases = data.get("aliases", {})
+    groups = data.get("groups", {})
+    clean_query = query.lower().strip()
+
+    # 1. Direct Alias Match
+    if clean_query in aliases:
+        target = aliases[clean_query].lower().strip()
+        if target in contacts:
+            return contacts[target], target.title(), []
+
+    # 2. Direct Contact Match
+    if clean_query in contacts:
+        return contacts[clean_query], clean_query.title(), []
+
+    # 3. Direct Group Match
+    if clean_query in groups:
+        return groups[clean_query], groups[clean_query], []
+
+    # 4. Prefix / Substring Match in Contacts
+    for name, phone in contacts.items():
+        if name.startswith(clean_query) or clean_query in name:
+            return phone, name.title(), []
+
+    # 5. Check aliases prefix/substring
+    for alias, target in aliases.items():
+        if alias.startswith(clean_query) or clean_query in alias:
+            t_clean = target.lower().strip()
+            if t_clean in contacts:
+                return contacts[t_clean], t_clean.title(), []
+
+    # 6. Check Groups substring
+    for gname, gid in groups.items():
+        if clean_query in gname or gname.startswith(clean_query):
+            return gid, gname.title(), []
+
+    # 7. Fuzzy matching for Related Contacts
+    all_names = list(contacts.keys()) + list(aliases.keys())
+    close_matches = difflib.get_close_matches(clean_query, all_names, n=3, cutoff=0.45)
+    related = []
+    for match in close_matches:
+        match_phone = contacts.get(match) or contacts.get(aliases.get(match, "").lower(), "")
+        if match_phone:
+            related.append(f"{match.title()} ({match_phone})")
+        else:
+            related.append(match.title())
+
+    return None, query.title(), related
 
 
 def add_contact(name: str, phone: str, call_me: str = "Sir") -> str:
     """
     Adds or updates a contact in the local contact book.
     """
-    contacts = load_contacts()
+    data = load_contacts_data()
     clean_name = name.lower().strip()
-    clean_phone = re.sub(r"[^\d+]", "", phone.strip())
-    # If 10 digits without country code, default to India (+91)
-    if len(clean_phone) == 10 and not clean_phone.startswith("+"):
-        clean_phone = "+91" + clean_phone
+    digits = re.sub(r"\D", "", phone.strip())
+    if len(digits) == 10:
+        clean_phone = "+91" + digits
+    elif len(digits) == 12 and digits.startswith("91"):
+        clean_phone = "+" + digits
+    elif len(digits) >= 10:
+        clean_phone = "+" + digits
+    else:
+        clean_phone = phone.strip()
 
-    contacts[clean_name] = clean_phone
-    save_contacts(contacts)
+    data["contacts"][clean_name] = clean_phone
+    save_contacts_data(data)
     return f"{call_me}, saved contact '{name.title()}' with number {clean_phone}."
+
+
+def add_contact_alias(alias: str, target_name: str, call_me: str = "Sir") -> str:
+    """
+    Adds a nickname / alias pointing to an existing contact.
+    """
+    data = load_contacts_data()
+    clean_alias = alias.lower().strip()
+    clean_target = target_name.lower().strip()
+
+    # If target not found exact, check close match
+    if clean_target not in data["contacts"]:
+        close = difflib.get_close_matches(clean_target, data["contacts"].keys(), n=1, cutoff=0.5)
+        if close:
+            clean_target = close[0]
+
+    data["aliases"][clean_alias] = clean_target
+    save_contacts_data(data)
+    return f"{call_me}, added nickname '{clean_alias.title()}' for contact '{clean_target.title()}'."
 
 
 def list_contacts(call_me: str = "Sir") -> str:
     """
-    Lists all saved contacts.
+    Lists all saved contacts and their aliases.
     """
-    contacts = load_contacts()
+    data = load_contacts_data()
+    contacts = data.get("contacts", {})
+    aliases = data.get("aliases", {})
     if not contacts:
-        return f"{call_me}, your contact book is empty. You can add someone using: add contact <name> <phone_number>."
-    formatted = [f"{name.title()}: {phone}" for name, phone in contacts.items()]
-    return f"{call_me}, here are your saved contacts:\n  - " + "\n  - ".join(formatted)
+        return f"{call_me}, your contact book is empty. Import from CSV using: import contacts, or add someone using: add contact <name> <phone_number>."
+
+    target_aliases = {}
+    for a, t in aliases.items():
+        target_aliases.setdefault(t.lower(), []).append(a.title())
+
+    lines = []
+    for name, phone in sorted(contacts.items()):
+        alias_str = ""
+        if name in target_aliases:
+            alias_str = f" [Nicknames: {', '.join(target_aliases[name])}]"
+        lines.append(f"{name.title()}: {phone}{alias_str}")
+
+    preview_count = min(30, len(lines))
+    extra = f"\n  ... and {len(lines) - preview_count} more contacts." if len(lines) > preview_count else ""
+    return f"{call_me}, here are your saved contacts ({len(contacts)} total):\n  - " + "\n  - ".join(lines[:preview_count]) + extra
+
+
+def import_google_contacts_csv(filepath: str = "googlecontacts.csv", call_me: str = "Sir") -> str:
+    """
+    Parses googlecontacts.csv, strips emojis and noisy symbols, normalizes numbers,
+    and populates contacts.json.
+    """
+    full_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filepath)
+    if not os.path.exists(full_path):
+        return f"{call_me}, '{filepath}' was not found in the project directory."
+
+    data = load_contacts_data()
+    count = 0
+    try:
+        with open(full_path, "r", encoding="utf-8", errors="replace") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                first = row.get("First Name", "") or ""
+                middle = row.get("Middle Name", "") or ""
+                last = row.get("Last Name", "") or ""
+                phone = row.get("Phone 1 - Value", "") or ""
+
+                raw_name = f"{first} {middle} {last}".strip()
+                cleaned_name = re.sub(r"[^\w\s\.\-]", " ", raw_name)
+                cleaned_name = re.sub(r"\s+", " ", cleaned_name).strip()
+
+                digits = re.sub(r"\D", "", phone)
+                if len(digits) >= 10 and cleaned_name:
+                    if len(digits) == 10:
+                        clean_phone = "+91" + digits
+                    elif len(digits) == 12 and digits.startswith("91"):
+                        clean_phone = "+" + digits
+                    else:
+                        clean_phone = "+" + digits
+
+                    data["contacts"][cleaned_name.lower()] = clean_phone
+                    count += 1
+
+        save_contacts_data(data)
+        return f"{call_me}, successfully imported {count} clean contacts from {filepath} into contacts.json!"
+    except Exception as err:
+        return f"{call_me}, failed to import contacts from {filepath}: {err}"
 
 
 def send_whatsapp_message(target: str, message: str, call_me: str = "Sir") -> str:
@@ -511,35 +685,40 @@ def send_whatsapp_message(target: str, message: str, call_me: str = "Sir") -> st
     Opens WhatsApp desktop or web with prefilled message directed to a contact or phone number.
     Uses official Windows whatsapp:// protocol with automatic web fallback.
     """
-    contacts = load_contacts()
-    clean_target = target.lower().strip()
+    phone_number, display_name, related = resolve_contact(target)
 
-    phone_number = ""
-    display_name = target.title()
-
-    if clean_target in contacts:
-        phone_number = contacts[clean_target]
-        display_name = clean_target.title()
-    else:
-        # Check if target is directly a phone number
-        digits = re.sub(r"[^\d+]", "", target.strip())
+    if not phone_number:
+        # Check if target is directly a raw phone number
+        digits = re.sub(r"\D", "", target.strip())
         if len(digits) >= 10:
-            if len(digits) == 10 and not digits.startswith("+"):
+            if len(digits) == 10:
                 phone_number = "+91" + digits
+            elif len(digits) == 12 and digits.startswith("91"):
+                phone_number = "+" + digits
             else:
-                phone_number = digits
+                phone_number = "+" + digits
             display_name = phone_number
         else:
+            related_msg = f"\nRelated contacts found: {', '.join(related)}" if related else ""
             return (
-                f"{call_me}, '{target}' was not found in your contacts, and does not appear to be a valid phone number.\n"
+                f"{call_me}, '{target}' was not found in your contacts.{related_msg}\n"
                 f"You can save them first: add contact {target} <number>"
             )
+
+    # Check if target is a group (ends with @g.us)
+    if str(phone_number).endswith("@g.us"):
+        encoded_text = urllib.parse.quote(message.strip())
+        uri = f"whatsapp://send?text={encoded_text}"
+        try:
+            os.startfile(uri)
+            return f"{call_me}, opened WhatsApp with message pre-filled for group '{display_name}'. Select group and press Send."
+        except Exception:
+            return f"{call_me}, opened WhatsApp for group '{display_name}'."
 
     # Normalize phone: numbers only for URI protocol
     url_phone = re.sub(r"[^\d]", "", phone_number)
     encoded_text = urllib.parse.quote(message.strip())
 
-    # Native Windows WhatsApp URI protocol
     uri = f"whatsapp://send?phone={url_phone}&text={encoded_text}"
     web_fallback = f"https://web.whatsapp.com/send?phone={url_phone}&text={encoded_text}"
 

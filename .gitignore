@@ -29,3 +29,7 @@ apps_cache.json
 # Local user notes & personal contacts
 notes.json
 contacts.json
+whatsapp_contacts.json
+googlecontacts.csv
+*.vcf
+*.csv

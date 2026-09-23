@@ -425,6 +425,7 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
     messages = [{"role": "system", "content": system_prompt}]
     last_system_command = ""
     last_chat_prompt = ""
+    pending_whatsapp = None
 
     while True:
         try:
@@ -432,6 +433,37 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
 
             if not user_input:
                 continue
+
+            # Multi-turn WhatsApp interactive resolution (missing message or phone number)
+            if pending_whatsapp:
+                if user_input.lower() in ("cancel", "abort", "no", "stop"):
+                    pending_whatsapp = None
+                    print(f"\nkiraht AI: Operation cancelled, {call_me}.")
+                    continue
+
+                if pending_whatsapp.get("type") == "need_message":
+                    rec = pending_whatsapp["target"]
+                    pending_whatsapp = None
+                    handled, action_result = execute_system_command(f"whatsapp {rec} : {user_input}", call_me)
+                    print(f"\nkiraht AI: {action_result}")
+                    continue
+
+                elif pending_whatsapp.get("type") == "need_phone":
+                    rec = pending_whatsapp["target"]
+                    msg = pending_whatsapp.get("message", "")
+                    digits = re.sub(r"\D", "", user_input)
+                    if len(digits) >= 10:
+                        from system_tools import add_contact, send_whatsapp_message
+                        add_contact(rec, digits, call_me)
+                        pending_whatsapp = None
+                        if msg:
+                            res = send_whatsapp_message(rec, msg, call_me)
+                            print(f"\nkiraht AI: Saved contact '{rec.title()}' (+91{digits[-10:]}) and {res}")
+                        else:
+                            print(f"\nkiraht AI: Saved contact '{rec.title()}' with number +91{digits[-10:]}, {call_me}.")
+                    else:
+                        print(f"\nkiraht AI: That does not appear to be a valid 10-digit phone number, {call_me}. Please provide a valid phone number (or type 'cancel'):")
+                    continue
 
             # Check for repeat / again / now command
             if user_input.lower() in ("again", "now", "repeat", "once more", "one more time", "/again"):
@@ -528,6 +560,24 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
             # Check for laptop / OS operation commands (Desktop Apps, Files, Hardware)
             handled, action_result = execute_system_command(user_input, call_me)
             if handled:
+                if action_result.startswith("__NEED_MESSAGE__:"):
+                    parts = action_result.split(":")
+                    rec = parts[1]
+                    display = parts[2] if len(parts) > 2 else rec.title()
+                    pending_whatsapp = {"type": "need_message", "target": rec, "display": display}
+                    print(f"\nkiraht AI: Sir, what message would you like to send to {display}?")
+                    continue
+
+                if action_result.startswith("__NEED_PHONE__:"):
+                    parts = action_result.split(":", 3)
+                    rec = parts[1]
+                    msg = parts[2] if len(parts) > 2 else ""
+                    related_str = parts[3] if len(parts) > 3 else ""
+                    pending_whatsapp = {"type": "need_phone", "target": rec, "message": msg}
+                    extra_rel = f"\n  [{related_str}]" if related_str else ""
+                    print(f"\nkiraht AI: Sir, '{rec.title()}' is not in your contacts.{extra_rel}\n  Please provide their phone number to proceed (or type 'cancel'):")
+                    continue
+
                 print(f"\nkiraht AI: {action_result}")
                 messages.append({"role": "user", "content": user_input})
                 messages.append({"role": "assistant", "content": action_result})
@@ -604,6 +654,12 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
 
                 # Save assistant response to session history
                 messages.append({"role": "assistant", "content": full_reply})
+
+            except KeyboardInterrupt:
+                if messages and messages[-1].get("role") == "user":
+                    messages.pop()
+                print(f"\n\n[kiraht AI: Response cancelled by {call_me}]")
+                continue
 
             except ollama.ResponseError as err:
                 messages.pop()

@@ -57,7 +57,10 @@ from system_tools import (
     get_notes,
     clear_notes,
     add_contact,
+    add_contact_alias,
     list_contacts,
+    import_google_contacts_csv,
+    resolve_contact,
     send_whatsapp_message,
 )
 
@@ -100,6 +103,8 @@ APP_ALIASES = {
     "wp": "whatsapp",
     "wa": "whatsapp",
     "whats app": "whatsapp",
+    "whapp" : "whatsapp",
+    "whasap" : "whatsapp",
 
     # 3. ChatGPT & AI Tools
     "chatgpt": "chatgpt",
@@ -912,38 +917,69 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
 
     # 20. Contacts & WhatsApp Messaging Engine
     contact_add_match = re.search(
-        r"^(?:please\s+)?(?:add\s+contact|save\s+contact)\s+([a-zA-Z0-9_\s]+?)\s+([+0-9\s\-]+)$",
+        r"^(?:please\s+)?(?:add\s+contact|save\s+contact|add)\s+([a-zA-Z0-9_\s]+?)\s+([+0-9\s\-]+)$",
         user_text.strip(),
         re.IGNORECASE,
     )
     if contact_add_match:
         c_name = contact_add_match.group(1).strip()
         c_phone = contact_add_match.group(2).strip()
-        return True, add_contact(c_name, c_phone, call_me)
+        if c_name.lower() not in ("alias", "nickname", "note"):
+            return True, add_contact(c_name, c_phone, call_me)
 
-    if re.search(r"\b(list contacts|show contacts|view contacts|contacts list|my contacts)\b", cleaned):
-        return True, list_contacts(call_me)
-
-    wa_match = (
+    alias_match = (
         re.search(
-            r"^(?:please\s+)?(?:send\s+(?:a\s+)?(?:whatsapp\s+)?(?:message|msg)\s+to|send\s+whatsapp\s+to|whatsapp)\s+([a-zA-Z0-9_\+]+)\s+(?:saying|msg|message|text|that|:)\s+(.+)$",
+            r"^(?:please\s+)?(?:add\s+)?(?:alias|nickname)\s+([a-zA-Z0-9_\s]+?)\s+(?:for|to|=|is)\s+([a-zA-Z0-9_\s]+)$",
             user_text.strip(),
             re.IGNORECASE,
         )
         or re.search(
-            r"^(?:please\s+)?(?:send\s+msg\s+to|send\s+message\s+to)\s+([a-zA-Z0-9_\+]+)\s+on\s+whatsapp\s*(?::|saying|that)?\s*(.+)$",
-            user_text.strip(),
-            re.IGNORECASE,
-        )
-        or re.search(
-            r"^(?:please\s+)?whatsapp\s+([a-zA-Z0-9_\+]+)\s*:\s*(.+)$",
+            r"^(?:please\s+)?set\s+nickname\s+([a-zA-Z0-9_\s]+?)\s+as\s+([a-zA-Z0-9_\s]+)$",
             user_text.strip(),
             re.IGNORECASE,
         )
     )
+    if alias_match:
+        nick = alias_match.group(1).strip()
+        target = alias_match.group(2).strip()
+        return True, add_contact_alias(nick, target, call_me)
+
+    if re.search(r"\b(import contacts|import google contacts|/import_contacts|sync contacts)\b", cleaned):
+        return True, import_google_contacts_csv("googlecontacts.csv", call_me)
+
+    if re.search(r"\b(list contacts|show contacts|view contacts|contacts list|my contacts)\b", cleaned):
+        return True, list_contacts(call_me)
+
+    WA_TRIGS = r"(?:whatsapp|whatsap|watsapp|whapp|whasap|whtsp|whtsapp|wp|wa)"
+    GRP_TRIGS = r"(?:group|grp|grop|grup|groupp)"
+
+    wa_match = re.search(
+        rf"^(?:please\s+)?(?:send\s+(?:a\s+)?(?:{WA_TRIGS}\s+)?(?:message|msg)\s+to|send\s+{WA_TRIGS}\s+to|{WA_TRIGS})\s+"
+        rf"(?:{GRP_TRIGS}\s+)?"
+        rf"([a-zA-Z0-9_\+\.\s]+?)"
+        rf"(?:\s*(?::|-|saying|msg|message|text|that)\s*(.*))?$",
+        user_text.strip(),
+        re.IGNORECASE,
+    )
     if wa_match:
         recipient = wa_match.group(1).strip()
-        msg_text = wa_match.group(2).strip()
+        msg_text = (wa_match.group(2) or "").strip()
+
+        # Check if user did not provide a message
+        if not msg_text:
+            phone, display_name, related = resolve_contact(recipient)
+            return True, f"__NEED_MESSAGE__:{recipient}:{display_name}"
+
+        # If message was provided, check if recipient is known
+        phone, display_name, related = resolve_contact(recipient)
+        if not phone:
+            digits = re.sub(r"\D", "", recipient)
+            if len(digits) >= 10:
+                return True, send_whatsapp_message(recipient, msg_text, call_me)
+            else:
+                related_info = f"Related contacts found: {', '.join(related)}" if related else ""
+                return True, f"__NEED_PHONE__:{recipient}:{msg_text}:{related_info}"
+
         return True, send_whatsapp_message(recipient, msg_text, call_me)
 
     # 21. Close Application
