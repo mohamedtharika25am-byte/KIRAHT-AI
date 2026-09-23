@@ -71,27 +71,302 @@ APPS_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "apps
 
 # Nickname & common typo aliases for instant matching
 APP_ALIASES = {
+    # 1. VS Code / Code Editors
     "vscode": "visual studio code",
     "vs code": "visual studio code",
+    "vsc": "visual studio code",
     "code": "visual studio code",
     "vscod": "visual studio code",
+    "vs": "visual studio code",
+    "visual code": "visual studio code",
+    "visual studio": "visual studio code",
+    "visual std": "visual studio code",
+    "vstudio": "visual studio code",
+    "vs code editor": "visual studio code",
+    "code editor": "visual studio code",
+
+    # 2. WhatsApp
+    "whatsapp": "whatsapp",
+    "whatsap": "whatsapp",
+    "whatapp": "whatsapp",
+    "whatsappp": "whatsapp",
+    "whatssap": "whatsapp",
+    "watapp": "whatsapp",
+    "whtsapp": "whatsapp",
+    "whtsap": "whatsapp",
+    "whtsp": "whatsapp",
+    "watsapp": "whatsapp",
+    "watsp": "whatsapp",
     "wp": "whatsapp",
     "wa": "whatsapp",
-    "gpt": "chatgpt",
+    "whats app": "whatsapp",
+
+    # 3. ChatGPT & AI Tools
+    "chatgpt": "chatgpt",
     "chatgbt": "chatgpt",
     "chat gpt": "chatgpt",
     "chat-gpt": "chatgpt",
+    "chagpt": "chatgpt",
+    "cha gpt": "chatgpt",
+    "chatg": "chatgpt",
+    "gpt": "chatgpt",
+    "gpt4": "chatgpt",
+    "openai": "chatgpt",
+    "open ai": "chatgpt",
+    "chat gbt": "chatgpt",
+    "chat gpt 4": "chatgpt",
+    "copilot": "microsoft 365 copilot",
+    "ms copilot": "microsoft 365 copilot",
+    "365 copilot": "microsoft 365 copilot",
+    "ai copilot": "microsoft 365 copilot",
+    "ollama": "ollama",
+    "olama": "ollama",
+
+    # 4. IDEs & Developer Environments
     "studio": "android studio",
-    "calc": "calculator",
-    "calculater": "calculator",
-    "browser": "google chrome",
-    "chrome": "google chrome",
-    "chrom": "google chrome",
-    "antigravity": "antigravity ide",
+    "android studio": "android studio",
+    "androidstudio": "android studio",
+    "as": "android studio",
+    "adt": "android studio",
+    "android ide": "android studio",
     "arduino": "arduino ide",
-    "spotfy": "spotify",
+    "arduino ide": "arduino ide",
+    "arduinoid": "arduino ide",
+    "arduin": "arduino ide",
+    "cursor": "cursor",
+    "cursor ai": "cursor",
+    "cursor ide": "cursor",
+    "antigravity": "antigravity ide",
+    "antigravity ide": "antigravity ide",
+    "agy": "antigravity ide",
+    "agy ide": "antigravity ide",
+
+    # 5. Web Browsers
+    "chrome": "google chrome",
+    "google chrome": "google chrome",
+    "chrom": "google chrome",
+    "googlechrome": "google chrome",
+    "browser": "google chrome",
+    "web browser": "google chrome",
+    "gchrome": "google chrome",
+    "chome": "google chrome",
+    "crome": "google chrome",
+    "brave": "brave",
+    "brave browser": "brave",
+    "brav": "brave",
+    "bravebrowser": "brave",
+    "firefox": "firefox",
+    "ff": "firefox",
+    "mozilla": "firefox",
+    "mozilla firefox": "firefox",
+    "fire fox": "firefox",
+    "firefox private": "firefox private browsing",
+    "edge": "microsoft edge",
+    "ms edge": "microsoft edge",
+    "msedge": "microsoft edge",
+    "microsoft edge": "microsoft edge",
+    "msedg": "microsoft edge",
+
+    # 6. Notepad & Text Editors
+    "notepad": "notepad",
     "notepd": "notepad",
+    "note pad": "notepad",
+    "notpd": "notepad",
+    "txt": "notepad",
+    "text editor": "notepad",
+    "sticky notes": "sticky notes (new)",
+    "sticky note": "sticky notes (new)",
+    "stickynotes": "sticky notes (new)",
+    "sticky": "sticky notes (new)",
+    "notes app": "sticky notes (new)",
+
+    # 7. Calculator & Math
+    "calc": "calculator",
+    "calculator": "calculator",
+    "calculater": "calculator",
+    "cal": "calculator",
+    "calcy": "calculator",
+    "calci": "calculator",
+    "calculate": "calculator",
+    "clac": "calculator",
+
+    # 8. Media Players & Audio
+    "spotify": "spotify",
+    "spotfy": "spotify",
+    "spoty": "spotify",
+    "spoti": "spotify",
+    "vlc": "vlc media player",
+    "vlc player": "vlc media player",
+    "vlc media player": "vlc media player",
+    "videolan": "vlc media player",
+    "media player": "media player",
+    "music player": "media player",
+    "video player": "media player",
+    "windows media player": "media player",
+    "sound recorder": "sound recorder",
+    "voice recorder": "sound recorder",
+    "audio recorder": "sound recorder",
+    "recorder": "sound recorder",
+
+    # 9. Terminal, Shells & Git
+    "terminal": "terminal",
+    "windows terminal": "terminal",
+    "wt": "terminal",
+    "cmd": "command prompt",
+    "command prompt": "command prompt",
+    "prompt": "command prompt",
+    "powershell": "windows powershell",
+    "ps": "windows powershell",
+    "pwsh": "windows powershell",
+    "powershell ise": "windows powershell ise",
+    "ise": "windows powershell ise",
+    "git bash": "git bash",
+    "bash": "git bash",
+    "git": "git bash",
+    "git gui": "git gui",
+    "git cmd": "git cmd",
+    "github": "github desktop",
+    "github desktop": "github desktop",
+    "gh desktop": "github desktop",
+
+    # 10. Microsoft Office & Productivity
+    "word": "word",
+    "ms word": "word",
+    "microsoft word": "word",
+    "msword": "word",
+    "doc": "word",
+    "docx": "word",
+    "excel": "excel",
+    "ms excel": "excel",
+    "microsoft excel": "excel",
+    "msexcel": "excel",
+    "xls": "excel",
+    "xlsx": "excel",
+    "spreadsheet": "excel",
+    "powerpoint": "powerpoint",
+    "ppt": "powerpoint",
+    "pptx": "powerpoint",
+    "ms powerpoint": "powerpoint",
+    "presentation": "powerpoint",
+    "onenote": "onenote",
+    "ms onenote": "onenote",
+    "one note": "onenote",
+    "outlook": "outlook (classic)",
+    "ms outlook": "outlook (classic)",
+    "mail": "outlook (classic)",
+    "email": "outlook (classic)",
+    "access": "access",
+    "ms access": "access",
+    "publisher": "publisher",
+    "ms publisher": "publisher",
+
+    # 11. Communication & Meetings
+    "teams": "microsoft teams classic (work or school)",
+    "ms teams": "microsoft teams classic (work or school)",
+    "microsoft teams": "microsoft teams classic (work or school)",
+    "zoom": "zoom workplace",
+    "zoom workplace": "zoom workplace",
+    "zm": "zoom workplace",
+    "telegram": "telegram web",
+    "telegram web": "telegram web",
+    "tg": "telegram web",
+
+    # 12. Windows System & Hardware Tools
+    "settings": "settings",
+    "windows settings": "settings",
+    "setting": "settings",
+    "config": "settings",
+    "control panel": "control panel",
+    "cpanel": "control panel",
+    "task manager": "task manager",
+    "taskmgr": "task manager",
+    "task man": "task manager",
+    "taskmanager": "task manager",
+    "file explorer": "file explorer",
+    "explorer": "file explorer",
+    "files": "file explorer",
+    "my computer": "file explorer",
+    "this pc": "file explorer",
+    "device manager": "device manager",
+    "devmgmt": "device manager",
+    "disk cleanup": "disk cleanup",
+    "cleanmgr": "disk cleanup",
+    "defrag": "defragment and optimize drives",
+    "services": "services",
+    "services.msc": "services",
+    "event viewer": "event viewer",
+    "resource monitor": "resource monitor",
+    "resmon": "resource monitor",
+    "perfmon": "performance monitor",
+    "performance monitor": "performance monitor",
+    "system info": "system information",
+    "sysinfo": "system information",
+    "msinfo32": "system information",
+    "registry editor": "registry editor",
+    "regedit": "registry editor",
+
+    # 13. Graphics, Screen Capture & Utility
+    "paint": "paint",
+    "mspaint": "paint",
+    "ms paint": "paint",
+    "photos": "photos",
+    "photo viewer": "photos",
+    "picture viewer": "photos",
+    "camera": "camera",
+    "webcam": "camera",
+    "cam": "camera",
+    "snipping tool": "snipping tool",
+    "snip": "snipping tool",
+    "screenshot tool": "snipping tool",
+    "snipper": "snipping tool",
+    "snip tool": "snipping tool",
+    "clipchamp": "microsoft clipchamp",
+    "video editor": "microsoft clipchamp",
+    "clock": "clock",
+    "alarm": "clock",
+    "timer": "clock",
+    "stopwatch": "clock",
+    "phone link": "phone link",
+    "phonelink": "phone link",
+    "quick assist": "quick assist",
+    "user guide": "user guide",
+
+    # 14. Compression & Archives
+    "7zip": "7-zip file manager",
+    "7-zip": "7-zip file manager",
+    "7z": "7-zip file manager",
+    "zip": "7-zip file manager",
+    "winzip": "7-zip file manager",
+
+    # 15. Databases & Programming Environments
+    "mysql": "mysql 9.7 command line client",
+    "mysql client": "mysql 9.7 command line client",
+    "sql": "mysql 9.7 command line client",
+    "node": "node.js",
+    "nodejs": "node.js",
+    "node.js": "node.js",
+    "npm": "node.js command prompt",
+    "python": "idle (python 3.13 64-bit)",
+    "python idle": "idle (python 3.13 64-bit)",
+    "idle": "idle (python 3.13 64-bit)",
+    "py": "idle (python 3.13 64-bit)",
+    "wsl": "wsl",
+    "ubuntu": "ubuntu",
+    "linux": "ubuntu",
+
+    # 16. Lenovo & Audio Utilities
+    "lenovo vantage": "lenovo vantage",
+    "vantage": "lenovo vantage",
+    "lenovo": "lenovo vantage",
+    "lenovo now": "lenovo now",
+    "dolby": "dolby access",
+    "dolby access": "dolby access",
+    "dolby audio": "dolby access",
+    "store": "microsoft store",
+    "ms store": "microsoft store",
+    "windows store": "microsoft store",
 }
+
 
 # Fallback Application Launch Commands
 APP_COMMANDS = {
@@ -635,56 +910,20 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         target_folder = folder_match.group(1).strip()
         return True, open_folder(target_folder, call_me=call_me)
 
-    # 20. Contacts & WhatsApp Messaging Engine
-    contact_add_match = re.search(
-        r"^(?:please\s+)?(?:add\s+contact|save\s+contact)\s+([a-zA-Z0-9_\s]+?)\s+([+0-9\s\-]+)$",
-        user_text.strip(),
-        re.IGNORECASE,
-    )
-    if contact_add_match:
-        c_name = contact_add_match.group(1).strip()
-        c_phone = contact_add_match.group(2).strip()
-        return True, add_contact(c_name, c_phone, call_me)
-
-    if re.search(r"\b(list contacts|show contacts|view contacts|contacts list|my contacts)\b", cleaned):
-        return True, list_contacts(call_me)
-
-    wa_match = (
-        re.search(
-            r"^(?:please\s+)?(?:send\s+(?:a\s+)?(?:whatsapp\s+)?(?:message|msg)\s+to|send\s+whatsapp\s+to|whatsapp)\s+([a-zA-Z0-9_\+]+)\s+(?:saying|msg|message|text|that|:)\s+(.+)$",
-            user_text.strip(),
-            re.IGNORECASE,
-        )
-        or re.search(
-            r"^(?:please\s+)?(?:send\s+msg\s+to|send\s+message\s+to)\s+([a-zA-Z0-9_\+]+)\s+on\s+whatsapp\s*(?::|saying|that)?\s*(.+)$",
-            user_text.strip(),
-            re.IGNORECASE,
-        )
-        or re.search(
-            r"^(?:please\s+)?whatsapp\s+([a-zA-Z0-9_\+]+)\s*:\s*(.+)$",
-            user_text.strip(),
-            re.IGNORECASE,
-        )
-    )
-    if wa_match:
-        recipient = wa_match.group(1).strip()
-        msg_text = wa_match.group(2).strip()
-        return True, send_whatsapp_message(recipient, msg_text, call_me)
-
-    # 21. Close Application
+    # 20. Close Application
     close_match = re.search(r"^(?:please\s+)?(?:close|kill|quit|terminate)\s+([a-zA-Z0-9\s]+)\b", cleaned)
     if close_match:
         app_to_close = close_match.group(1).strip()
         return True, close_app(app_to_close, call_me=call_me)
 
-    # 22. Open File in Editor (e.g. "open main.py", "open file memory.json")
+    # 21. Open File in Editor (e.g. "open main.py", "open file memory.json")
     open_file_match = re.search(r"^(?:please\s+)?open\s+(?:file\s+)?([a-zA-Z0-9_\-\./\\]+)\b", cleaned)
     if open_file_match:
         target_item = open_file_match.group(1).strip()
         if is_file_target(target_item):
             return True, open_file_in_editor(target_item, call_me)
 
-    # 23. Open Desktop Application (Native Laptop App First, with Browser Fallback)
+    # 22. Open Desktop Application (Native Laptop App First, with Browser Fallback)
     open_app_match = re.search(r"^(?:please\s+)?(?:open|launch|start|run)\s+([a-zA-Z0-9\s\-]+)\b", cleaned)
     if open_app_match:
         app_to_open = open_app_match.group(1).strip()
