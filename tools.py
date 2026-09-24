@@ -37,6 +37,7 @@ from file_tools import (
     read_file_content,
     safe_create_or_modify_file,
     resolve_path,
+    search_files_across_folders,
 )
 
 # Import system tools engine (Clipboard, Terminal, Screenshot, Volume, Notes, OS controls)
@@ -53,6 +54,10 @@ from system_tools import (
     get_current_volume,
     set_volume_level,
     adjust_volume_delta,
+    get_running_processes,
+    get_screen_brightness,
+    set_screen_brightness,
+    adjust_screen_brightness,
     add_note,
     get_notes,
     clear_notes,
@@ -847,6 +852,28 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     # 10. Empty Recycle Bin
     if re.search(r"\b(empty recycle bin|clean recycle bin|clear recycle bin|empty trash)\b", cleaned):
         return True, empty_recycle_bin(call_me)
+
+    # 10.1 Running Processes / Top Active Apps / System Load
+    if re.search(r"\b(running apps|active apps|what apps are running|open apps|list processes|running processes|task manager|top apps|system processes|active processes)\b", cleaned):
+        return True, get_running_processes(10, call_me)
+
+    # 10.2 Screen Brightness Controls
+    bright_set = re.search(r"\b(?:set\s+)?brightness\s+(?:to\s+)?(\d{1,3})(?:%|\b)", cleaned)
+    if bright_set:
+        return True, set_screen_brightness(int(bright_set.group(1)), call_me)
+    if re.search(r"\b(increase|boost|raise|more)\s+brightness\b", cleaned) or cleaned in ("brighter", "screen brighter"):
+        return True, adjust_screen_brightness(15, call_me)
+    if re.search(r"\b(decrease|lower|reduce|dim)\s+brightness\b", cleaned) or cleaned in ("dim screen", "less brightness"):
+        return True, adjust_screen_brightness(-15, call_me)
+    if re.search(r"\b(brightness|screen brightness|display brightness|check brightness|current brightness)\b", cleaned):
+        return True, get_screen_brightness(call_me)
+
+    # 10.3 Search Files Across Folders (Downloads, Desktop, Documents, Workspace)
+    search_file_match = re.search(r"^(?:find|search\s+for|look\s+for)\s+(?:file\s+)?([a-zA-Z0-9_\-\.\s]+?)(?:\s+in\s+(downloads|desktop|documents|workspace))?$", cleaned)
+    if search_file_match:
+        f_query = search_file_match.group(1).strip()
+        f_loc = search_file_match.group(2) or "all"
+        return True, search_files_across_folders(f_query, f_loc, max_results=8, call_me=call_me)
 
     # 11. Direct Terminal / Developer Execution (Safe runner)
     run_cmd_match = re.search(r"^(?:run|exec|execute|terminal|cmd)\s+(.+)$", user_text.strip(), re.IGNORECASE)

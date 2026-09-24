@@ -12,14 +12,66 @@ import subprocess
 WORKSPACE_DIR = r"d:\KIRAHT AI"
 
 
+def get_user_known_folders() -> dict:
+    """
+    Returns verified paths to Workspace, Downloads, Desktop, and Documents.
+    """
+    home = os.path.expanduser("~")
+    folders = {
+        "workspace": WORKSPACE_DIR,
+        "downloads": os.path.join(home, "Downloads"),
+        "documents": os.path.join(home, "Documents"),
+        "desktop": os.path.join(home, "Desktop"),
+    }
+    # Check OneDrive variants
+    for candidate in [
+        os.path.join(home, "OneDrive - KGISL Institute of Technology", "Desktop"),
+        os.path.join(home, "OneDrive", "Desktop"),
+    ]:
+        if os.path.exists(candidate):
+            folders["desktop"] = candidate
+            break
+
+    for candidate in [
+        os.path.join(home, "OneDrive - KGISL Institute of Technology", "Documents"),
+        os.path.join(home, "OneDrive", "Documents"),
+    ]:
+        if os.path.exists(candidate):
+            folders["documents"] = candidate
+            break
+
+    return folders
+
+
 def resolve_path(target_path: str) -> str:
     """
-    Resolves relative path against workspace directory, or returns absolute path if provided.
+    Resolves relative path against workspace, or known user folders (Downloads, Desktop, Documents).
     """
     clean_path = target_path.strip().strip('"').strip("'")
     if os.path.isabs(clean_path):
         return clean_path
-    return os.path.abspath(os.path.join(WORKSPACE_DIR, clean_path))
+
+    known = get_user_known_folders()
+    lower_p = clean_path.lower()
+
+    # Prefix checks (e.g. "downloads/resume.pdf" or "desktop/file.txt")
+    for key in ("downloads", "desktop", "documents", "workspace"):
+        if lower_p.startswith(f"{key}/") or lower_p.startswith(f"{key}\\"):
+            rel = clean_path[len(key) + 1:]
+            return os.path.join(known[key], rel)
+
+    # 1. Try workspace first
+    ws_candidate = os.path.abspath(os.path.join(WORKSPACE_DIR, clean_path))
+    if os.path.exists(ws_candidate):
+        return ws_candidate
+
+    # 2. Check if file exists directly in Downloads, Desktop, or Documents
+    for folder in (known["downloads"], known["desktop"], known["documents"]):
+        candidate = os.path.join(folder, clean_path)
+        if os.path.exists(candidate):
+            return candidate
+
+    return ws_candidate
 
 
 def format_size(size_bytes: int) -> str:
@@ -193,3 +245,63 @@ def safe_create_or_modify_file(filepath: str, new_content: str, call_me: str = "
         return f"{call_me}, successfully saved '{base_name}'. (Backup created at {base_name}.bak)"
     except Exception as err:
         return f"{call_me}, failed to save '{base_name}': {err}"
+
+
+def search_files_across_folders(query: str, target_location: str = "all", max_results: int = 8, call_me: str = "Sir") -> str:
+    """
+    Searches for files matching query across Workspace, Downloads, Desktop, and Documents.
+    """
+    known = get_user_known_folders()
+    query_clean = query.strip().lower()
+    if not query_clean:
+        return f"{call_me}, please specify a filename or keyword to search for."
+
+    search_dirs = []
+    loc_lower = target_location.lower().strip()
+    if loc_lower in known:
+        search_dirs.append((loc_lower.title(), known[loc_lower]))
+    else:
+        search_dirs = [
+            ("Workspace", known["workspace"]),
+            ("Downloads", known["downloads"]),
+            ("Desktop", known["desktop"]),
+            ("Documents", known["documents"]),
+        ]
+
+    matches = []
+    for label, dir_path in search_dirs:
+        if not os.path.exists(dir_path):
+            continue
+        try:
+            # Shallow search + 1 level deep to avoid slow deep recursion
+            for root, dirs, files in os.walk(dir_path):
+                # Don't recurse deep into node_modules, .git, etc.
+                dirs[:] = [d for d in dirs if not d.startswith(".") and d not in ("node_modules", "__pycache__", "venv", ".venv")]
+                rel_depth = root[len(dir_path):].count(os.sep)
+                if rel_depth > 1:
+                    continue
+
+                for f in files:
+                    if f.startswith("."):
+                        continue
+                    if query_clean in f.lower():
+                        fp = os.path.join(root, f)
+                        try:
+                            sz = format_size(os.path.getsize(fp))
+                        except Exception:
+                            sz = "unknown size"
+                        matches.append((label, f, sz, fp))
+                        if len(matches) >= max_results:
+                            break
+                if len(matches) >= max_results:
+                    break
+        except Exception:
+            continue
+
+    if not matches:
+        return f"{call_me}, no files matching '{query}' were found in your {target_location} folders."
+
+    lines = [f"{call_me}, found {len(matches)} matching file(s):"]
+    for label, fname, sz, fullpath in matches:
+        lines.append(f"  • [{label}] {fname} ({sz})\n    Path: {fullpath}")
+    return "\n".join(lines)

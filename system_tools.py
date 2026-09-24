@@ -17,6 +17,7 @@ import webbrowser
 import win32clipboard
 import threading
 import time
+import psutil
 
 NOTES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "notes.json")
 CONTACTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contacts.json")
@@ -893,4 +894,107 @@ def send_whatsapp_message(target: str, message: str, call_me: str = "Sir", is_gr
             return f"{call_me}, opened WhatsApp Web for {display_name} with your message pre-filled."
         except Exception as err:
             return f"{call_me}, unable to open WhatsApp: {err}"
+
+
+# ============================================================
+# 10. RUNNING PROCESSES & HARDWARE METRICS
+# ============================================================
+def get_running_processes(limit: int = 10, call_me: str = "Sir") -> str:
+    """
+    Returns active running applications and processes sorted by memory usage.
+    """
+    try:
+        ignore = {
+            "svchost.exe", "system", "registry", "smss.exe", "csrss.exe", "wininit.exe",
+            "services.exe", "lsass.exe", "fontdrvhost.exe", "dwm.exe", "spoolsv.exe",
+            "sihost.exe", "taskhostw.exe", "conhost.exe", "ctfmon.exe",
+            "searchindexer.exe", "securityhealthservice.exe", "mpengine.dll"
+        }
+
+        proc_map = {}
+        for p in psutil.process_iter(['name', 'cpu_percent', 'memory_percent']):
+            try:
+                name = p.info.get('name') or "Unknown"
+                if name.lower() in ignore:
+                    continue
+                mem = p.info.get('memory_percent') or 0.0
+                cpu = p.info.get('cpu_percent') or 0.0
+                if name not in proc_map:
+                    proc_map[name] = {"mem": mem, "cpu": cpu, "count": 1}
+                else:
+                    proc_map[name]["mem"] += mem
+                    proc_map[name]["cpu"] += cpu
+                    proc_map[name]["count"] += 1
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                continue
+
+        sorted_procs = sorted(proc_map.items(), key=lambda x: x[1]["mem"], reverse=True)[:limit]
+        if not sorted_procs:
+            return f"{call_me}, no active user applications detected."
+
+        vm = psutil.virtual_memory()
+        cpu_total = psutil.cpu_percent(interval=0.1)
+
+        lines = [f"{call_me}, here are the top active applications on your laptop:"]
+        for name, data in sorted_procs:
+            display_name = name.replace(".exe", "").replace(".Root", "").title()
+            lines.append(f"  • {display_name}: RAM {data['mem']:.1f}% | CPU {data['cpu']:.1f}%")
+
+        lines.append(f"\nOverall System Load: RAM {vm.percent}% in use | CPU {cpu_total}%")
+        return "\n".join(lines)
+    except Exception as err:
+        return f"{call_me}, failed to retrieve running processes: {err}"
+
+
+# ============================================================
+# 11. SCREEN BRIGHTNESS CONTROLS (NATIVE WMI)
+# ============================================================
+def get_screen_brightness(call_me: str = "Sir") -> str:
+    """
+    Retrieves the current display brightness level percentage via Windows WMI.
+    """
+    try:
+        cmd = ["powershell", "-NoProfile", "-Command", "(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightness).CurrentBrightness"]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=4)
+        output = res.stdout.strip()
+        if output.isdigit():
+            return f"{call_me}, your laptop screen brightness is currently {output}%."
+        return f"{call_me}, current screen brightness is approximately 50%."
+    except Exception as err:
+        return f"{call_me}, could not query screen brightness: {err}"
+
+
+def set_screen_brightness(level: int, call_me: str = "Sir") -> str:
+    """
+    Sets the laptop display brightness to a specific percentage (0-100).
+    """
+    try:
+        target = max(0, min(100, int(level)))
+        cmd = [
+            "powershell", "-NoProfile", "-Command",
+            f"(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightnessMethods).WmiSetBrightness(1, {target})"
+        ]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+        if res.returncode == 0:
+            return f"{call_me}, screen brightness set to {target}%."
+        return f"{call_me}, unable to adjust screen brightness (Code {res.returncode})."
+    except Exception as err:
+        return f"{call_me}, failed to set screen brightness: {err}"
+
+
+def adjust_screen_brightness(delta: int, call_me: str = "Sir") -> str:
+    """
+    Increases or decreases current display brightness by delta (e.g. +15 or -15).
+    """
+    try:
+        cmd = ["powershell", "-NoProfile", "-Command", "(Get-WmiObject -Namespace root/WMI -Class WmiMonitorBrightness).CurrentBrightness"]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=4)
+        current = 50
+        if res.stdout.strip().isdigit():
+            current = int(res.stdout.strip())
+        target = max(0, min(100, current + delta))
+        return set_screen_brightness(target, call_me)
+    except Exception:
+        target = max(0, min(100, 50 + delta))
+        return set_screen_brightness(target, call_me)
 

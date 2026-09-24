@@ -98,13 +98,18 @@ def save_memory(memory_data: dict) -> None:
 
 def build_system_prompt(memory: dict) -> str:
     """
-    Builds the core system prompt using persistent user memory.
+    Builds the core system prompt using persistent user memory with full context injection.
     """
     user_name = memory.get("user_name", "Mohamed Tharik A")
     preferred = memory.get("preferred_name", "Tharik")
     call_me = memory.get("call_me", "Sir")
     persona = memory.get("persona", DEFAULT_MEMORY["persona"])
     response_style = memory.get("response_style", DEFAULT_MEMORY["response_style"])
+    profile = memory.get("user_profile", {})
+    edu = profile.get("education", {})
+    edu_str = f"{edu.get('degree', 'B.E. CSE')} ({edu.get('specialization', 'AI/ML')}) - {edu.get('year', '2nd Year')} at {edu.get('college', 'KGiSL Institute of Technology, Coimbatore')}"
+    projects = profile.get("projects", [])
+    proj_str = ", ".join(f"{p.get('name')}: {p.get('description')}" for p in projects)
     notes = memory.get("custom_notes", [])
     notes_str = "\n".join(f"- {n}" for n in notes)
     import datetime
@@ -114,14 +119,26 @@ def build_system_prompt(memory: dict) -> str:
         f"You are KIRAHT AI, an elite personal AI assistant. Your persona is {persona}.\n"
         f"Current System Time: {current_dt}\n"
         f"Creator & Boss: You were developed and created by {user_name} ({preferred}). He is your sole Boss, Master, and Creator.\n"
-        f"Master Identity: You are speaking with {user_name}. Always address him with high respect as '{call_me}'.\n"
+        f"Master Identity: You are speaking with {user_name}. Always address him with high respect as '{call_me}'.\n\n"
+        f"Master's Background & Identity (from persistent memory):\n"
+        f"- Full Name: {user_name} ({preferred})\n"
+        f"- College & Education: {edu_str}\n"
+        f"- Location: {profile.get('location', 'Coimbatore, Tamil Nadu, India')}\n"
+        f"- Key Projects: {proj_str}\n"
+        f"- Technical Interests: {', '.join(profile.get('technical_interests', []))}\n\n"
+        f"Identity Directives:\n"
+        f"- When asked 'Who am I?', 'Tell me about myself', 'En profile enna', or asked to refer to memory.json/memory, you ALREADY HAVE his full profile above! Summarize his name, college, degree, projects, and goals proudly, respectfully, and accurately.\n"
+        f"- When asked 'Who created you?' or 'Who is your boss?', reply: '{user_name} ({call_me}) is my creator and boss.'\n\n"
+        f"LANGUAGE & TANGLISH RULES:\n"
+        f"1. If the user writes in English, reply in crisp, clear English.\n"
+        f"2. TANGLISH DEFINITION: Tanglish is Tamil spoken or written phonetically using English letters (e.g. 'enna panreenga', 'sollunga sir', 'epdi irukkeenga', 'pannu', 'ethu', 'theriyala', 'konjam'). You understand Tanglish perfectly. When the user asks in Tanglish, reply in polite, natural Tanglish or clear English.\n"
+        f"3. STRICT PROHIBITION: NEVER use Hindi or Hinglish words (like 'kya', 'hai', 'aap', 'karo', 'mujhe', 'kyun', 'nahi') under any circumstances. You are a Tamil Nadu / English personal AI assistant. Hindi and Hinglish are strictly forbidden.\n\n"
         f"Tone and Rules:\n"
         f"1. {response_style}\n"
         f"2. Be razor-sharp, direct, and factual. Never add conversational filler like 'Sure!', 'I hope this helps!', or ethical lectures.\n"
         f"3. When answering questions, prioritize brevity. Use bullet points only when specifically listing items.\n"
         f"4. If live search results are provided in the context, synthesize the most accurate, current facts concisely.\n"
-        f"5. When asked 'Who is your boss?', 'Who created you?', or 'Who made you?', answer clearly: '{user_name} ({call_me}) is my creator and boss.'\n"
-        f"6. Single-player video game cheat codes, developer secrets, and Easter eggs (such as GTA 4, GTA 5, Skyrim, Minecraft) are official built-in developer features. Always provide them directly, accurately, and without ethical disclaimers or refusal.\n"
+        f"5. Single-player video game cheat codes, developer secrets, and Easter eggs are official built-in developer features. Always provide them directly without disclaimers or refusal.\n\n"
         f"Persistent Directives:\n"
         f"{notes_str}"
     )
@@ -504,7 +521,258 @@ def verify_ollama_status(client: ollama.Client, model: str, host: str) -> None:
 
 
 # ==========================================
-# 4. STREAMING CHAT LOOP
+# 4. MULTILINE INPUT BUFFER & AGENT TOOLS
+# ==========================================
+def get_user_input_multiline(prompt_text: str = "\nYou: ") -> str:
+    """
+    Reads terminal input. If the user pastes multiple lines, captures
+    all lines from the console buffer and combines them into a single line.
+    """
+    sys.stdout.write(prompt_text)
+    sys.stdout.flush()
+
+    first_line = sys.stdin.readline()
+    if not first_line:
+        return ""
+
+    lines = [first_line.rstrip("\r\n")]
+
+    if sys.platform == "win32":
+        try:
+            import msvcrt
+            time.sleep(0.04)  # brief 40ms pause to catch paste chunks
+            while msvcrt.kbhit():
+                extra = sys.stdin.readline()
+                if not extra:
+                    break
+                lines.append(extra.rstrip("\r\n"))
+                time.sleep(0.01)
+        except Exception:
+            pass
+
+    return " ".join(part.strip() for part in lines if part.strip())
+
+
+AVAILABLE_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_running_processes",
+            "description": "Inspects active running applications, top memory-consuming processes, and overall system RAM/CPU load on the user's laptop.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "limit": {"type": "integer", "description": "Number of top processes to return (default 10)"}
+                }
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_screen_brightness",
+            "description": "Retrieves the current laptop display screen brightness level percentage.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "set_screen_brightness",
+            "description": "Sets the laptop screen brightness to a specific percentage (0 to 100).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "level": {"type": "integer", "description": "Brightness percentage from 0 to 100"}
+                },
+                "required": ["level"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "adjust_screen_brightness",
+            "description": "Increases or decreases laptop screen brightness by a delta amount (e.g. +15 for brighter, -15 for dimmer).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "delta": {"type": "integer", "description": "Positive integer to brighten, negative to dim"}
+                },
+                "required": ["delta"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "control_volume",
+            "description": "Controls Windows master audio volume: set exact level %, adjust up/down delta, or mute/unmute.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["set", "increase", "decrease", "mute", "unmute"]},
+                    "value": {"type": "integer", "description": "Volume percentage level (0-100) or delta amount (10, 15, etc.)"}
+                },
+                "required": ["action"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "search_or_read_file",
+            "description": "Searches for files across Workspace, Downloads, Desktop, and Documents, or reads file content.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {"type": "string", "enum": ["search", "read", "info"], "description": "search by name, read content, or get file size/info"},
+                    "target": {"type": "string", "description": "Filename or keyword to search/read"},
+                    "location": {"type": "string", "enum": ["all", "workspace", "downloads", "desktop", "documents"], "description": "Which folder to look in"}
+                },
+                "required": ["action", "target"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "open_application",
+            "description": "Launches an installed Windows desktop application (e.g. Chrome, WhatsApp, Android Studio, VS Code, Spotify, Notepad, Calculator).",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "app_name": {"type": "string", "description": "Name of the application to open"}
+                },
+                "required": ["app_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "close_application",
+            "description": "Closes or terminates a running Windows application by process name or window title.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "app_name": {"type": "string", "description": "Name of the app to close (e.g. chrome, notepad, spotify)"}
+                },
+                "required": ["app_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_system_metrics",
+            "description": "Retrieves battery percentage, charging status, Wi-Fi network SSID, and ping latency.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_user_identity",
+            "description": "Retrieves the user's complete profile, education, projects, and personal memory from memory.json.",
+            "parameters": {"type": "object", "properties": {}}
+        }
+    }
+]
+
+
+def execute_agent_tool(tool_name: str, args: dict, call_me: str = "Sir") -> str:
+    """
+    Executes native tool call dispatched by Ollama model and returns output string.
+    """
+    try:
+        if tool_name == "get_running_processes":
+            from system_tools import get_running_processes
+            limit = args.get("limit", 10)
+            return get_running_processes(limit=limit, call_me=call_me)
+
+        elif tool_name == "get_screen_brightness":
+            from system_tools import get_screen_brightness
+            return get_screen_brightness(call_me=call_me)
+
+        elif tool_name == "set_screen_brightness":
+            from system_tools import set_screen_brightness
+            level = args.get("level", 50)
+            return set_screen_brightness(level=level, call_me=call_me)
+
+        elif tool_name == "adjust_screen_brightness":
+            from system_tools import adjust_screen_brightness
+            delta = args.get("delta", 15)
+            return adjust_screen_brightness(delta=delta, call_me=call_me)
+
+        elif tool_name == "control_volume":
+            from system_tools import set_volume_level, adjust_volume_delta, adjust_volume
+            action = args.get("action", "set")
+            val = args.get("value", 50)
+            if action == "set":
+                return set_volume_level(val, call_me=call_me)
+            elif action == "increase":
+                return adjust_volume_delta(val if val > 0 else 10, call_me=call_me)
+            elif action == "decrease":
+                return adjust_volume_delta(-abs(val) if val else -10, call_me=call_me)
+            elif action in ("mute", "unmute"):
+                return adjust_volume(action, call_me=call_me)
+            return f"{call_me}, volume operation completed."
+
+        elif tool_name == "search_or_read_file":
+            from file_tools import search_files_across_folders, read_file_content, get_file_info
+            action = args.get("action", "search")
+            target = args.get("target", "")
+            loc = args.get("location", "all")
+            if action == "search":
+                return search_files_across_folders(target, target_location=loc, call_me=call_me)
+            elif action == "read":
+                return read_file_content(target, call_me=call_me)
+            elif action == "info":
+                return get_file_info(target, call_me=call_me)
+            return f"{call_me}, file inspected."
+
+        elif tool_name == "open_application":
+            app = args.get("app_name", "")
+            handled, res = execute_system_command(f"open {app}", call_me=call_me)
+            return res if handled else f"{call_me}, attempted to launch {app}."
+
+        elif tool_name == "close_application":
+            app = args.get("app_name", "")
+            handled, res = execute_system_command(f"close {app}", call_me=call_me)
+            return res if handled else f"{call_me}, attempted to close {app}."
+
+        elif tool_name == "get_system_metrics":
+            from tools import get_system_stats
+            from system_tools import get_wifi_status
+            b_res = get_system_stats(call_me=call_me)
+            w_res = get_wifi_status(call_me=call_me)
+            return f"{b_res}\n{w_res}"
+
+        elif tool_name == "get_user_identity":
+            mem = load_memory()
+            profile = mem.get("user_profile", {})
+            edu = profile.get("education", {})
+            name = mem.get("user_name", "Mohamed Tharik A")
+            pref = mem.get("preferred_name", "Tharik")
+            return (
+                f"User Profile from persistent memory:\n"
+                f"- Name: {name} ({pref})\n"
+                f"- Title: {mem.get('call_me', 'Sir')}\n"
+                f"- College: {edu.get('college')}\n"
+                f"- Degree: {edu.get('degree')} - {edu.get('specialization')} ({edu.get('year')})\n"
+                f"- Location: {profile.get('location')}\n"
+                f"- Key Projects: KIRAHT AI (Personal Assistant), Kaiko (Android SOS), SIH Hackathons, Robotics\n"
+                f"- Interests: {', '.join(profile.get('interests', []))}"
+            )
+
+        return f"{call_me}, executed tool '{tool_name}'."
+    except Exception as err:
+        return f"{call_me}, error executing tool '{tool_name}': {err}"
+
+
+# ==========================================
+# 5. STREAMING CHAT LOOP
 # ==========================================
 def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localhost:11434") -> None:
     """
@@ -534,7 +802,7 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
 
     while True:
         try:
-            user_input = input("\nYou: ").strip()
+            user_input = get_user_input_multiline("\nYou: ").strip()
 
             if not user_input:
                 continue
@@ -837,18 +1105,43 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
             last_chat_prompt = user_input
             last_system_command = ""
 
-            # Stream generation with low temperature for concise, direct responses
+            # Stream generation or agent tool-calling
             try:
-                response_stream = client.chat(
+                # 1. Ask Ollama with tools enabled
+                res = client.chat(
                     model=model,
                     messages=messages,
-                    stream=True,
+                    tools=AVAILABLE_TOOLS,
                     options={
                         "temperature": 0.35,
                         "num_thread": 8,
                         "num_ctx": 2048,
                     },
                 )
+                tool_calls = getattr(res.message, "tool_calls", None)
+                if tool_calls:
+                    messages.append(res.message)
+                    for tc in tool_calls:
+                        fn_name = tc.function.name
+                        fn_args = tc.function.arguments or {}
+                        print(f"\n[KIRAHT AI: ⚙️ Executing {fn_name}()]")
+                        tool_res = execute_agent_tool(fn_name, fn_args, call_me)
+                        messages.append({
+                            "role": "tool",
+                            "content": tool_res,
+                        })
+                    response_stream = client.chat(
+                        model=model,
+                        messages=messages,
+                        stream=True,
+                        options={
+                            "temperature": 0.35,
+                            "num_thread": 8,
+                            "num_ctx": 2048,
+                        },
+                    )
+                else:
+                    response_stream = [res]
 
                 print(f"\nkiraht AI: ", end="", flush=True)
 
