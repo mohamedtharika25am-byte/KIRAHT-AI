@@ -1,13 +1,13 @@
-# KIRAHT AI — J.A.R.V.I.S. Edition (Phase 1)
+# KIRAHT AI (Phase 1)
 
-A local, intelligent AI assistant inspired by Iron Man's J.A.R.V.I.S. Powered by **Ollama**, featuring live token streaming, concise personality tuning, persistent memory, and real-time DuckDuckGo web search.
+A local, intelligent personal AI assistant powered by **Ollama**, featuring live token streaming, concise personality tuning, persistent memory, and real-time DuckDuckGo web search.
 
 ---
 
 ## Key Features in Phase 1
 
 1. **⚡ Live Token Streaming**: Words appear immediately on screen as they generate (sub-2s initial response), eliminating long delays.
-2. **🎯 J.A.R.V.I.S. Persona**: Polite, razor-sharp, and strictly to the point (1–3 sentences). No conversational filler or rambling essays.
+2. **🎯 Elite Persona**: Polite, razor-sharp, and strictly to the point (1–3 sentences). No conversational filler or rambling essays.
 3. **🧠 Persistent Memory (`memory.json`)**:
    - Remembers who you are across terminal sessions and PC restarts.
    - Defaults to addressing you as **"Sir"**.
@@ -94,7 +94,7 @@ KIRAHT AI executes local Windows operations instantly (sub-100ms) right from the
 
 ```text
 KIRAHT AI/
-├── main.py              # Main J.A.R.V.I.S. logic, streaming, search, and chat loop
+├── main.py              # Main core logic, streaming, search, and chat loop
 ├── tools.py             # Unified automation engine & intent router
 ├── file_tools.py        # File inspections, size, VS Code launcher, and code reading
 ├── system_tools.py      # Clipboard, terminal runner, screenshot, Wi-Fi, and OS controls
@@ -121,9 +121,9 @@ KIRAHT AI/
    ```bash
    ollama serve
    ```
-   Verify that your model is pulled (default: `qwen3:8b`):
+   Verify that your model is pulled (default: `qwen2.5:3b`):
    ```bash
-   ollama pull qwen3:8b
+   ollama pull qwen2.5:3b
    ```
 
 3. **Start KIRAHT AI**:
@@ -141,7 +141,7 @@ You can edit [memory.json](file:///d:/KIRAHT%20AI/memory.json) directly or use t
   "user_name": "Tharika",
   "call_me": "Sir",
   "assistant_name": "KIRAHT AI",
-  "persona": "J.A.R.V.I.S. - polite, razor-sharp, direct, and intelligent",
+  "persona": "Polite, razor-sharp, direct, and highly intelligent personal assistant",
   "response_style": "Strictly concise. Answer only what is asked in 1-3 sentences.",
   "language_preference": "English / Tanglish"
 }

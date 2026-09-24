@@ -1,23 +1,27 @@
 """
-KIRAHT AI - Version 0.2 (J.A.R.V.I.S. Edition)
-A local, intelligent AI assistant inspired by Iron Man's J.A.R.V.I.S.
+KIRAHT AI - Version 0.2
+A local, intelligent personal AI assistant.
 
 Key Features:
 - Live Token Streaming (immediate word-by-word terminal response).
-- J.A.R.V.I.S. Persona: Razor-sharp, polite, concise, and strictly to the point.
+- Elite Persona: Razor-sharp, polite, concise, and strictly to the point.
 - Persistent Memory (memory.json): Remembers user name, title ("Sir"), and preferences across sessions.
 - Hybrid Internet Awareness:
     * Online: Live DuckDuckGo search for real-time news, dates, and updates.
     * Offline: Gracefully falls back to local Ollama model knowledge.
 - In-memory multi-turn conversation history with session commands (/memory, /callme, /search, /clear).
-- 100% local model inference (qwen3:8b or custom) via native Ollama client.
+- 100% local model inference (qwen2.5:3b or custom) via native Ollama client.
 """
 
 import json
 import os
 import re
+import shutil
 import socket
+import subprocess
 import sys
+import time
+import urllib.request
 from dotenv import load_dotenv
 import httpx
 import ollama
@@ -46,7 +50,7 @@ DEFAULT_MEMORY = {
     "user_name": "Tharik",
     "call_me": "Sir",
     "assistant_name": "KIRAHT AI",
-    "persona": "J.A.R.V.I.S. - polite, razor-sharp, direct, and intelligent",
+    "persona": "Polite, razor-sharp, direct, and highly intelligent personal assistant",
     "response_style": "Strictly concise. Answer only what is asked in 1-3 sentences. Never include unnecessary preambles, disclaimers, or filler text unless detailed explanation is specifically requested.",
     "language_preference": "English / Tanglish",
     "custom_notes": [
@@ -94,7 +98,7 @@ def save_memory(memory_data: dict) -> None:
 
 def build_system_prompt(memory: dict) -> str:
     """
-    Builds the core J.A.R.V.I.S. system prompt using persistent user memory.
+    Builds the core system prompt using persistent user memory.
     """
     user_name = memory.get("user_name", "Mohamed Tharik A")
     preferred = memory.get("preferred_name", "Tharik")
@@ -107,7 +111,7 @@ def build_system_prompt(memory: dict) -> str:
     current_dt = datetime.datetime.now().strftime("%A, %d %B %Y %I:%M %p")
 
     return (
-        f"You are KIRAHT AI, an elite personal AI assistant inspired by {persona}.\n"
+        f"You are KIRAHT AI, an elite personal AI assistant. Your persona is {persona}.\n"
         f"Current System Time: {current_dt}\n"
         f"Creator & Boss: You were developed and created by {user_name} ({preferred}). He is your sole Boss, Master, and Creator.\n"
         f"Master Identity: You are speaking with {user_name}. Always address him with high respect as '{call_me}'.\n"
@@ -350,6 +354,36 @@ def check_file_context(user_text: str) -> str:
 # ==========================================
 # 3. OLLAMA CLIENT & INITIALIZATION
 # ==========================================
+def find_ollama_executable() -> str | None:
+    """
+    Locates the ollama CLI executable on the system.
+    """
+    exe = shutil.which("ollama")
+    if exe:
+        return exe
+    candidates = [
+        os.path.expandvars(r"%LOCALAPPDATA%\Programs\Ollama\ollama.exe"),
+        os.path.expandvars(r"%ProgramFiles%\Ollama\ollama.exe"),
+        os.path.expandvars(r"%ProgramFiles(x86)%\Ollama\ollama.exe"),
+    ]
+    for c in candidates:
+        if os.path.isfile(c):
+            return c
+    return None
+
+
+def is_ollama_endpoint_alive(url: str, timeout: float = 1.0) -> bool:
+    """
+    Quickly probes whether an Ollama host URL is responsive.
+    """
+    try:
+        req = urllib.request.Request(url.rstrip("/") + "/", method="GET")
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return resp.status == 200
+    except Exception:
+        return False
+
+
 def get_client_and_model():
     """
     Loads configuration from environment / .env file and initializes the Ollama client.
@@ -361,10 +395,74 @@ def get_client_and_model():
     return client, model, host
 
 
-def verify_ollama_status(client: ollama.Client, model: str, host: str) -> None:
+def verify_and_ensure_ollama(model: str, initial_host: str) -> tuple[ollama.Client, str]:
     """
-    Verifies that the local Ollama daemon is running and that the requested model exists.
+    Verifies that the local Ollama daemon is reachable and the requested model exists.
+    If Ollama is not running, attempts to start 'ollama serve' in the background.
+    Supports localhost/127.0.0.1 dual-fallback for Windows IPv4/IPv6 compatibility.
     """
+    candidates = [initial_host]
+    if "localhost" in initial_host:
+        candidates.append(initial_host.replace("localhost", "127.0.0.1"))
+    elif "127.0.0.1" in initial_host:
+        candidates.append(initial_host.replace("127.0.0.1", "localhost"))
+
+    # 1. Check if Ollama is already active on any candidate host
+    working_host = None
+    for h in candidates:
+        if is_ollama_endpoint_alive(h, timeout=0.8):
+            working_host = h
+            break
+
+    # 2. If not running, attempt auto-starting
+    if not working_host:
+        ollama_bin = find_ollama_executable()
+        if ollama_bin:
+            print(f"\n[i] Ollama server is not running on {initial_host}.")
+            print(f"[*] Starting local Ollama service in the background ('{ollama_bin} serve')...")
+
+            flags = 0
+            if sys.platform == "win32":
+                flags = subprocess.CREATE_NO_WINDOW | getattr(subprocess, "DETACHED_PROCESS", 0x00000008)
+            try:
+                subprocess.Popen(
+                    [ollama_bin, "serve"],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    stdin=subprocess.DEVNULL,
+                    creationflags=flags,
+                    close_fds=True if sys.platform != "win32" else False,
+                )
+            except Exception as e:
+                print(f"[!] Could not launch Ollama daemon automatically: {e}")
+
+            # Wait up to 12 seconds for Ollama to become responsive
+            start_t = time.time()
+            while time.time() - start_t < 12:
+                time.sleep(0.8)
+                for h in candidates:
+                    if is_ollama_endpoint_alive(h, timeout=0.8):
+                        working_host = h
+                        break
+                if working_host:
+                    print(f"[✓] Ollama server is up and responsive at {working_host}!\n")
+                    break
+                print(".", end="", flush=True)
+            print()
+
+    # 3. If still unreachable, show helpful instructions and exit
+    if not working_host:
+        print(f"\n[!] Connection Error: Unable to connect to Ollama at {initial_host}.")
+        print("    Ensure Ollama is installed and running:")
+        print("      1. Open a terminal and run: ollama serve")
+        print("      2. Or launch the Ollama desktop app from the Start menu.")
+        print("      3. If not installed, download from: https://ollama.com\n")
+        sys.exit(1)
+
+    # 4. Initialize client with verified working host
+    client = ollama.Client(host=working_host)
+
+    # 5. Model presence check
     try:
         response = client.list()
         available_models = []
@@ -380,30 +478,37 @@ def verify_ollama_status(client: ollama.Client, model: str, host: str) -> None:
 
         if not model_found:
             print(f"\n[!] Model Error: Model '{model}' was not found in your local Ollama library.")
-            print("    Available models:")
+            print("    Available installed models:")
             if available_models:
                 for m in available_models:
                     print(f"      - {m}")
             else:
-                print("      (No models found)")
-            print(f"\n    Run 'ollama pull {model}' to download the model.")
+                print("      (No models found in local library)")
+            print(f"\n    To install it, run:")
+            print(f"      ollama pull {model}")
+            print(f"    Or change AI_MODEL in your .env file to an available model.\n")
             sys.exit(1)
 
-    except (httpx.ConnectError, ConnectionRefusedError, ConnectionError, ollama.RequestError):
-        print(f"\n[!] Connection Error: Unable to connect to Ollama at {host}.")
-        print("    Ensure Ollama is running ('ollama serve').\n")
-        sys.exit(1)
     except Exception as err:
-        print(f"\n[!] Unexpected Error while checking Ollama status: {err}\n")
+        print(f"\n[!] Unexpected Error while checking Ollama models: {err}\n")
         sys.exit(1)
 
+    return client, working_host
+
+
+def verify_ollama_status(client: ollama.Client, model: str, host: str) -> None:
+    """
+    Backwards-compatible wrapper that delegates to verify_and_ensure_ollama.
+    """
+    verify_and_ensure_ollama(model, host)
+
 
 # ==========================================
-# 4. STREAMING CHAT LOOP (J.A.R.V.I.S.)
+# 4. STREAMING CHAT LOOP
 # ==========================================
-def run_chat_loop(client: ollama.Client, model: str) -> None:
+def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localhost:11434") -> None:
     """
-    Runs the J.A.R.V.I.S. interactive terminal chat loop with token streaming,
+    Runs the interactive terminal chat loop with token streaming,
     persistent memory, and live web search integration.
     """
     memory = load_memory()
@@ -415,7 +520,7 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
     status_icon = "🌐 ONLINE (Live Web Search)" if online else "📴 OFFLINE (Local Memory Only)"
 
     print("=" * 60)
-    print(f"  KIRAHT AI — J.A.R.V.I.S. Edition")
+    print(f"  KIRAHT AI")
     print(f"  Model: {model}  |  Status: {status_icon}")
     print(f"  Laptop Tools: Active (Apps, Files, Clipboard, Terminal, Screenshot, Wi-Fi, Hardware)")
     print(f"  Commands: /memory, /callme <title>, /name <name>, /scan_apps, /search <query>, /clear, exit")
@@ -534,7 +639,7 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
                     continue
 
             # Check for exit
-            if user_input.lower() in ("exit", "quit", "bye"):
+            if user_input.lower() in ("exit", "quit", "bye","goodbye","exit now","quit now","bye now","tata","see you",):
                 print(f"\nkiraht AI: Systems entering standby. Goodbye, {call_me}!")
                 break
 
@@ -790,7 +895,7 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
 
             except (httpx.ConnectError, ConnectionRefusedError, ConnectionError, ollama.RequestError):
                 messages.pop()
-                print(f"\nkiraht AI: [Connection Error] Lost connection to local Ollama daemon at http://localhost:11434.")
+                print(f"\nkiraht AI: [Connection Error] Lost connection to local Ollama daemon at {host}.")
 
             except Exception as err:
                 messages.pop()
@@ -803,11 +908,13 @@ def run_chat_loop(client: ollama.Client, model: str) -> None:
 
 def main() -> None:
     """
-    Main entry point for KIRAHT AI (J.A.R.V.I.S. Edition).
+    Main entry point for KIRAHT AI.
     """
-    client, model, host = get_client_and_model()
-    verify_ollama_status(client, model, host)
-    run_chat_loop(client, model)
+    load_dotenv()
+    initial_host = os.getenv("OLLAMA_HOST", "http://localhost:11434").strip() or "http://localhost:11434"
+    model = os.getenv("AI_MODEL", "qwen2.5:3b").strip() or "qwen2.5:3b"
+    client, host = verify_and_ensure_ollama(model, initial_host)
+    run_chat_loop(client, model, host=host)
 
 
 if __name__ == "__main__":
