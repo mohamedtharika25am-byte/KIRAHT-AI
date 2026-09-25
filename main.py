@@ -152,6 +152,11 @@ def build_system_prompt(memory: dict) -> str:
         f"- Lock Workstation: When asked to lock ('lock laptop', 'lock screen'), call `system_power_control(action='lock')`.\n"
         f"- Volume & Audio: When asked to change volume ('vol up', 'vol down', 'mute', 'unmute'), call `control_volume`.\n"
         f"- NEVER claim you lack permissions to execute these actions. You are authorized to control the machine as requested.\n\n"
+        f"PROGRAMMING, KNOWLEDGE & CONCEPTUAL QUERIES:\n"
+        f"- You are an elite AI engineer, programmer, and knowledgeable companion.\n"
+        f"- When {call_me} asks for an example, explanation, coding snippet, or algorithm (e.g. 'deque example', 'binary search', 'how to sort in python'):\n"
+        f"  IMMEDIATELY provide clean, working code examples and clear explanations without hesitation.\n"
+        f"- NEVER mention function tools, function signatures, or tool sets when {call_me} asks a programming, educational, or conceptual question.\n\n"
         f"Persistent Directives:\n"
         f"{notes_str}"
     )
@@ -310,11 +315,19 @@ def should_trigger_search(user_text: str) -> tuple[bool, str]:
     if is_identity_query(cleaned):
         return False, ""
 
-    # Explicit command trigger: /search <query> or search: <query>
-    if cleaned.lower().startswith("/search "):
-        return True, cleaned[8:].strip()
-    if cleaned.lower().startswith("search:"):
-        return True, cleaned[7:].strip()
+    # Explicit command triggers: /search, search:, google:, find online:, etc.
+    for prefix in ("/search ", "search:", "search for ", "google:", "google ", "find online ", "look up ", "source for "):
+        if cleaned.lower().startswith(prefix):
+            return True, cleaned[len(prefix):].strip()
+
+    # Tanglish search triggers
+    tanglish_search = re.search(r"^(?:net\s+la|internet\s+la|google\s+la)\s+(?:thedu|paaru|search\s+pannu)\s+(.*)$", cleaned, re.IGNORECASE)
+    if tanglish_search:
+        return True, tanglish_search.group(1).strip()
+
+    tanglish_search_end = re.search(r"^(.*?)\s+(?:pathu\s+sollu|thedi\s+sollu|search\s+panni\s+sollu|net\s+la\s+thedu)$", cleaned, re.IGNORECASE)
+    if tanglish_search_end:
+        return True, tanglish_search_end.group(1).strip()
 
     # Time-sensitive and real-time query keywords
     triggers = [
@@ -351,6 +364,104 @@ def should_trigger_search(user_text: str) -> tuple[bool, str]:
             return True, cleaned
 
     return False, ""
+
+
+def should_enable_tools(user_text: str) -> bool:
+    """
+    Determines if the user's input is an actionable laptop/system control command
+    that requires native function tool calling.
+
+    Returns False for questions, explanations, coding requests, internet lookups,
+    and conversational prompts so the model uses its full knowledge and streams
+    direct answers instead of hallucinating tool signature mismatches.
+    """
+    lower = user_text.lower().strip()
+
+    # 1. Obvious question, educational, algorithmic, conceptual queries -> NEVER pass tools
+    coding_and_question_patterns = [
+        r"\bexample\b",
+        r"\bhow\s+to\b",
+        r"\bhow\s+do\b",
+        r"\bwhat\s+is\b",
+        r"\bwhat\s+are\b",
+        r"\bwhy\s+is\b",
+        r"\bwhy\s+does\b",
+        r"\bexplain\b",
+        r"\bmeaning\b",
+        r"\bdifference\b",
+        r"\btutorial\b",
+        r"\bteach\b",
+        r"\bwrite\s+(?:a\s+)?(?:code|script|program|function|class|essay|story|poem)\b",
+        r"\bpython\b",
+        r"\bjava\b",
+        r"\bc\+\+\b",
+        r"\bjavascript\b",
+        r"\balgorithm\b",
+        r"\bdata\s+structure\b",
+        r"\bdeque\b",
+        r"\bstack\b",
+        r"\bqueue\b",
+        r"\bleetcode\b",
+        r"\bsolve\b",
+        r"\bdebug\b",
+        r"\berror\b",
+        r"\bissue\b",
+        r"\bconcept\b",
+        r"\bsummarize\b",
+        r"\bnotes\s+on\b",
+        r"\bwho\s+is\b",
+        r"\bwhere\s+is\b",
+        r"\bwhich\s+is\b",
+        r"\bwhen\s+did\b",
+        r"\bcan\s+you\s+explain\b",
+        r"\btell\s+me\s+about\b",
+        r"\bguide\b",
+        r"\bdefinition\b",
+        r"\bsyntax\b",
+        r"\bimplementation\b",
+        r"\binterview\b",
+        r"\bquestions?\b",
+    ]
+    for p in coding_and_question_patterns:
+        if re.search(p, lower):
+            return False
+
+    # 2. Tanglish question and conversation patterns -> NEVER pass tools
+    tanglish_questions = [
+        r"\benna\b",
+        r"\bepdi\b",
+        r"\bethuku\b",
+        r"\byaru\b",
+        r"\btheriyuma\b",
+        r"\bsolli\s*kudu\b",
+        r"\bpurila\b",
+        r"\bpaaru\b",
+        r"\bsollu\b",
+        r"\bennalam\b",
+        r"\bpanreenga\b",
+        r"\bseiya\b",
+    ]
+    for p in tanglish_questions:
+        if re.search(p, lower):
+            return False
+
+    # 3. Actionable system command patterns
+    action_triggers = [
+        r"\b(?:open|launch|start|run)\s+[a-zA-Z0-9_\-\.\s]+",
+        r"\b(?:close|kill|quit|terminate)\s+[a-zA-Z0-9_\-\.\s]+",
+        r"\b(?:vol|volume|sound|mute|unmute)\b",
+        r"\b(?:sleep|standby|shutdown|shut\s*down|reboot|restart|power\s*off|screen\s*off|lock\s*screen|lock\s*pc|lock\s*laptop)\b",
+        r"\b(?:brightness|dim|dimmer)\b",
+        r"\b(?:running\s+processes|top\s+processes|task\s*manager|cpu\s+usage|ram\s+usage)\b",
+        r"\b(?:battery|wifi|wi-fi|ssid|ping\s+latency)\b",
+        r"\b(?:search\s+file|find\s+file|read\s+file)\b",
+        r"\b(?:whatsapp|whatsap|watsapp|send\s+message)\b",
+    ]
+    for p in action_triggers:
+        if re.search(p, lower):
+            return True
+
+    return False
 
 
 def check_file_context(user_text: str) -> str:
@@ -1188,29 +1299,45 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
 
             # Stream generation or agent tool-calling
             try:
-                # 1. Ask Ollama with tools enabled
-                res = client.chat(
-                    model=model,
-                    messages=messages,
-                    tools=AVAILABLE_TOOLS,
-                    options={
-                        "temperature": 0.35,
-                        "num_thread": 8,
-                        "num_ctx": 2048,
-                    },
-                )
-                tool_calls = getattr(res.message, "tool_calls", None)
-                if tool_calls:
-                    messages.append(res.message)
-                    for tc in tool_calls:
-                        fn_name = tc.function.name
-                        fn_args = tc.function.arguments or {}
-                        print(f"\n[KIRAHT AI: ⚙️ Executing {fn_name}()]")
-                        tool_res = execute_agent_tool(fn_name, fn_args, call_me)
-                        messages.append({
-                            "role": "tool",
-                            "content": tool_res,
-                        })
+                use_tools = should_enable_tools(user_input)
+                if use_tools:
+                    # 1. Ask Ollama with tools enabled for device commands
+                    res = client.chat(
+                        model=model,
+                        messages=messages,
+                        tools=AVAILABLE_TOOLS,
+                        options={
+                            "temperature": 0.35,
+                            "num_thread": 8,
+                            "num_ctx": 2048,
+                        },
+                    )
+                    tool_calls = getattr(res.message, "tool_calls", None)
+                    if tool_calls:
+                        messages.append(res.message)
+                        for tc in tool_calls:
+                            fn_name = tc.function.name
+                            fn_args = tc.function.arguments or {}
+                            print(f"\n[KIRAHT AI: ⚙️ Executing {fn_name}()]")
+                            tool_res = execute_agent_tool(fn_name, fn_args, call_me)
+                            messages.append({
+                                "role": "tool",
+                                "content": tool_res,
+                            })
+                        response_stream = client.chat(
+                            model=model,
+                            messages=messages,
+                            stream=True,
+                            options={
+                                "temperature": 0.35,
+                                "num_thread": 8,
+                                "num_ctx": 2048,
+                            },
+                        )
+                    else:
+                        response_stream = [res]
+                else:
+                    # 2. Pure streaming chat mode for questions, coding, explanations, and knowledge
                     response_stream = client.chat(
                         model=model,
                         messages=messages,
@@ -1221,8 +1348,6 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                             "num_ctx": 2048,
                         },
                     )
-                else:
-                    response_stream = [res]
 
                 print(f"\nkiraht AI: ", end="", flush=True)
 

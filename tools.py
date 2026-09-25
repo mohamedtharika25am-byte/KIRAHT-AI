@@ -1085,7 +1085,7 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     if re.search(r"\b(list contacts|show contacts|view contacts|contacts list|my contacts)\b", cleaned):
         return True, list_contacts(call_me)
 
-    WA_TRIGS = r"(?:whatsapp|whatsap|watsapp|whapp|whasap|whtsp|whtsapp|wp|wa)"
+    WA_TRIGS = r"(?:whatsapp|whatsap|watsapp|whapp|whasap|whtsp|whtsapp)"
     GRP_TRIGS = r"(?:group|grp|grop|grup|groupp)"
 
     # Check "send <target> (from|on|via|through) whatsapp <msg>" (e.g. "send juhail from whatsapp hi")
@@ -1104,7 +1104,7 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     wa_match = re.search(wa_pattern, user_text.strip(), re.IGNORECASE)
     if wa_match:
         # Check if user explicitly used 'send' (auto-send) or just 'whatsapp' (review mode)
-        is_auto_send = bool(re.search(r"^\s*(?:please\s+)?send\s+(?:a\s+)?(?:whatsapp|whatsap|watsapp|whapp|whasap|whtsp|whtsapp|wp|wa|message|msg)\b", user_text.strip(), re.IGNORECASE))
+        is_auto_send = bool(re.search(r"^\s*(?:please\s+)?send\s+(?:a\s+)?(?:whatsapp|whatsap|watsapp|whapp|whasap|whtsp|whtsapp|message|msg)\b", user_text.strip(), re.IGNORECASE))
         send_flag = "send" if is_auto_send else "review"
 
         rest = wa_match.group(1).strip()
