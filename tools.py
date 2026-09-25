@@ -399,6 +399,7 @@ APP_COMMANDS = {
     "calc": "calc.exe",
     "vs code": "code",
     "vscode": "code",
+    "visual studio code": "code",
     "code": "code",
     "spotify": "spotify",
     "antigravity": "antigravity",
@@ -423,8 +424,17 @@ PROCESS_NAMES = {
     "spotify": ["Spotify.exe"],
     "vscode": ["Code.exe"],
     "vs code": ["Code.exe"],
-    "whatsapp": ["WhatsApp.exe"],
+    "visual studio code": ["Code.exe"],
+    "code": ["Code.exe"],
+    "vsc": ["Code.exe"],
+    "whatsapp": ["WhatsApp.exe", "WhatsApp.Root.exe"],
     "chatgpt": ["ChatGPT.exe"],
+    "antigravity": ["antigravity.exe", "Antigravity Ide.exe"],
+    "edge": ["msedge.exe"],
+    "ms edge": ["msedge.exe"],
+    "microsoft edge": ["msedge.exe"],
+    "task manager": ["taskmgr.exe"],
+    "taskmgr": ["taskmgr.exe"],
 }
 
 # Known Web Destinations
@@ -602,6 +612,30 @@ def launch_desktop_app(app_name: str, call_me: str = "Sir") -> tuple[bool, str]:
             return True, f"{call_me}, launching Task Manager desktop app."
         except Exception as e:
             return False, f"{call_me}, failed to launch Task Manager: {e}"
+
+    # Dedicated high-speed native launch for Visual Studio Code
+    if clean_name in ("visual studio code", "vscode", "vs code", "code", "vsc"):
+        vscode_paths = [
+            os.path.expandvars(r"%LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe"),
+            os.path.expandvars(r"%PROGRAMFILES%\Microsoft VS Code\Code.exe"),
+            os.path.expandvars(r"%PROGRAMFILES(X86)%\Microsoft VS Code\Code.exe"),
+        ]
+        for vpath in vscode_paths:
+            if os.path.exists(vpath):
+                set_last_app("visual studio code")
+                try:
+                    os.startfile(vpath)
+                    return True, f"{call_me}, launching Visual Studio Code."
+                except Exception:
+                    pass
+        code_cmd = shutil.which("code")
+        if code_cmd:
+            set_last_app("visual studio code")
+            try:
+                subprocess.Popen(["code"], shell=True)
+                return True, f"{call_me}, launching Visual Studio Code."
+            except Exception:
+                pass
 
     clean_name = APP_ALIASES.get(clean_name, clean_name)
     app_info = find_installed_app(clean_name)
@@ -837,13 +871,18 @@ def lock_workstation(call_me: str = "Sir") -> str:
 # ============================================================
 def is_file_target(target: str) -> bool:
     """
-    Determines if target string refers to a file (has extension or exists on disk).
+    Determines if target string refers to a file (has extension or is an actual file on disk).
+    Does NOT match directories or known application aliases.
     """
     clean = target.strip().strip("'\"")
-    known_exts = (".py", ".json", ".txt", ".md", ".env", ".csv", ".log", ".html", ".js", ".css", ".bat", ".sh")
-    if any(clean.lower().endswith(ext) for ext in known_exts):
+    clean_lower = clean.lower()
+    if clean_lower in APP_ALIASES or clean_lower in APP_COMMANDS:
+        return False
+    known_exts = (".py", ".json", ".txt", ".md", ".env", ".csv", ".log", ".html", ".js", ".css", ".bat", ".sh", ".c", ".cpp", ".java", ".xml", ".yaml", ".yml")
+    if any(clean_lower.endswith(ext) for ext in known_exts):
         return True
-    return os.path.exists(resolve_path(clean))
+    resolved = resolve_path(clean)
+    return os.path.isfile(resolved)
 
 
 def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, str]:
@@ -1110,7 +1149,7 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     if re.search(r"\b(list contacts|show contacts|view contacts|contacts list|my contacts)\b", cleaned):
         return True, list_contacts(call_me)
 
-    WA_TRIGS = r"(?:whatsapp|whatsap|watsapp|whapp|whasap|whtsp|whtsapp)"
+    WA_TRIGS = r"(?:whats?\s*app|whatasapp|whataspp|whatsap|whatapp|whatsappp|whatssap|watsapp|watapp|watsp|whapp|whasap|whtsp|whtsapp|wa|wp)"
     GRP_TRIGS = r"(?:group|grp|grop|grup|groupp)"
 
     # Check "send <target> (from|on|via|through) whatsapp <msg>" (e.g. "send juhail from whatsapp hi")
@@ -1129,7 +1168,7 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     wa_match = re.search(wa_pattern, user_text.strip(), re.IGNORECASE)
     if wa_match:
         # Check if user explicitly used 'send' (auto-send) or just 'whatsapp' (review mode)
-        is_auto_send = bool(re.search(r"^\s*(?:please\s+)?send\s+(?:a\s+)?(?:whatsapp|whatsap|watsapp|whapp|whasap|whtsp|whtsapp|message|msg)\b", user_text.strip(), re.IGNORECASE))
+        is_auto_send = bool(re.search(rf"^\s*(?:please\s+)?send\s+(?:a\s+)?(?:{WA_TRIGS}|message|msg)\b", user_text.strip(), re.IGNORECASE))
         send_flag = "send" if is_auto_send else "review"
 
         rest = wa_match.group(1).strip()
@@ -1144,8 +1183,8 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         target = ""
         msg_text = ""
 
-        # Case A: explicit delimiter (: or - or saying or msg or text)
-        delim_match = re.search(r"^(.*?)\s*(?::|-|saying|msg|message|text|that)\s*(.*)$", rest, re.IGNORECASE)
+        # Case A: explicit delimiter (: or saying or msg or text: or that)
+        delim_match = re.search(r"^(.*?)\s*(?::|saying|msg|message|text:|that)\s*(.*)$", rest, re.IGNORECASE)
         if delim_match:
             target = delim_match.group(1).strip()
             msg_text = delim_match.group(2).strip()
@@ -1156,8 +1195,8 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
                 target = rest
                 msg_text = ""
             else:
-                target = words[0]
-                msg_text = " ".join(words[1:])
+                target = rest
+                msg_text = ""
         else:
             # Case C: Check if entire rest is a known contact or alias
             phone, dname, rel = resolve_contact(rest)
@@ -1187,18 +1226,11 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         # Check if it's a group:
         if is_group:
             g_info, related_groups = resolve_group(target)
+            target_display = g_info['display'] if g_info else target.strip()
             if not msg_text:
-                if g_info:
-                    return True, f"__NEED_MESSAGE__:{g_info['display']}:{g_info['display']}:group:{send_flag}"
-                else:
-                    rel_list = [{"name": r["display"], "phone": ""} for r in related_groups]
-                    return True, f"__NEED_GROUP__:{target}::{json.dumps(rel_list)}:{send_flag}"
+                return True, f"__NEED_MESSAGE__:{target_display}:{target_display}:group:{send_flag}"
             else:
-                if not g_info:
-                    rel_list = [{"name": r["display"], "phone": ""} for r in related_groups]
-                    return True, f"__NEED_GROUP__:{target}:{msg_text}:{json.dumps(rel_list)}:{send_flag}"
-                else:
-                    return True, send_whatsapp_message(g_info["display"], msg_text, call_me, is_group=True, auto_send=is_auto_send)
+                return True, send_whatsapp_message(target_display, msg_text, call_me, is_group=True, auto_send=is_auto_send)
 
         # Individual contact:
         if not msg_text:
