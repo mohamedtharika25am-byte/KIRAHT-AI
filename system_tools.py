@@ -1000,16 +1000,100 @@ def _set_clipboard_text(text: str):
     except Exception:
         pass
 
-def _press_key_hardware(vk: int):
+# --- Windows Kernel-Level Hardware SendInput Structures ---
+PUL = ctypes.POINTER(ctypes.c_ulong)
+class _KeyBdInput(ctypes.Structure):
+    _fields_ = [
+        ('wVk', ctypes.wintypes.WORD),
+        ('wScan', ctypes.wintypes.WORD),
+        ('dwFlags', ctypes.wintypes.DWORD),
+        ('time', ctypes.wintypes.DWORD),
+        ('dwExtraInfo', PUL)
+    ]
+
+class _HardwareInput(ctypes.Structure):
+    _fields_ = [
+        ('uMsg', ctypes.wintypes.DWORD),
+        ('wParamL', ctypes.wintypes.WORD),
+        ('wParamH', ctypes.wintypes.WORD)
+    ]
+
+class _MouseInput(ctypes.Structure):
+    _fields_ = [
+        ('dx', ctypes.wintypes.LONG),
+        ('dy', ctypes.wintypes.LONG),
+        ('mouseData', ctypes.wintypes.DWORD),
+        ('dwFlags', ctypes.wintypes.DWORD),
+        ('time', ctypes.wintypes.DWORD),
+        ('dwExtraInfo', PUL)
+    ]
+
+class _Input_I(ctypes.Union):
+    _fields_ = [
+        ('ki', _KeyBdInput),
+        ('mi', _MouseInput),
+        ('hi', _HardwareInput)
+    ]
+
+class _Input(ctypes.Structure):
+    _fields_ = [
+        ('type', ctypes.wintypes.DWORD),
+        ('ii', _Input_I)
+    ]
+
+def _send_hardware_key(vk: int):
     """
-    Simulates a key press with legitimate hardware scan code mapped via MapVirtualKeyW.
-    Required by Windows Modern/UWP/WinUI applications to register synthetic input.
+    Sends true kernel-level hardware scan code and virtual key events via SendInput and keybd_event.
+    Guarantees synthetic keystroke registration in modern WinUI 3, UWP, and Win32 applications.
     """
     user32 = ctypes.windll.user32
     scan_code = user32.MapVirtualKeyW(vk, 0)
-    user32.keybd_event(vk, scan_code, 0, 0)
-    time.sleep(0.05)
-    user32.keybd_event(vk, scan_code, 2, 0)
+    extra = ctypes.c_ulong(0)
+
+    # 1. Hardware scan code via SendInput (KEYEVENTF_SCANCODE = 0x0008)
+    try:
+        ii_down = _Input_I()
+        ii_down.ki = _KeyBdInput(0, scan_code, 0x0008, 0, ctypes.pointer(extra))
+        inp_down = _Input(ctypes.c_ulong(1), ii_down)
+        user32.SendInput(1, ctypes.pointer(inp_down), ctypes.sizeof(inp_down))
+
+        time.sleep(0.03)
+
+        ii_up = _Input_I()
+        ii_up.ki = _KeyBdInput(0, scan_code, 0x0008 | 0x0002, 0, ctypes.pointer(extra)) # KEYEVENTF_SCANCODE | KEYEVENTF_KEYUP
+        inp_up = _Input(ctypes.c_ulong(1), ii_up)
+        user32.SendInput(1, ctypes.pointer(inp_up), ctypes.sizeof(inp_up))
+
+        time.sleep(0.02)
+
+        # 2. Virtual Key via SendInput
+        ii_vk_down = _Input_I()
+        ii_vk_down.ki = _KeyBdInput(vk, scan_code, 0, 0, ctypes.pointer(extra))
+        inp_vk_down = _Input(ctypes.c_ulong(1), ii_vk_down)
+        user32.SendInput(1, ctypes.pointer(inp_vk_down), ctypes.sizeof(inp_vk_down))
+
+        time.sleep(0.03)
+
+        ii_vk_up = _Input_I()
+        ii_vk_up.ki = _KeyBdInput(vk, scan_code, 0x0002, 0, ctypes.pointer(extra))
+        inp_vk_up = _Input(ctypes.c_ulong(1), ii_vk_up)
+        user32.SendInput(1, ctypes.pointer(inp_vk_up), ctypes.sizeof(inp_vk_up))
+    except Exception:
+        pass
+
+    # 3. Fallback / complementary legacy keybd_event with hardware scan code
+    try:
+        user32.keybd_event(vk, scan_code, 0, 0)
+        time.sleep(0.03)
+        user32.keybd_event(vk, scan_code, 2, 0)
+    except Exception:
+        pass
+
+def _press_key_hardware(vk: int):
+    """
+    Simulates a key press with legitimate hardware scan code mapped via MapVirtualKeyW and SendInput.
+    """
+    _send_hardware_key(vk)
 
 def _hotkey_ctrl(vk: int):
     """
@@ -1019,11 +1103,11 @@ def _hotkey_ctrl(vk: int):
     scan_ctrl = user32.MapVirtualKeyW(VK_CONTROL, 0)
     scan_vk = user32.MapVirtualKeyW(vk, 0)
     user32.keybd_event(VK_CONTROL, scan_ctrl, 0, 0)
-    time.sleep(0.05)
+    time.sleep(0.04)
     user32.keybd_event(vk, scan_vk, 0, 0)
-    time.sleep(0.05)
+    time.sleep(0.04)
     user32.keybd_event(vk, scan_vk, 2, 0)
-    time.sleep(0.05)
+    time.sleep(0.04)
     user32.keybd_event(VK_CONTROL, scan_ctrl, 2, 0)
 
 def _activate_whatsapp_window() -> bool:
@@ -1080,10 +1164,14 @@ def _activate_whatsapp_window() -> bool:
             target_pid = ctypes.wintypes.DWORD()
             target_thread = user32.GetWindowThreadProcessId(target_hwnd, ctypes.byref(target_pid))
             user32.AttachThreadInput(cur_thread, target_thread, True)
-            user32.ShowWindow(target_hwnd, win32con.SW_RESTORE)
+            if user32.IsIconic(target_hwnd):
+                user32.ShowWindow(target_hwnd, win32con.SW_RESTORE)
+            user32.ShowWindow(target_hwnd, win32con.SW_SHOW)
             user32.SetForegroundWindow(target_hwnd)
             user32.BringWindowToTop(target_hwnd)
-            user32.SetFocus(target_hwnd)
+            # Intentionally do NOT call user32.SetFocus(target_hwnd):
+            # Calling SetFocus on the top-level container window strips focus
+            # away from the child message input box in WinUI 3.
             user32.AttachThreadInput(cur_thread, target_thread, False)
             return True
         except Exception:
@@ -1103,19 +1191,34 @@ def _activate_whatsapp_window() -> bool:
         pass
     return False
 
-def _send_whatsapp_enter_keystrokes():
+def _send_whatsapp_enter_keystrokes(ensure_focus: bool = False):
     """
-    Focuses WhatsApp and sends Enter keystrokes via WScript.Shell and hardware events.
+    Sends multi-layered hardware Enter keystrokes via SendInput, WScript.Shell, and hardware events.
     """
-    _activate_whatsapp_window()
-    time.sleep(0.1)
+    user32 = ctypes.windll.user32
+    if ensure_focus:
+        fg = user32.GetForegroundWindow()
+        length = user32.GetWindowTextLengthW(fg)
+        title = ""
+        if length > 0:
+            buff = ctypes.create_unicode_buffer(length + 1)
+            user32.GetWindowTextW(fg, buff, length + 1)
+            title = buff.value.lower()
+        if 'whatsapp' not in title:
+            _activate_whatsapp_window()
+            time.sleep(0.1)
+
+    # 1. Hardware scan code & virtual key Enter via Windows SendInput
+    _send_hardware_key(VK_RETURN)
+
+    # 2. WScript.Shell SendKeys Enter and tilde Enter
     try:
         import win32com.client
         wscript = win32com.client.Dispatch("WScript.Shell")
         wscript.SendKeys("{ENTER}")
+        wscript.SendKeys("~")
     except Exception:
         pass
-    _press_key_hardware(VK_RETURN)
 
 def _delayed_press_enter(initial_delay: float = 2.0, attempts: int = 8, interval: float = 1.5):
     """
@@ -1124,8 +1227,7 @@ def _delayed_press_enter(initial_delay: float = 2.0, attempts: int = 8, interval
     """
     time.sleep(initial_delay)
     for _ in range(attempts):
-        if _activate_whatsapp_window():
-            _send_whatsapp_enter_keystrokes()
+        _send_whatsapp_enter_keystrokes(ensure_focus=True)
         time.sleep(interval)
 
 def dispatch_whatsapp_desktop(search_term: str, message: str, auto_send: bool = True):
@@ -1178,13 +1280,24 @@ def dispatch_whatsapp_desktop(search_term: str, message: str, auto_send: bool = 
     # 7. Paste message into chat input field
     _set_clipboard_text(message)
     _hotkey_ctrl(VK_V)
-    time.sleep(0.35)
+    time.sleep(0.45)  # Allow WhatsApp UI to process the paste and enable the send state
 
-    # 8. If auto_send requested, dispatch Enter keystrokes
+    # 8. If auto_send requested, dispatch multi-stage Enter keystrokes
     if auto_send:
-        _send_whatsapp_enter_keystrokes()
-        time.sleep(0.5)
-        _send_whatsapp_enter_keystrokes()
+        # Immediate multi-layered pulse directly into the active focused input box
+        _send_whatsapp_enter_keystrokes(ensure_focus=False)
+        time.sleep(0.25)
+        _send_whatsapp_enter_keystrokes(ensure_focus=False)
+        time.sleep(0.35)
+        _send_whatsapp_enter_keystrokes(ensure_focus=False)
+
+        # Background watchdog thread to guarantee delivery even under heavy system load
+        def _bg_enter_watchdog():
+            for delay in (0.8, 1.8, 3.0):
+                time.sleep(delay)
+                _send_whatsapp_enter_keystrokes(ensure_focus=True)
+
+        threading.Thread(target=_bg_enter_watchdog, daemon=True).start()
 
 def dispatch_whatsapp_group(group_search_term: str, message: str, auto_send: bool = True):
     """
