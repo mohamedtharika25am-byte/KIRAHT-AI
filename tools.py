@@ -510,8 +510,11 @@ def find_installed_app(app_query: str) -> dict | None:
     Resolves user query to an installed Windows desktop application.
     Supports aliases, exact matches, prefix matches, and fuzzy typo tolerance.
     """
+    clean = app_query.lower().strip() if app_query else ""
+    if not clean:
+        return None
+
     cache = load_apps_cache()
-    clean = app_query.lower().strip()
     clean = APP_ALIASES.get(clean, clean)
 
     # 1. Exact match
@@ -541,7 +544,18 @@ def launch_desktop_app(app_name: str, call_me: str = "Sir") -> tuple[bool, str]:
     Launches a native installed application directly on Windows.
     Includes automatic browser fallback for services like ChatGPT.
     """
-    clean_name = app_name.lower().strip()
+    clean_name = app_name.lower().strip() if app_name else ""
+    if not clean_name:
+        return False, f"{call_me}, which application would you like me to open?"
+
+    # Dedicated direct handler for Task Manager application
+    if clean_name in ("task manager", "taskmgr", "task man", "taskmanager"):
+        try:
+            subprocess.Popen("taskmgr.exe", shell=True)
+            return True, f"{call_me}, launching Task Manager desktop app."
+        except Exception as e:
+            return False, f"{call_me}, failed to launch Task Manager: {e}"
+
     clean_name = APP_ALIASES.get(clean_name, clean_name)
     app_info = find_installed_app(clean_name)
 
@@ -853,8 +867,11 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     if re.search(r"\b(empty recycle bin|clean recycle bin|clear recycle bin|empty trash)\b", cleaned):
         return True, empty_recycle_bin(call_me)
 
-    # 10.1 Running Processes / Top Active Apps / System Load
-    if re.search(r"\b(running apps|active apps|what apps are running|open apps|list processes|running processes|task manager|top apps|system processes|active processes)\b", cleaned):
+    # 10.1 Task Manager App vs Running Processes / System Load Listing
+    if re.search(r"\b(?:open|launch|start)\s+(?:the\s+)?(?:task\s*manager|taskmgr)\b", cleaned):
+        return True, launch_desktop_app("task manager", call_me=call_me)[1]
+
+    if re.search(r"\b(running apps|active apps|what apps are running|list processes|running processes|show processes|show task manager|top apps|system processes|active processes|system load)\b", cleaned):
         return True, get_running_processes(10, call_me)
 
     # 10.2 Screen Brightness Controls
@@ -991,6 +1008,18 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     WA_TRIGS = r"(?:whatsapp|whatsap|watsapp|whapp|whasap|whtsp|whtsapp|wp|wa)"
     GRP_TRIGS = r"(?:group|grp|grop|grup|groupp)"
 
+    # Check "send <target> (from|on|via|through) whatsapp <msg>" (e.g. "send juhail from whatsapp hi")
+    wa_from_match = re.search(rf"^(?:please\s+)?send\s+([a-zA-Z0-9_\-\.\s]+?)\s+(?:from|on|via|through)\s+{WA_TRIGS}\s*(.*)$", user_text.strip(), re.IGNORECASE)
+    if wa_from_match:
+        target = wa_from_match.group(1).strip()
+        msg_text = wa_from_match.group(2).strip()
+        if msg_text:
+            return True, send_whatsapp_message(target, msg_text, call_me, is_group=False, auto_send=True)
+        else:
+            phone, display_name, related = resolve_contact(target)
+            disp = display_name if display_name else target.title()
+            return True, f"__NEED_MESSAGE__:{target}:{disp}:individual:send"
+
     wa_pattern = rf"^(?:please\s+)?(?:send\s+(?:a\s+)?(?:{WA_TRIGS}\s+)?(?:message|msg)\s+(?:to\s+)?|send\s+{WA_TRIGS}(?:\s+to)?|{WA_TRIGS})\s+(.*)$"
     wa_match = re.search(wa_pattern, user_text.strip(), re.IGNORECASE)
     if wa_match:
@@ -1089,9 +1118,14 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
             return True, open_file_in_editor(target_item, call_me)
 
     # 23. Open Desktop Application (Native Laptop App First, with Browser Fallback)
+    if cleaned in ("open", "launch", "start", "run") or re.match(r"^(?:please\s+)?(?:open|launch|start|run)\s*$", cleaned):
+        return True, f"{call_me}, which application would you like me to open?"
+
     open_app_match = re.search(r"^(?:please\s+)?(?:open|launch|start|run)\s+([a-zA-Z0-9\s\-]+)\b", cleaned)
     if open_app_match:
         app_to_open = open_app_match.group(1).strip()
+        if not app_to_open:
+            return True, f"{call_me}, which application would you like me to open?"
         if app_to_open not in ("folder", "file") and not is_file_target(app_to_open):
             launched, msg = launch_desktop_app(app_to_open, call_me=call_me)
             if launched:

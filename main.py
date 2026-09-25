@@ -641,7 +641,7 @@ AVAILABLE_TOOLS = [
         "type": "function",
         "function": {
             "name": "open_application",
-            "description": "Launches an installed Windows desktop application (e.g. Chrome, WhatsApp, Android Studio, VS Code, Spotify, Notepad, Calculator).",
+            "description": "Launches an installed Windows desktop application (e.g. Task Manager, Chrome, WhatsApp, Android Studio, VS Code, Spotify, Notepad, Calculator). Only call this when user explicitly names an application to open.",
             "parameters": {
                 "type": "object",
                 "properties": {
@@ -752,7 +752,9 @@ def execute_agent_tool(tool_name: str, args: dict, call_me: str = "Sir") -> str:
             return f"{call_me}, file inspected."
 
         elif tool_name == "open_application":
-            app = args.get("app_name", "")
+            app = args.get("app_name", "").strip()
+            if not app or app.lower() in ("app", "application", "none", "null"):
+                return f"{call_me}, which application would you like me to open?"
             handled, res = execute_system_command(f"open {app}", call_me=call_me)
             return res if handled else f"{call_me}, attempted to launch {app}."
 

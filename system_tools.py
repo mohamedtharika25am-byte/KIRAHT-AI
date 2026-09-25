@@ -476,15 +476,14 @@ def load_contacts_data() -> dict:
             data = json.load(f)
             if not isinstance(data, dict):
                 return default_data
-            # If flat dict (no 'contacts' key), migrate to structured format
             if "contacts" not in data and "aliases" not in data:
-                return {"contacts": data, "aliases": {}, "groups": {}}
-            if "contacts" not in data:
-                data["contacts"] = {}
-            if "aliases" not in data:
-                data["aliases"] = {}
-            if "groups" not in data:
-                data["groups"] = {}
+                data = {"contacts": data, "aliases": {}, "groups": {}}
+            raw_contacts = data.get("contacts", {}) if isinstance(data.get("contacts"), dict) else {}
+            raw_aliases = data.get("aliases", {}) if isinstance(data.get("aliases"), dict) else {}
+            raw_groups = data.get("groups", {}) if isinstance(data.get("groups"), dict) else {}
+            data["contacts"] = {str(k).lower().strip(): str(v).strip() for k, v in raw_contacts.items() if str(k).strip()}
+            data["aliases"] = {str(k).lower().strip(): str(v).lower().strip() for k, v in raw_aliases.items() if str(k).strip()}
+            data["groups"] = {str(k).lower().strip(): v for k, v in raw_groups.items() if str(k).strip()}
             return data
     except Exception:
         return default_data
@@ -773,20 +772,7 @@ VK_CONTROL = 0x11
 VK_F = 0x46
 VK_V = 0x56
 VK_RETURN = 0x0D
-
-def _press_key(vk: int):
-    ctypes.windll.user32.keybd_event(vk, 0, 0, 0)
-    time.sleep(0.05)
-    ctypes.windll.user32.keybd_event(vk, 0, 2, 0)
-
-def _hotkey_ctrl(vk: int):
-    ctypes.windll.user32.keybd_event(VK_CONTROL, 0, 0, 0)
-    time.sleep(0.05)
-    ctypes.windll.user32.keybd_event(vk, 0, 0, 0)
-    time.sleep(0.05)
-    ctypes.windll.user32.keybd_event(vk, 0, 2, 0)
-    time.sleep(0.05)
-    ctypes.windll.user32.keybd_event(VK_CONTROL, 0, 2, 0)
+VK_DOWN = 0x28
 
 def _set_clipboard_text(text: str):
     try:
@@ -794,43 +780,124 @@ def _set_clipboard_text(text: str):
     except Exception:
         pass
 
-def _delayed_press_enter(delay: float = 2.0):
+def _press_key_hardware(vk: int):
+    """
+    Simulates a key press with the legitimate hardware scan code mapped via MapVirtualKeyW.
+    Required by Windows Modern/UWP/WinUI applications to register synthetic input.
+    """
+    user32 = ctypes.windll.user32
+    scan_code = user32.MapVirtualKeyW(vk, 0)
+    user32.keybd_event(vk, scan_code, 0, 0)
+    time.sleep(0.05)
+    user32.keybd_event(vk, scan_code, 2, 0)
+
+def _hotkey_ctrl(vk: int):
+    """
+    Simulates Ctrl + key combination with hardware scan codes.
+    """
+    user32 = ctypes.windll.user32
+    scan_ctrl = user32.MapVirtualKeyW(VK_CONTROL, 0)
+    scan_vk = user32.MapVirtualKeyW(vk, 0)
+    user32.keybd_event(VK_CONTROL, scan_ctrl, 0, 0)
+    time.sleep(0.05)
+    user32.keybd_event(vk, scan_vk, 0, 0)
+    time.sleep(0.05)
+    user32.keybd_event(vk, scan_vk, 2, 0)
+    time.sleep(0.05)
+    user32.keybd_event(VK_CONTROL, scan_ctrl, 2, 0)
+
+def _activate_whatsapp_window() -> bool:
+    """
+    Brings WhatsApp desktop window to the active foreground using WScript.Shell.
+    """
+    try:
+        import win32com.client
+        wscript = win32com.client.Dispatch("WScript.Shell")
+        if wscript.AppActivate("WhatsApp"):
+            return True
+        for p in psutil.process_iter(['pid', 'name']):
+            if 'what' in p.info['name'].lower():
+                if wscript.AppActivate(p.info['pid']):
+                    return True
+    except Exception:
+        pass
+    return False
+
+def _send_whatsapp_enter_keystrokes():
+    """
+    Focuses WhatsApp and sends Enter keystrokes via WScript.Shell and hardware events.
+    """
+    _activate_whatsapp_window()
+    time.sleep(0.15)
+    try:
+        import win32com.client
+        wscript = win32com.client.Dispatch("WScript.Shell")
+        wscript.SendKeys("{ENTER}")
+    except Exception:
+        pass
+    _press_key_hardware(VK_RETURN)
+
+def _delayed_press_enter(delay: float = 2.8):
+    """
+    Waits for WhatsApp to navigate and populate text, activates the window,
+    and automatically presses Enter to send the message.
+    Sends a second Enter after 1s to guarantee transmission without risk.
+    """
     time.sleep(delay)
-    _press_key(VK_RETURN)
+    _send_whatsapp_enter_keystrokes()
+    time.sleep(1.0)
+    _send_whatsapp_enter_keystrokes()
 
 def dispatch_whatsapp_desktop(search_term: str, message: str, auto_send: bool = True):
     """
     Opens WhatsApp Desktop, searches for contact or group name in search bar (Ctrl + F),
-    opens the chat with Enter, pastes message, and optionally sends.
+    navigates to the first result via Down Arrow, opens chat with Enter, pastes message,
+    and automatically sends the message.
     """
     try:
         os.startfile("whatsapp://")
     except Exception:
         pass
-    time.sleep(1.0)
+    time.sleep(1.5)
+
+    _activate_whatsapp_window()
+    time.sleep(0.3)
 
     # Focus search bar (Ctrl + F)
     _hotkey_ctrl(VK_F)
     time.sleep(0.4)
 
+    # Clear previous search query if any
+    try:
+        import win32com.client
+        wscript = win32com.client.Dispatch("WScript.Shell")
+        wscript.SendKeys("^a{BACKSPACE}")
+    except Exception:
+        pass
+    time.sleep(0.2)
+
     # Paste contact or group search term
     _set_clipboard_text(search_term)
     _hotkey_ctrl(VK_V)
-    time.sleep(0.7)
+    time.sleep(1.2)  # Wait for search results to populate
 
-    # Press Enter to open the chat
-    _press_key(VK_RETURN)
-    time.sleep(0.6)
+    # Highlight top search result using Down Arrow, then press Enter to open
+    _press_key_hardware(VK_DOWN)
+    time.sleep(0.3)
+    _press_key_hardware(VK_RETURN)
+    time.sleep(1.5)  # Wait for conversation to load and message box to gain focus
 
-    # Paste message
+    # Paste message into chat input field
     _set_clipboard_text(message)
     _hotkey_ctrl(VK_V)
-    time.sleep(0.4)
+    time.sleep(0.5)
 
-    # If auto-send, press Enter
+    # If auto-send requested, fire dual Enter sequence
     if auto_send:
         time.sleep(0.2)
-        _press_key(VK_RETURN)
+        _send_whatsapp_enter_keystrokes()
+        time.sleep(1.0)
+        _send_whatsapp_enter_keystrokes()
 
 
 def dispatch_whatsapp_group(group_search_term: str, message: str, auto_send: bool = True):
@@ -880,7 +947,7 @@ def send_whatsapp_message(target: str, message: str, call_me: str = "Sir", is_gr
         try:
             os.startfile(uri)
             if auto_send:
-                threading.Thread(target=_delayed_press_enter, args=(2.0,), daemon=True).start()
+                threading.Thread(target=_delayed_press_enter, args=(2.8,), daemon=True).start()
                 return f"{call_me}, dispatched WhatsApp message to {display_name}: '{message}'."
             else:
                 return f"{call_me}, opened WhatsApp for {display_name} with your message pre-filled. Press Enter to send."
