@@ -1041,11 +1041,14 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
     pending_whatsapp = None
 
     while True:
+        is_processing = False
         try:
             user_input = get_user_input_multiline("\nYou: ").strip()
 
             if not user_input:
                 continue
+
+            is_processing = True
 
             # Multi-turn WhatsApp interactive resolution (missing message, phone number, or group)
             if pending_whatsapp:
@@ -1521,12 +1524,18 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                 print(f"\nkiraht AI: [Error] {err}")
 
         except KeyboardInterrupt:
-            if pending_whatsapp:
+            if is_processing:
+                if messages and messages[-1].get("role") == "user":
+                    messages.pop()
+                print(f"\n\n[kiraht AI: Operation cancelled by {call_me}]")
+                continue
+            elif pending_whatsapp:
                 pending_whatsapp = None
                 print(f"\n\n[kiraht AI: Operation cancelled by {call_me}]")
+                continue
             else:
-                print(f"\n\n[kiraht AI: Cancelled by {call_me}]")
-            continue
+                print(f"\nkiraht AI: Systems standing by. Goodbye, {call_me}!")
+                break
 
         except EOFError:
             print(f"\nkiraht AI: Systems standing by. Goodbye, {call_me}!")
