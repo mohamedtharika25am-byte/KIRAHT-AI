@@ -56,6 +56,7 @@ from system_tools import (
     set_volume_level,
     adjust_volume_delta,
     toggle_mute,
+    toggle_mic_mute,
     adjust_volume,
     sleep_laptop,
     shutdown_laptop,
@@ -909,9 +910,17 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         return True, adjust_volume_delta(15, call_me)
     if re.search(r"\b(volume down|vol down|decrease volume|lower volume|quieter|softer|vol \-|dec vol)\b", cleaned):
         return True, adjust_volume_delta(-15, call_me)
-    if re.search(r"\b(unmute(?:\s+volume|\s+pc|\s+audio)?)\b", cleaned):
+    # 5.1 Microphone Control (Mute, Unmute, Mic Off, Mic On)
+    if re.search(r"\b(?:unmute\s+(?:mic|microphone)|(?:mic|microphone)\s+(?:unmute|on|enable|start))\b", cleaned):
+        return True, toggle_mic_mute("unmute", call_me)
+    if re.search(r"\b(?:mute\s+(?:mic|microphone)|(?:mic|microphone)\s+(?:mute|off|disable|stop)|mic\s*off)\b", cleaned):
+        return True, toggle_mic_mute("mute", call_me)
+    if re.search(r"\b(?:toggle\s+(?:mic|microphone)|(?:mic|microphone)\s+toggle)\b", cleaned):
+        return True, toggle_mic_mute("toggle", call_me)
+
+    if re.search(r"\b(unmute(?:\s+volume|\s+pc|\s+audio)?)\b", cleaned) and not re.search(r"\b(mic|microphone)\b", cleaned):
         return True, toggle_mute("unmute", call_me)
-    if re.search(r"\b(mute(?:\s+volume|\s+pc|\s+audio)?)\b", cleaned):
+    if re.search(r"\b(mute(?:\s+volume|\s+pc|\s+audio)?)\b", cleaned) and not re.search(r"\b(mic|microphone)\b", cleaned):
         return True, toggle_mute("mute", call_me)
 
     # 6. Clipboard Operations

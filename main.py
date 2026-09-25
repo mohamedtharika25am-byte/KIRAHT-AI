@@ -151,6 +151,7 @@ def build_system_prompt(memory: dict) -> str:
         f"- Screen & Display: When asked to turn off screen ('turn off display', 'screen off'), call `system_power_control(action='screen_off')`.\n"
         f"- Lock Workstation: When asked to lock ('lock laptop', 'lock screen'), call `system_power_control(action='lock')`.\n"
         f"- Volume & Audio: When asked to change volume ('vol up', 'vol down', 'mute', 'unmute'), call `control_volume`.\n"
+        f"- Microphone: When asked to mute, unmute, or turn on/off microphone ('mic mute', 'mic off', 'mic on', 'unmute mic'), call `control_microphone`.\n"
         f"- NEVER claim you lack permissions to execute these actions. You are authorized to control the machine as requested.\n\n"
         f"PROGRAMMING, KNOWLEDGE & CONCEPTUAL QUERIES:\n"
         f"- You are an elite AI engineer, programmer, and knowledgeable companion.\n"
@@ -449,7 +450,7 @@ def should_enable_tools(user_text: str) -> bool:
     action_triggers = [
         r"\b(?:open|launch|start|run)\s+[a-zA-Z0-9_\-\.\s]+",
         r"\b(?:close|kill|quit|terminate)\s+[a-zA-Z0-9_\-\.\s]+",
-        r"\b(?:vol|volume|sound|mute|unmute)\b",
+        r"\b(?:vol|volume|sound|mute|unmute|mic|microphone)\b",
         r"\b(?:sleep|standby|shutdown|shut\s*down|reboot|restart|power\s*off|screen\s*off|lock\s*screen|lock\s*pc|lock\s*laptop)\b",
         r"\b(?:brightness|dim|dimmer)\b",
         r"\b(?:running\s+processes|top\s+processes|task\s*manager|cpu\s+usage|ram\s+usage)\b",
@@ -745,6 +746,24 @@ AVAILABLE_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "control_microphone",
+            "description": "Controls Windows microphone audio recording input: mute, unmute, or toggle microphone state.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["mute", "unmute", "toggle"],
+                        "description": "Action to perform on microphone"
+                    }
+                },
+                "required": ["action"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "system_power_control",
             "description": "Performs Windows system power operations: put laptop to sleep / standby, shutdown PC, restart PC, cancel/abort pending shutdown, hibernate, lock workstation, or turn off display.",
             "parameters": {
@@ -876,6 +895,11 @@ def execute_agent_tool(tool_name: str, args: dict, call_me: str = "Sir") -> str:
             elif action in ("mute", "unmute", "toggle"):
                 return toggle_mute(action, call_me=call_me)
             return adjust_volume(action, call_me=call_me)
+
+        elif tool_name == "control_microphone":
+            from system_tools import toggle_mic_mute
+            action = args.get("action", "toggle")
+            return toggle_mic_mute(action, call_me=call_me)
 
         elif tool_name == "system_power_control":
             from system_tools import handle_power_action

@@ -83,45 +83,51 @@ def clear_clipboard(call_me: str = "Sir") -> str:
 # ============================================================
 # 2. PRECISION WINDOWS AUDIO & MASTER VOLUME CONTROL
 # ============================================================
-def _get_audio_endpoint_volume():
+def _get_audio_endpoint_volume(data_flow: int = 0):
     """
-    Acquires Windows IAudioEndpointVolume COM interface for master volume manipulation.
+    Acquires Windows IAudioEndpointVolume COM interface.
+    data_flow=0 (eRender): Master Speakers Output
+    data_flow=1 (eCapture): Master Microphone Input
     """
     try:
         import comtypes
         from comtypes import CLSCTX_ALL, CoCreateInstance, GUID, IUnknown
-        from ctypes import POINTER, c_float, c_long, HRESULT
+        from ctypes import POINTER, c_float, c_long, c_uint, c_void_p, HRESULT
 
         class IAudioEndpointVolume(IUnknown):
             _iid_ = GUID("{5CDF2C82-841E-4546-9722-0CF74078229A}")
             _methods_ = [
-                comtypes.STDMETHOD(HRESULT, "RegisterControlChangeNotify", []),
-                comtypes.STDMETHOD(HRESULT, "UnregisterControlChangeNotify", []),
-                comtypes.STDMETHOD(HRESULT, "GetChannelCount", [POINTER(ctypes.c_uint)]),
-                comtypes.STDMETHOD(HRESULT, "SetMasterVolumeLevel", [c_float, ctypes.c_void_p]),
-                comtypes.STDMETHOD(HRESULT, "SetMasterVolumeLevelScalar", [c_float, ctypes.c_void_p]),
+                comtypes.STDMETHOD(HRESULT, "RegisterControlChangeNotify", [c_void_p]),
+                comtypes.STDMETHOD(HRESULT, "UnregisterControlChangeNotify", [c_void_p]),
+                comtypes.STDMETHOD(HRESULT, "GetChannelCount", [POINTER(c_uint)]),
+                comtypes.STDMETHOD(HRESULT, "SetMasterVolumeLevel", [c_float, c_void_p]),
+                comtypes.STDMETHOD(HRESULT, "SetMasterVolumeLevelScalar", [c_float, c_void_p]),
                 comtypes.STDMETHOD(HRESULT, "GetMasterVolumeLevel", [POINTER(c_float)]),
                 comtypes.STDMETHOD(HRESULT, "GetMasterVolumeLevelScalar", [POINTER(c_float)]),
-                comtypes.STDMETHOD(HRESULT, "SetMute", [c_long, ctypes.c_void_p]),
+                comtypes.STDMETHOD(HRESULT, "SetChannelVolumeLevel", [c_uint, c_float, c_void_p]),
+                comtypes.STDMETHOD(HRESULT, "SetChannelVolumeLevelScalar", [c_uint, c_float, c_void_p]),
+                comtypes.STDMETHOD(HRESULT, "GetChannelVolumeLevel", [c_uint, POINTER(c_float)]),
+                comtypes.STDMETHOD(HRESULT, "GetChannelVolumeLevelScalar", [c_uint, POINTER(c_float)]),
+                comtypes.STDMETHOD(HRESULT, "SetMute", [c_long, c_void_p]),
                 comtypes.STDMETHOD(HRESULT, "GetMute", [POINTER(c_long)]),
             ]
 
         class IMMDevice(IUnknown):
             _iid_ = GUID("{D666063F-1587-4E43-81F1-B948E807363F}")
             _methods_ = [
-                comtypes.STDMETHOD(HRESULT, "Activate", [POINTER(GUID), ctypes.c_uint, ctypes.c_void_p, POINTER(POINTER(IAudioEndpointVolume))]),
+                comtypes.STDMETHOD(HRESULT, "Activate", [POINTER(GUID), c_uint, c_void_p, POINTER(POINTER(IAudioEndpointVolume))]),
             ]
 
         class IMMDeviceEnumerator(IUnknown):
             _iid_ = GUID("{A95664D2-9614-4F35-A746-DE8DB63617E6}")
             _methods_ = [
                 comtypes.STDMETHOD(HRESULT, "EnumAudioEndpoints", []),
-                comtypes.STDMETHOD(HRESULT, "GetDefaultAudioEndpoint", [ctypes.c_uint, ctypes.c_uint, POINTER(POINTER(IMMDevice))]),
+                comtypes.STDMETHOD(HRESULT, "GetDefaultAudioEndpoint", [c_uint, c_uint, POINTER(POINTER(IMMDevice))]),
             ]
 
         enumerator = CoCreateInstance(GUID("{BCDE0395-E52F-467C-8E3D-C4579291692E}"), IMMDeviceEnumerator, CLSCTX_ALL)
         endpoint = POINTER(IMMDevice)()
-        enumerator.GetDefaultAudioEndpoint(0, 1, ctypes.byref(endpoint))
+        enumerator.GetDefaultAudioEndpoint(data_flow, 1, ctypes.byref(endpoint))
         vol = POINTER(IAudioEndpointVolume)()
         endpoint.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None, ctypes.byref(vol))
         return vol
@@ -133,7 +139,7 @@ def get_current_volume() -> int:
     """
     Returns current master volume percentage (0-100).
     """
-    vol = _get_audio_endpoint_volume()
+    vol = _get_audio_endpoint_volume(data_flow=0)
     if vol:
         try:
             curr = ctypes.c_float()
@@ -149,7 +155,7 @@ def set_volume_level(target_percent: int, call_me: str = "Sir") -> str:
     Sets master volume directly to target percentage (0-100).
     """
     target = max(0, min(100, target_percent))
-    vol = _get_audio_endpoint_volume()
+    vol = _get_audio_endpoint_volume(data_flow=0)
     if vol:
         try:
             vol.SetMasterVolumeLevelScalar(target / 100.0, None)
@@ -163,7 +169,7 @@ def adjust_volume_delta(delta: int, call_me: str = "Sir") -> str:
     """
     Increments or decrements volume by delta percentage (e.g. +10, -10, +20).
     """
-    vol = _get_audio_endpoint_volume()
+    vol = _get_audio_endpoint_volume(data_flow=0)
     if vol:
         try:
             curr = ctypes.c_float()
@@ -180,8 +186,29 @@ def adjust_volume_delta(delta: int, call_me: str = "Sir") -> str:
 
 def toggle_mute(action: str = "toggle", call_me: str = "Sir") -> str:
     """
-    Mutes, unmutes, or toggles master audio mute state using Windows hardware key events.
+    Mutes, unmutes, or toggles master audio mute state using Windows COM or hardware key events.
     """
+    act = action.lower().strip()
+    try:
+        vol = _get_audio_endpoint_volume(data_flow=0)
+        if vol:
+            muted = ctypes.c_long()
+            vol.GetMute(ctypes.byref(muted))
+            is_muted = bool(muted.value)
+
+            if act in ("mute", "off"):
+                target = 1
+            elif act in ("unmute", "on"):
+                target = 0
+            else:
+                target = 0 if is_muted else 1
+
+            vol.SetMute(target, None)
+            res_str = "muted" if target else "unmuted"
+            return f"{call_me}, master audio {res_str}."
+    except Exception:
+        pass
+
     try:
         user32 = ctypes.windll.user32
         VK_VOLUME_MUTE = 0xAD
@@ -193,6 +220,45 @@ def toggle_mute(action: str = "toggle", call_me: str = "Sir") -> str:
         return f"{call_me}, master audio {act_str}."
     except Exception as err:
         return f"{call_me}, failed to toggle audio mute: {err}"
+
+
+def toggle_mic_mute(action: str = "toggle", call_me: str = "Sir") -> str:
+    """
+    Controls Windows default recording / microphone mute state.
+    Supports 'mute' / 'off', 'unmute' / 'on', or 'toggle'.
+    """
+    act = action.lower().strip()
+    try:
+        vol = _get_audio_endpoint_volume(data_flow=1)
+        if vol:
+            muted = ctypes.c_long()
+            vol.GetMute(ctypes.byref(muted))
+            is_muted = bool(muted.value)
+
+            if act in ("mute", "off", "disable", "stop"):
+                target = 1
+            elif act in ("unmute", "on", "enable", "start"):
+                target = 0
+            else:
+                target = 0 if is_muted else 1
+
+            vol.SetMute(target, None)
+            res_str = "muted" if target else "unmuted"
+            return f"{call_me}, microphone {res_str}."
+    except Exception:
+        pass
+
+    # Media command fallback (APPCOMMAND_MICROPHONE_VOLUME_MUTE)
+    try:
+        import win32api
+        import win32gui
+        WM_APPCOMMAND = 0x319
+        APPCOMMAND_MICROPHONE_VOLUME_MUTE = 0x180000
+        hwnd = win32gui.GetForegroundWindow()
+        win32api.SendMessage(hwnd, WM_APPCOMMAND, hwnd, APPCOMMAND_MICROPHONE_VOLUME_MUTE)
+        return f"{call_me}, microphone mute toggled."
+    except Exception as err:
+        return f"{call_me}, failed to toggle microphone mute: {err}"
 
 
 def adjust_volume(action: str, call_me: str = "Sir") -> str:
