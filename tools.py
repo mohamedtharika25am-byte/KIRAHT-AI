@@ -28,6 +28,7 @@ import subprocess
 import urllib.parse
 import webbrowser
 import psutil
+import time
 
 # Import file operations engine
 from file_tools import (
@@ -505,13 +506,35 @@ def load_apps_cache() -> dict:
     return scan_installed_apps()
 
 
+LAST_ACCESSED_APP = "whatsapp"
+
+
+def set_last_app(app_name: str):
+    """
+    Tracks the most recently referenced application for context and pronoun resolution ('it', 'that').
+    """
+    global LAST_ACCESSED_APP
+    clean = app_name.lower().strip() if app_name else ""
+    if clean and clean not in ("it", "that", "this", "app", "the app", "again", "it again"):
+        LAST_ACCESSED_APP = clean
+
+
+def get_last_app() -> str:
+    """
+    Returns the most recently referenced application name.
+    """
+    global LAST_ACCESSED_APP
+    return LAST_ACCESSED_APP
+
+
 def find_installed_app(app_query: str) -> dict | None:
     """
     Resolves user query to an installed Windows desktop application.
     Supports aliases, exact matches, prefix matches, and fuzzy typo tolerance.
+    Pronouns and generic words ('it', 'that', 'this', 'app') are strictly rejected.
     """
     clean = app_query.lower().strip() if app_query else ""
-    if not clean:
+    if not clean or clean in ("it", "that", "this", "app", "the app", "again", "it again"):
         return None
 
     cache = load_apps_cache()
@@ -521,20 +544,24 @@ def find_installed_app(app_query: str) -> dict | None:
     if clean in cache:
         return cache[clean]
 
-    # 2. Starts with match
-    for k, info in cache.items():
-        if k.startswith(clean) or clean.startswith(k):
-            return info
+    # 2. Starts with match (minimum 3 characters to avoid accidental 1-2 letter prefix collisions)
+    if len(clean) >= 3:
+        for k, info in cache.items():
+            if k.startswith(clean):
+                return info
 
-    # 3. Substring match
-    for k, info in cache.items():
-        if clean in k:
-            return info
+    # 3. Whole-word substring match (e.g. "word" matches "microsoft word", but NOT "it" in "iscsi initiator")
+    if len(clean) >= 3:
+        pattern = re.compile(rf"\b{re.escape(clean)}\b", re.IGNORECASE)
+        for k, info in cache.items():
+            if pattern.search(k):
+                return info
 
-    # 4. Fuzzy typo matching (Levenshtein distance)
-    close_matches = difflib.get_close_matches(clean, cache.keys(), n=1, cutoff=0.6)
-    if close_matches:
-        return cache[close_matches[0]]
+    # 4. Fuzzy typo matching (minimum 4 characters, strict cutoff)
+    if len(clean) >= 4:
+        close_matches = difflib.get_close_matches(clean, cache.keys(), n=1, cutoff=0.7)
+        if close_matches:
+            return cache[close_matches[0]]
 
     return None
 
@@ -543,13 +570,24 @@ def launch_desktop_app(app_name: str, call_me: str = "Sir") -> tuple[bool, str]:
     """
     Launches a native installed application directly on Windows.
     Includes automatic browser fallback for services like ChatGPT.
+    Supports pronoun resolution ('open it', 'launch that') to the last referenced application.
     """
     clean_name = app_name.lower().strip() if app_name else ""
+
+    # Contextual pronoun resolution ('it', 'that', 'again')
+    if clean_name in ("it", "that", "this", "again", "the app", "it again"):
+        last = get_last_app()
+        if last:
+            clean_name = last
+        else:
+            return False, f"{call_me}, which application would you like me to open?"
+
     if not clean_name:
         return False, f"{call_me}, which application would you like me to open?"
 
     # Dedicated direct handler for Task Manager application
     if clean_name in ("task manager", "taskmgr", "task man", "taskmanager"):
+        set_last_app("task manager")
         try:
             subprocess.Popen("taskmgr.exe", shell=True)
             return True, f"{call_me}, launching Task Manager desktop app."
@@ -560,6 +598,7 @@ def launch_desktop_app(app_name: str, call_me: str = "Sir") -> tuple[bool, str]:
     app_info = find_installed_app(clean_name)
 
     if app_info:
+        set_last_app(clean_name)
         display_name = app_info.get("name", clean_name.title())
         target = app_info.get("target", "")
         app_type = app_info.get("type", "lnk")
@@ -640,8 +679,21 @@ def close_app(app_name: str, call_me: str = "Sir") -> str:
     """
     Terminates a running application by process name using alias resolution,
     fuzzy matching, and dynamic process inspection via psutil.
+    Supports pronoun resolution ('close it', 'kill that').
     """
-    clean_name = app_name.lower().strip()
+    clean_name = app_name.lower().strip() if app_name else ""
+    if clean_name in ("it", "that", "this", "the app"):
+        last = get_last_app()
+        if last:
+            clean_name = last
+        else:
+            return f"{call_me}, which application would you like me to close?"
+
+    if not clean_name:
+        return f"{call_me}, which application would you like me to close?"
+
+    set_last_app(clean_name)
+
     # 1. Resolve known aliases (e.g. chatgbt -> chatgpt, vs code -> vscode)
     clean_name = APP_ALIASES.get(clean_name, clean_name)
 
@@ -1104,6 +1156,27 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         # If message text is provided, dispatch immediately!
         return True, send_whatsapp_message(target, msg_text, call_me, is_group=False, auto_send=is_auto_send)
 
+    # 20.1 Compound Command: "close <app> and (then )?reopen it"
+    reopen_compound = re.search(r"^(?:please\s+)?close\s+([a-zA-Z0-9\s\-]+?)\s+and\s+(?:then\s+)?(?:reopen|open)\s*(?:it)?$", cleaned)
+    if reopen_compound:
+        app_target = reopen_compound.group(1).strip()
+        close_app(app_target, call_me=call_me)
+        time.sleep(1.0)
+        launched, msg = launch_desktop_app(app_target, call_me=call_me)
+        return True, f"{call_me}, closed {app_target.title()} and reopened it."
+
+    restart_match = re.search(r"^(?:please\s+)?(?:restart|reopen)\s+([a-zA-Z0-9\s\-]+)$", cleaned)
+    if restart_match:
+        app_target = restart_match.group(1).strip()
+        if app_target in ("it", "that", "this", "the app"):
+            app_target = get_last_app()
+        if not app_target:
+            return True, f"{call_me}, which application would you like me to restart?"
+        close_app(app_target, call_me=call_me)
+        time.sleep(1.0)
+        launched, msg = launch_desktop_app(app_target, call_me=call_me)
+        return True, f"{call_me}, closed {app_target.title()} and reopened it."
+
     # 21. Close Application
     close_match = re.search(r"^(?:please\s+)?(?:close|kill|quit|terminate)\s+([a-zA-Z0-9\s]+)\b", cleaned)
     if close_match:
@@ -1126,6 +1199,10 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         app_to_open = open_app_match.group(1).strip()
         if not app_to_open:
             return True, f"{call_me}, which application would you like me to open?"
+        if app_to_open in ("it", "that", "this", "again", "the app", "it again"):
+            app_to_open = get_last_app()
+            if not app_to_open:
+                return True, f"{call_me}, which application would you like me to open?"
         if app_to_open not in ("folder", "file") and not is_file_target(app_to_open):
             launched, msg = launch_desktop_app(app_to_open, call_me=call_me)
             if launched:
