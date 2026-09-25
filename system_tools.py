@@ -798,9 +798,10 @@ def _delayed_press_enter(delay: float = 2.0):
     time.sleep(delay)
     _press_key(VK_RETURN)
 
-def dispatch_whatsapp_group(group_search_term: str, message: str, auto_send: bool = True):
+def dispatch_whatsapp_desktop(search_term: str, message: str, auto_send: bool = True):
     """
-    Opens WhatsApp Desktop, searches for group name, focuses chat, pastes message, and optionally sends.
+    Opens WhatsApp Desktop, searches for contact or group name in search bar (Ctrl + F),
+    opens the chat with Enter, pastes message, and optionally sends.
     """
     try:
         os.startfile("whatsapp://")
@@ -812,12 +813,12 @@ def dispatch_whatsapp_group(group_search_term: str, message: str, auto_send: boo
     _hotkey_ctrl(VK_F)
     time.sleep(0.4)
 
-    # Paste group search term
-    _set_clipboard_text(group_search_term)
+    # Paste contact or group search term
+    _set_clipboard_text(search_term)
     _hotkey_ctrl(VK_V)
     time.sleep(0.7)
 
-    # Press Enter to open the group chat
+    # Press Enter to open the chat
     _press_key(VK_RETURN)
     time.sleep(0.6)
 
@@ -832,31 +833,35 @@ def dispatch_whatsapp_group(group_search_term: str, message: str, auto_send: boo
         _press_key(VK_RETURN)
 
 
+def dispatch_whatsapp_group(group_search_term: str, message: str, auto_send: bool = True):
+    """
+    Alias wrapper around dispatch_whatsapp_desktop for group messaging.
+    """
+    dispatch_whatsapp_desktop(group_search_term, message, auto_send=auto_send)
+
+
 def send_whatsapp_message(target: str, message: str, call_me: str = "Sir", is_group: bool = False, auto_send: bool = False) -> str:
     """
     Opens WhatsApp desktop or web with prefilled message directed to a contact or group.
-    - If is_group: looks up group in whatsapp_contacts.json, focuses group, pastes message, and optionally auto-sends.
-    - If individual: uses whatsapp:// URI, pastes message, and optionally auto-sends via Enter key.
+    - If is_group: searches group in WhatsApp desktop, pastes message, and optionally auto-sends.
+    - If individual with verified phone number: uses direct whatsapp:// URI.
+    - If individual without verified phone number: seamlessly searches for contact in WhatsApp desktop and dispatches message!
     """
     # 1. GROUP MESSAGING
     if is_group:
         g_info, related_groups = resolve_group(target)
-        if not g_info:
-            rel_str = ", ".join([r["display"] for r in related_groups]) if related_groups else ""
-            rel_msg = f"\nRelated groups found: {rel_str}" if rel_str else ""
-            return f"{call_me}, group '{target}' was not found in your WhatsApp contacts.{rel_msg}"
-
-        dispatch_whatsapp_group(g_info["display"], message, auto_send=auto_send)
+        display = g_info["display"] if g_info else target
+        dispatch_whatsapp_desktop(display, message, auto_send=auto_send)
         if auto_send:
-            return f"{call_me}, dispatched WhatsApp message to group '{g_info['display']}': '{message}'."
+            return f"{call_me}, dispatched WhatsApp message to group '{display}': '{message}'."
         else:
-            return f"{call_me}, opened WhatsApp group '{g_info['display']}' with your message pre-filled. Press Enter to send."
+            return f"{call_me}, opened WhatsApp group '{display}' with your message pre-filled. Press Enter to send."
 
     # 2. INDIVIDUAL CONTACT MESSAGING
     phone_number, display_name, related = resolve_contact(target)
 
+    # Direct phone number check
     if not phone_number:
-        # Check if target is directly a raw phone number
         digits = re.sub(r"\D", "", target.strip())
         if len(digits) >= 10:
             if len(digits) == 10:
@@ -866,34 +871,29 @@ def send_whatsapp_message(target: str, message: str, call_me: str = "Sir", is_gr
             else:
                 phone_number = "+" + digits
             display_name = phone_number
-        else:
-            related_str = ", ".join([f"{r['name']} ({r['phone']})" for r in related if r.get('phone')]) if related else ""
-            related_msg = f"\nRelated contacts found: {related_str}" if related_str else ""
-            return (
-                f"{call_me}, '{target}' was not found in your contacts.{related_msg}\n"
-                f"You can save them first: add contact {target} <number>"
-            )
 
-    # Normalize phone: numbers only for URI protocol
-    url_phone = re.sub(r"[^\d]", "", phone_number)
-    encoded_text = urllib.parse.quote(message.strip())
-
-    uri = f"whatsapp://send?phone={url_phone}&text={encoded_text}"
-    web_fallback = f"https://web.whatsapp.com/send?phone={url_phone}&text={encoded_text}"
-
-    try:
-        os.startfile(uri)
-        if auto_send:
-            threading.Thread(target=_delayed_press_enter, args=(2.0,), daemon=True).start()
-            return f"{call_me}, dispatched WhatsApp message to {display_name}: '{message}'."
-        else:
-            return f"{call_me}, opened WhatsApp for {display_name} with your message pre-filled. Press Enter to send."
-    except Exception:
+    # If verified phone number available -> use protocol URI
+    if phone_number:
+        url_phone = re.sub(r"[^\d]", "", phone_number)
+        encoded_text = urllib.parse.quote(message.strip())
+        uri = f"whatsapp://send?phone={url_phone}&text={encoded_text}"
         try:
-            webbrowser.open(web_fallback)
-            return f"{call_me}, opened WhatsApp Web for {display_name} with your message pre-filled."
-        except Exception as err:
-            return f"{call_me}, unable to open WhatsApp: {err}"
+            os.startfile(uri)
+            if auto_send:
+                threading.Thread(target=_delayed_press_enter, args=(2.0,), daemon=True).start()
+                return f"{call_me}, dispatched WhatsApp message to {display_name}: '{message}'."
+            else:
+                return f"{call_me}, opened WhatsApp for {display_name} with your message pre-filled. Press Enter to send."
+        except Exception:
+            pass
+
+    # If contact phone not in contacts.json, search WhatsApp Desktop directly!
+    dispatch_whatsapp_desktop(target, message, auto_send=auto_send)
+    display = display_name if (display_name and display_name != target) else target.title()
+    if auto_send:
+        return f"{call_me}, searched WhatsApp for '{display}' and dispatched message: '{message}'."
+    else:
+        return f"{call_me}, opened WhatsApp chat for '{display}' with message: '{message}'. Press Enter to send."
 
 
 # ============================================================

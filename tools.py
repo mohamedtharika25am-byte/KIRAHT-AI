@@ -1043,8 +1043,8 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
                         matched_prefix = True
                         break
                 if not matched_prefix:
-                    if len(words) <= 2:
-                        target = rest
+                    if len(words) == 1:
+                        target = words[0]
                         msg_text = ""
                     else:
                         target = words[0]
@@ -1069,16 +1069,10 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         # Individual contact:
         if not msg_text:
             phone, display_name, related = resolve_contact(target)
-            return True, f"__NEED_MESSAGE__:{target}:{display_name}:individual:{send_flag}"
+            disp = display_name if display_name else target.title()
+            return True, f"__NEED_MESSAGE__:{target}:{disp}:individual:{send_flag}"
 
-        phone, display_name, related = resolve_contact(target)
-        if not phone:
-            digits = re.sub(r"\D", "", target)
-            if len(digits) >= 10:
-                return True, send_whatsapp_message(target, msg_text, call_me, is_group=False, auto_send=is_auto_send)
-            else:
-                return True, f"__NEED_PHONE__:{target}:{msg_text}:{json.dumps(related)}:{send_flag}"
-
+        # If message text is provided, dispatch immediately!
         return True, send_whatsapp_message(target, msg_text, call_me, is_group=False, auto_send=is_auto_send)
 
     # 21. Close Application

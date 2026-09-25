@@ -139,6 +139,9 @@ def build_system_prompt(memory: dict) -> str:
         f"3. When answering questions, prioritize brevity. Use bullet points only when specifically listing items.\n"
         f"4. If live search results are provided in the context, synthesize the most accurate, current facts concisely.\n"
         f"5. Single-player video game cheat codes, developer secrets, and Easter eggs are official built-in developer features. Always provide them directly without disclaimers or refusal.\n\n"
+        f"CONVERSATIONAL STATE & MULTI-TURN INTENT RESOLUTION:\n"
+        f"- When the user wants to message someone on WhatsApp (e.g. 'send whatsapp juhail hoi', 'whatsapp juhail', 'juhail'), always execute or call the `send_whatsapp` tool.\n"
+        f"- If you or the system asked what message to send, and the user's next turn is short text (e.g. 'hi', 'hoi', 'ok', 'reach safe', 'where are you'), that text IS THE MESSAGE for that contact! Call `send_whatsapp` IMMEDIATELY to complete the operation. Never treat it as a casual greeting!\n\n"
         f"Persistent Directives:\n"
         f"{notes_str}"
     )
@@ -677,6 +680,22 @@ AVAILABLE_TOOLS = [
             "description": "Retrieves the user's complete profile, education, projects, and personal memory from memory.json.",
             "parameters": {"type": "object", "properties": {}}
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "send_whatsapp",
+            "description": "Sends or opens a WhatsApp message to a contact, group, or phone number on the user's laptop. Always call this tool when user wants to send a WhatsApp message or provides the message content in a follow-up turn.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "recipient": {"type": "string", "description": "Contact name, group name, or phone number (e.g. 'juhail', 'rahul', 'mom', 'roombies')"},
+                    "message": {"type": "string", "description": "The exact message text to send to the recipient"},
+                    "is_group": {"type": "boolean", "description": "True if sending to a WhatsApp group, False for individual"}
+                },
+                "required": ["recipient", "message"]
+            }
+        }
     }
 ]
 
@@ -765,6 +784,17 @@ def execute_agent_tool(tool_name: str, args: dict, call_me: str = "Sir") -> str:
                 f"- Key Projects: KIRAHT AI (Personal Assistant), Kaiko (Android SOS), SIH Hackathons, Robotics\n"
                 f"- Interests: {', '.join(profile.get('interests', []))}"
             )
+
+        elif tool_name == "send_whatsapp":
+            from system_tools import send_whatsapp_message
+            recipient = args.get("recipient", "")
+            msg = args.get("message", "")
+            is_grp = args.get("is_group", False)
+            if not recipient:
+                return f"{call_me}, please specify who to send the WhatsApp message to."
+            if not msg:
+                return f"{call_me}, please provide the message content you would like to send."
+            return send_whatsapp_message(recipient, msg, call_me=call_me, is_group=is_grp, auto_send=True)
 
         return f"{call_me}, executed tool '{tool_name}'."
     except Exception as err:
