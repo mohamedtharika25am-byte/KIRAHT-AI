@@ -142,6 +142,16 @@ def build_system_prompt(memory: dict) -> str:
         f"CONVERSATIONAL STATE & MULTI-TURN INTENT RESOLUTION:\n"
         f"- When the user wants to message someone on WhatsApp (e.g. 'send whatsapp juhail hoi', 'whatsapp juhail', 'juhail'), always execute or call the `send_whatsapp` tool.\n"
         f"- If you or the system asked what message to send, and the user's next turn is short text (e.g. 'hi', 'hoi', 'ok', 'reach safe', 'where are you'), that text IS THE MESSAGE for that contact! Call `send_whatsapp` IMMEDIATELY to complete the operation. Never treat it as a casual greeting!\n\n"
+        f"LAPTOP & SYSTEM CONTROL PERMISSIONS:\n"
+        f"- You have FULL system administrative permissions granted by {call_me} to control power, hardware, and system states.\n"
+        f"- Sleep & Standby: When asked to sleep the laptop ('sleep', 'standby', 'sleep the laptop'), call `system_power_control(action='sleep')`.\n"
+        f"- Shutdown & Power Off: When asked to shut down ('shutdown', 'power off'), call `system_power_control(action='shutdown')`.\n"
+        f"- Cancel Shutdown: When asked to cancel or abort shutdown ('cancel shutdown', 'abort shutdown', 'stop shutdown'), call `system_power_control(action='cancel_shutdown')`.\n"
+        f"- Restart & Reboot: When asked to restart ('restart laptop', 'reboot'), call `system_power_control(action='restart')`.\n"
+        f"- Screen & Display: When asked to turn off screen ('turn off display', 'screen off'), call `system_power_control(action='screen_off')`.\n"
+        f"- Lock Workstation: When asked to lock ('lock laptop', 'lock screen'), call `system_power_control(action='lock')`.\n"
+        f"- Volume & Audio: When asked to change volume ('vol up', 'vol down', 'mute', 'unmute'), call `control_volume`.\n"
+        f"- NEVER claim you lack permissions to execute these actions. You are authorized to control the machine as requested.\n\n"
         f"Persistent Directives:\n"
         f"{notes_str}"
     )
@@ -624,6 +634,24 @@ AVAILABLE_TOOLS = [
     {
         "type": "function",
         "function": {
+            "name": "system_power_control",
+            "description": "Performs Windows system power operations: put laptop to sleep / standby, shutdown PC, restart PC, cancel/abort pending shutdown, hibernate, lock workstation, or turn off display.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["sleep", "shutdown", "restart", "abort_shutdown", "hibernate", "screen_off", "lock"],
+                        "description": "The exact power or security operation to execute"
+                    }
+                },
+                "required": ["action"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
             "name": "search_or_read_file",
             "description": "Searches for files across Workspace, Downloads, Desktop, and Documents, or reads file content.",
             "parameters": {
@@ -725,18 +753,23 @@ def execute_agent_tool(tool_name: str, args: dict, call_me: str = "Sir") -> str:
             return adjust_screen_brightness(delta=delta, call_me=call_me)
 
         elif tool_name == "control_volume":
-            from system_tools import set_volume_level, adjust_volume_delta, adjust_volume
+            from system_tools import set_volume_level, adjust_volume_delta, adjust_volume, toggle_mute
             action = args.get("action", "set")
             val = args.get("value", 50)
             if action == "set":
                 return set_volume_level(val, call_me=call_me)
-            elif action == "increase":
-                return adjust_volume_delta(val if val > 0 else 10, call_me=call_me)
-            elif action == "decrease":
-                return adjust_volume_delta(-abs(val) if val else -10, call_me=call_me)
-            elif action in ("mute", "unmute"):
-                return adjust_volume(action, call_me=call_me)
-            return f"{call_me}, volume operation completed."
+            elif action in ("increase", "up"):
+                return adjust_volume_delta(val if val and val > 0 else 15, call_me=call_me)
+            elif action in ("decrease", "down"):
+                return adjust_volume_delta(-abs(val) if val else -15, call_me=call_me)
+            elif action in ("mute", "unmute", "toggle"):
+                return toggle_mute(action, call_me=call_me)
+            return adjust_volume(action, call_me=call_me)
+
+        elif tool_name == "system_power_control":
+            from system_tools import handle_power_action
+            action = args.get("action", "sleep")
+            return handle_power_action(action, call_me=call_me)
 
         elif tool_name == "search_or_read_file":
             from file_tools import search_files_across_folders, read_file_content, get_file_info

@@ -55,6 +55,14 @@ from system_tools import (
     get_current_volume,
     set_volume_level,
     adjust_volume_delta,
+    toggle_mute,
+    adjust_volume,
+    sleep_laptop,
+    shutdown_laptop,
+    restart_laptop,
+    cancel_shutdown,
+    hibernate_laptop,
+    turn_off_display,
     get_running_processes,
     get_screen_brightness,
     set_screen_brightness,
@@ -859,8 +867,26 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     if re.search(r"\b(system status|pc status|system metrics|cpu status|ram status|cpu usage|ram usage)\b", cleaned):
         return True, get_system_stats(call_me)
 
-    # 4. Lock Workstation
-    if re.search(r"\b(lock pc|lock screen|lock workstation|lock computer)\b", cleaned):
+    # 4. Windows Power Operations & Security Controls
+    if re.search(r"\b(cancel\s+shutdown|abort\s+shutdown|stop\s+shutdown|don't\s+shutdown|dont\s+shutdown)\b", cleaned):
+        return True, cancel_shutdown(call_me)
+
+    if re.search(r"\b(sleep(?:\s+the)?\s*(?:laptop|pc|computer|system)?|put\s+(?:the\s+)?laptop\s+to\s+sleep|standby)\b", cleaned):
+        return True, sleep_laptop(call_me)
+
+    if re.search(r"\b(shut\s*down(?:\s+the)?\s*(?:laptop|pc|computer|system)?|turn\s*off\s+(?:the\s+)?(?:laptop|pc|computer|system)|power\s*off)\b", cleaned) and not re.search(r"\b(cancel|abort|stop)\b", cleaned):
+        return True, shutdown_laptop(10, call_me)
+
+    if re.search(r"\b(restart(?:\s+the)?\s*(?:laptop|pc|computer|system)?|reboot(?:\s+the)?\s*(?:laptop|pc|computer|system)?)\b", cleaned):
+        return True, restart_laptop(10, call_me)
+
+    if re.search(r"\b(hibernate(?:\s+the)?\s*(?:laptop|pc|computer|system)?)\b", cleaned):
+        return True, hibernate_laptop(call_me)
+
+    if re.search(r"\b(turn\s*off\s+(?:the\s+)?(?:screen|display|monitor)|screen\s*off|display\s*off)\b", cleaned):
+        return True, turn_off_display(call_me)
+
+    if re.search(r"\b(lock\s*(?:pc|screen|workstation|laptop|computer)?)\b", cleaned):
         return True, lock_workstation(call_me)
 
     # 5. Precision Windows Audio & Volume Controls
@@ -879,12 +905,14 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         delta = int(vol_dec_by.group(1))
         return True, adjust_volume_delta(-delta, call_me)
 
-    if re.search(r"\b(volume up|increase volume|louder|vol \+|inc vol)\b", cleaned):
-        return True, adjust_volume_delta(10, call_me)
-    if re.search(r"\b(volume down|decrease volume|lower volume|quieter|vol \-|dec vol)\b", cleaned):
-        return True, adjust_volume_delta(-10, call_me)
-    if re.search(r"\b(mute volume|unmute volume|mute pc|unmute pc|mute|unmute)\b", cleaned):
-        return True, adjust_volume("mute", call_me)
+    if re.search(r"\b(volume up|vol up|increase volume|louder|vol \+|inc vol)\b", cleaned):
+        return True, adjust_volume_delta(15, call_me)
+    if re.search(r"\b(volume down|vol down|decrease volume|lower volume|quieter|softer|vol \-|dec vol)\b", cleaned):
+        return True, adjust_volume_delta(-15, call_me)
+    if re.search(r"\b(unmute(?:\s+volume|\s+pc|\s+audio)?)\b", cleaned):
+        return True, toggle_mute("unmute", call_me)
+    if re.search(r"\b(mute(?:\s+volume|\s+pc|\s+audio)?)\b", cleaned):
+        return True, toggle_mute("mute", call_me)
 
     # 6. Clipboard Operations
     if re.search(r"^(?:please\s+)?(?:read|check|view|show|what is in my|what's in my)\s+clipboard\b", cleaned) or cleaned in ("clipboard", "/clipboard"):

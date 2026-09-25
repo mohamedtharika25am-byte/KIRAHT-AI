@@ -177,6 +177,150 @@ def adjust_volume_delta(delta: int, call_me: str = "Sir") -> str:
     return f"{call_me}, volume adjustment unavailable."
 
 
+def toggle_mute(action: str = "toggle", call_me: str = "Sir") -> str:
+    """
+    Mutes, unmutes, or toggles master audio mute state using Windows hardware key events.
+    """
+    try:
+        user32 = ctypes.windll.user32
+        VK_VOLUME_MUTE = 0xAD
+        scan = user32.MapVirtualKeyW(VK_VOLUME_MUTE, 0)
+        user32.keybd_event(VK_VOLUME_MUTE, scan, 0, 0)
+        time.sleep(0.05)
+        user32.keybd_event(VK_VOLUME_MUTE, scan, 2, 0)
+        act_str = action if action in ("mute", "unmute") else "toggled"
+        return f"{call_me}, master audio {act_str}."
+    except Exception as err:
+        return f"{call_me}, failed to toggle audio mute: {err}"
+
+
+def adjust_volume(action: str, call_me: str = "Sir") -> str:
+    """
+    General handler for volume operations (mute, unmute, louder, quieter).
+    """
+    act = action.lower().strip()
+    if act in ("mute", "unmute", "toggle"):
+        return toggle_mute(act, call_me=call_me)
+    elif act in ("increase", "up", "louder"):
+        return adjust_volume_delta(15, call_me=call_me)
+    elif act in ("decrease", "down", "softer", "quieter"):
+        return adjust_volume_delta(-15, call_me=call_me)
+    return f"{call_me}, volume operation '{action}' completed."
+
+
+# ============================================================
+# 2.5 WINDOWS POWER OPERATIONS & SECURITY CONTROLS
+# ============================================================
+def sleep_laptop(call_me: str = "Sir") -> str:
+    """
+    Puts the laptop into Sleep / Standby mode immediately.
+    """
+    try:
+        ctypes.windll.PowrProf.SetSuspendState(0, 1, 0)
+        return f"{call_me}, laptop is entering sleep mode."
+    except Exception as err:
+        return f"{call_me}, failed to put laptop to sleep: {err}"
+
+
+def shutdown_laptop(delay_seconds: int = 10, call_me: str = "Sir") -> str:
+    """
+    Initiates a controlled Windows shutdown with a countdown.
+    Can be cancelled via cancel_shutdown().
+    """
+    try:
+        subprocess.run(
+            ["shutdown", "/s", "/t", str(delay_seconds), "/c", f"KIRAHT AI: Shutting down laptop as requested by {call_me}"],
+            check=True
+        )
+        return f"{call_me}, laptop will shut down in {delay_seconds} seconds. Type 'cancel shutdown' to abort."
+    except Exception as err:
+        return f"{call_me}, failed to initiate shutdown: {err}"
+
+
+def restart_laptop(delay_seconds: int = 10, call_me: str = "Sir") -> str:
+    """
+    Initiates a controlled Windows system reboot.
+    Can be cancelled via cancel_shutdown().
+    """
+    try:
+        subprocess.run(
+            ["shutdown", "/r", "/t", str(delay_seconds), "/c", f"KIRAHT AI: Restarting laptop as requested by {call_me}"],
+            check=True
+        )
+        return f"{call_me}, laptop will restart in {delay_seconds} seconds. Type 'cancel shutdown' to abort."
+    except Exception as err:
+        return f"{call_me}, failed to initiate restart: {err}"
+
+
+def cancel_shutdown(call_me: str = "Sir") -> str:
+    """
+    Aborts a pending Windows shutdown or restart sequence.
+    """
+    try:
+        res = subprocess.run(["shutdown", "/a"], capture_output=True, text=True)
+        if res.returncode == 0:
+            return f"{call_me}, pending shutdown or restart has been cancelled."
+        else:
+            return f"{call_me}, no pending shutdown sequence was active."
+    except Exception as err:
+        return f"{call_me}, unable to cancel shutdown: {err}"
+
+
+def hibernate_laptop(call_me: str = "Sir") -> str:
+    """
+    Puts the laptop into deep hibernation.
+    """
+    try:
+        subprocess.run(["shutdown", "/h"], check=True)
+        return f"{call_me}, laptop is entering hibernation."
+    except Exception as err:
+        return f"{call_me}, failed to hibernate: {err}"
+
+
+def turn_off_display(call_me: str = "Sir") -> str:
+    """
+    Turns off the laptop display to save power. Screen turns back on on any keypress or mouse movement.
+    """
+    try:
+        ctypes.windll.user32.SendMessageW(0xFFFF, 0x0112, 0xF170, 2)
+        return f"{call_me}, display turned off. Move mouse or press any key to wake."
+    except Exception as err:
+        return f"{call_me}, failed to turn off display: {err}"
+
+
+def lock_laptop(call_me: str = "Sir") -> str:
+    """
+    Locks the Windows workstation instantly.
+    """
+    try:
+        ctypes.windll.user32.LockWorkStation()
+        return f"{call_me}, workstation is now locked."
+    except Exception as err:
+        return f"{call_me}, failed to lock workstation: {err}"
+
+
+def handle_power_action(action: str, call_me: str = "Sir") -> str:
+    """
+    Unified dispatcher for power and security operations.
+    """
+    act = action.lower().strip()
+    if act in ("sleep", "standby"):
+        return sleep_laptop(call_me=call_me)
+    elif act in ("shutdown", "shut_down", "poweroff", "turn_off"):
+        return shutdown_laptop(delay_seconds=10, call_me=call_me)
+    elif act in ("restart", "reboot"):
+        return restart_laptop(delay_seconds=10, call_me=call_me)
+    elif act in ("abort_shutdown", "cancel_shutdown", "stop_shutdown"):
+        return cancel_shutdown(call_me=call_me)
+    elif act in ("hibernate", "deep_sleep"):
+        return hibernate_laptop(call_me=call_me)
+    elif act in ("screen_off", "display_off", "turn_off_screen", "turn_off_display"):
+        return turn_off_display(call_me=call_me)
+    elif act in ("lock", "lock_screen", "lock_workstation"):
+        return lock_laptop(call_me=call_me)
+    return f"{call_me}, power action '{action}' is not recognized."
+
+
 # ============================================================
 # 3. BULLETPROOF NATIVE SCREENSHOT ENGINE (CTYPES + PIL)
 # ============================================================
