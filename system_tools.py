@@ -5,6 +5,7 @@ precision volume control, and network latency diagnostics.
 """
 
 import ctypes
+import ctypes.wintypes
 import csv
 import datetime
 import difflib
@@ -746,6 +747,13 @@ def resolve_contact(query: str) -> tuple[str | None, str, list]:
     groups = data.get("groups", {})
     clean_query = query.lower().strip()
 
+    # 0. Reverse lookup if query is phone digits
+    digits_q = re.sub(r"\D", "", clean_query)
+    if len(digits_q) >= 10:
+        for name, phone in contacts.items():
+            if re.sub(r"\D", "", phone).endswith(digits_q[-10:]):
+                return phone, name.title(), []
+
     # 1. Direct Alias Match
     if clean_query in aliases:
         target = aliases[clean_query].lower().strip()
@@ -913,10 +921,12 @@ def import_google_contacts_csv(filepath: str = "googlecontacts.csv", call_me: st
 
 
 VK_CONTROL = 0x11
+VK_SHIFT = 0x10
 VK_F = 0x46
 VK_V = 0x56
 VK_RETURN = 0x0D
 VK_DOWN = 0x28
+VK_ESCAPE = 0x1B
 
 def _set_clipboard_text(text: str):
     try:
@@ -926,7 +936,7 @@ def _set_clipboard_text(text: str):
 
 def _press_key_hardware(vk: int):
     """
-    Simulates a key press with the legitimate hardware scan code mapped via MapVirtualKeyW.
+    Simulates a key press with legitimate hardware scan code mapped via MapVirtualKeyW.
     Required by Windows Modern/UWP/WinUI applications to register synthetic input.
     """
     user32 = ctypes.windll.user32
@@ -952,8 +962,68 @@ def _hotkey_ctrl(vk: int):
 
 def _activate_whatsapp_window() -> bool:
     """
-    Brings WhatsApp desktop window to the active foreground using WScript.Shell.
+    Brings WhatsApp desktop window directly to the active foreground.
+    Handles WinUI 3 (WinUIDesktopWin32WindowClass), UWP, Chrome/Edge WhatsApp Web,
+    and legacy Win32 WhatsApp desktop processes.
     """
+    import ctypes
+    import ctypes.wintypes
+    import win32con
+    import win32process
+    import win32service
+
+    user32 = ctypes.windll.user32
+    kernel32 = ctypes.windll.kernel32
+
+    # Switch to default desktop if running in a background service desktop
+    try:
+        hDesk = win32service.OpenDesktop('default', 0, False, win32con.GENERIC_ALL)
+        user32.SetThreadDesktop(int(hDesk))
+    except Exception:
+        pass
+
+    target_hwnd = None
+
+    def enum_cb(hwnd, extra):
+        nonlocal target_hwnd
+        if user32.IsWindowVisible(hwnd):
+            length = user32.GetWindowTextLengthW(hwnd)
+            buff = ctypes.create_unicode_buffer(length + 1)
+            user32.GetWindowTextW(hwnd, buff, length + 1)
+            t = buff.value
+
+            class_buff = ctypes.create_unicode_buffer(256)
+            user32.GetClassNameW(hwnd, class_buff, 256)
+            c = class_buff.value
+
+            # Prioritize WhatsApp Desktop WinUI 3 window
+            if c == 'WinUIDesktopWin32WindowClass' and 'whatsapp' in t.lower():
+                target_hwnd = hwnd
+                return False
+            if 'whatsapp' in t.lower() or 'whatsapp' in c.lower():
+                if not target_hwnd or c == 'WinUIDesktopWin32WindowClass':
+                    target_hwnd = hwnd
+        return True
+
+    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
+    user32.EnumWindows(WNDENUMPROC(enum_cb), 0)
+
+    if target_hwnd:
+        try:
+            cur_thread = kernel32.GetCurrentThreadId()
+            target_pid = ctypes.wintypes.DWORD()
+            target_thread = user32.GetWindowThreadProcessId(target_hwnd, ctypes.byref(target_pid))
+            user32.AttachThreadInput(cur_thread, target_thread, True)
+            user32.ShowWindow(target_hwnd, win32con.SW_RESTORE)
+            user32.SetForegroundWindow(target_hwnd)
+            user32.BringWindowToTop(target_hwnd)
+            user32.SetFocus(target_hwnd)
+            user32.AttachThreadInput(cur_thread, target_thread, False)
+            return True
+        except Exception:
+            pass
+
+    # Fallback to WScript.Shell
     try:
         import win32com.client
         wscript = win32com.client.Dispatch("WScript.Shell")
@@ -972,7 +1042,7 @@ def _send_whatsapp_enter_keystrokes():
     Focuses WhatsApp and sends Enter keystrokes via WScript.Shell and hardware events.
     """
     _activate_whatsapp_window()
-    time.sleep(0.15)
+    time.sleep(0.1)
     try:
         import win32com.client
         wscript = win32com.client.Dispatch("WScript.Shell")
@@ -981,68 +1051,74 @@ def _send_whatsapp_enter_keystrokes():
         pass
     _press_key_hardware(VK_RETURN)
 
-def _delayed_press_enter(delay: float = 2.8):
+def _delayed_press_enter(initial_delay: float = 2.0, attempts: int = 8, interval: float = 1.5):
     """
-    Waits for WhatsApp to navigate and populate text, activates the window,
-    and automatically presses Enter to send the message.
-    Sends a second Enter after 1s to guarantee transmission without risk.
+    Actively monitors and presses Enter over several intervals to guarantee
+    message dispatch even if WhatsApp takes several seconds to load.
     """
-    time.sleep(delay)
-    _send_whatsapp_enter_keystrokes()
-    time.sleep(1.0)
-    _send_whatsapp_enter_keystrokes()
+    time.sleep(initial_delay)
+    for _ in range(attempts):
+        if _activate_whatsapp_window():
+            _send_whatsapp_enter_keystrokes()
+        time.sleep(interval)
 
 def dispatch_whatsapp_desktop(search_term: str, message: str, auto_send: bool = True):
     """
-    Opens WhatsApp Desktop, searches for contact or group name in search bar (Ctrl + F),
+    Opens/activates WhatsApp Desktop, searches for contact or group name in search bar,
     navigates to the first result via Down Arrow, opens chat with Enter, pastes message,
     and automatically sends the message.
     """
-    try:
-        os.startfile("whatsapp://")
-    except Exception:
-        pass
-    time.sleep(1.5)
+    # 1. Bring WhatsApp to front or launch
+    if not _activate_whatsapp_window():
+        try:
+            os.startfile("whatsapp://")
+        except Exception:
+            pass
+        time.sleep(1.2)
+        _activate_whatsapp_window()
 
-    _activate_whatsapp_window()
     time.sleep(0.3)
 
-    # Focus search bar (Ctrl + F)
-    _hotkey_ctrl(VK_F)
-    time.sleep(0.4)
+    # 2. Press Escape twice to dismiss any open search query, menu, or dialog
+    _press_key_hardware(VK_ESCAPE)
+    time.sleep(0.1)
+    _press_key_hardware(VK_ESCAPE)
+    time.sleep(0.15)
 
-    # Clear previous search query if any
+    # 3. Focus search bar (Ctrl + F)
+    _hotkey_ctrl(VK_F)
+    time.sleep(0.25)
+
+    # 4. Clear any existing text in the search bar (Ctrl + A, Backspace)
     try:
         import win32com.client
         wscript = win32com.client.Dispatch("WScript.Shell")
         wscript.SendKeys("^a{BACKSPACE}")
     except Exception:
         pass
-    time.sleep(0.2)
+    time.sleep(0.15)
 
-    # Paste contact or group search term
+    # 5. Type/paste the search term (contact name or number)
     _set_clipboard_text(search_term)
     _hotkey_ctrl(VK_V)
-    time.sleep(1.2)  # Wait for search results to populate
+    time.sleep(0.8)  # Allow WhatsApp to filter contacts locally
 
-    # Highlight top search result using Down Arrow, then press Enter to open
+    # 6. Navigate to top search result (Down Arrow) and open it (Enter)
     _press_key_hardware(VK_DOWN)
-    time.sleep(0.3)
+    time.sleep(0.25)
     _press_key_hardware(VK_RETURN)
-    time.sleep(1.5)  # Wait for conversation to load and message box to gain focus
+    time.sleep(0.9)  # Wait for conversation to load and message box to gain focus
 
-    # Paste message into chat input field
+    # 7. Paste message into chat input field
     _set_clipboard_text(message)
     _hotkey_ctrl(VK_V)
-    time.sleep(0.5)
+    time.sleep(0.35)
 
-    # If auto-send requested, fire dual Enter sequence
+    # 8. If auto_send requested, dispatch Enter keystrokes
     if auto_send:
-        time.sleep(0.2)
         _send_whatsapp_enter_keystrokes()
-        time.sleep(1.0)
+        time.sleep(0.5)
         _send_whatsapp_enter_keystrokes()
-
 
 def dispatch_whatsapp_group(group_search_term: str, message: str, auto_send: bool = True):
     """
@@ -1050,13 +1126,13 @@ def dispatch_whatsapp_group(group_search_term: str, message: str, auto_send: boo
     """
     dispatch_whatsapp_desktop(group_search_term, message, auto_send=auto_send)
 
-
-def send_whatsapp_message(target: str, message: str, call_me: str = "Sir", is_group: bool = False, auto_send: bool = False) -> str:
+def send_whatsapp_message(target: str, message: str, call_me: str = "Sir", is_group: bool = False, auto_send: bool = True) -> str:
     """
     Opens WhatsApp desktop or web with prefilled message directed to a contact or group.
     - If is_group: searches group in WhatsApp desktop, pastes message, and optionally auto-sends.
-    - If individual with verified phone number: uses direct whatsapp:// URI.
-    - If individual without verified phone number: seamlessly searches for contact in WhatsApp desktop and dispatches message!
+    - If individual with contact name: seamlessly searches for contact in WhatsApp desktop and dispatches message in seconds!
+      (Bypasses the slow 2-minute 'whatsapp://send?phone=...' network lookup bug in Windows WhatsApp).
+    - If raw phone number: uses protocol URI with active auto-send monitor.
     """
     # 1. GROUP MESSAGING
     if is_group:
@@ -1071,40 +1147,45 @@ def send_whatsapp_message(target: str, message: str, call_me: str = "Sir", is_gr
     # 2. INDIVIDUAL CONTACT MESSAGING
     phone_number, display_name, related = resolve_contact(target)
 
-    # Direct phone number check
-    if not phone_number:
-        digits = re.sub(r"\D", "", target.strip())
-        if len(digits) >= 10:
-            if len(digits) == 10:
-                phone_number = "+91" + digits
-            elif len(digits) == 12 and digits.startswith("91"):
-                phone_number = "+" + digits
-            else:
-                phone_number = "+" + digits
-            display_name = phone_number
+    # Check if target is a raw phone number (no contact name)
+    is_raw_number = bool(re.match(r"^[\+\d\s\-\(\)]+$", target.strip()) and len(re.sub(r"\D", "", target)) >= 10)
 
-    # If verified phone number available -> use protocol URI
-    if phone_number:
-        url_phone = re.sub(r"[^\d]", "", phone_number)
-        encoded_text = urllib.parse.quote(message.strip())
-        uri = f"whatsapp://send?phone={url_phone}&text={encoded_text}"
-        try:
-            os.startfile(uri)
-            if auto_send:
-                threading.Thread(target=_delayed_press_enter, args=(2.8,), daemon=True).start()
-                return f"{call_me}, dispatched WhatsApp message to {display_name}: '{message}'."
-            else:
-                return f"{call_me}, opened WhatsApp for {display_name} with your message pre-filled. Press Enter to send."
-        except Exception:
-            pass
+    # Preferred search name for fast local desktop search
+    search_target = display_name if (display_name and display_name.lower() != target.lower() and not re.match(r"^[\+\d\s]+$", display_name)) else target
 
-    # If contact phone not in contacts.json, search WhatsApp Desktop directly!
-    dispatch_whatsapp_desktop(target, message, auto_send=auto_send)
-    display = display_name if (display_name and display_name != target) else target.title()
-    if auto_send:
-        return f"{call_me}, searched WhatsApp for '{display}' and dispatched message: '{message}'."
+    # If it's a contact name (not a raw phone number), ALWAYS use fast local desktop search!
+    # This avoids the slow 2-minute "Starting chat..." network lookup bug in WhatsApp Desktop.
+    if not is_raw_number or display_name:
+        dispatch_whatsapp_desktop(search_target, message, auto_send=auto_send)
+        display = display_name if display_name else target.title()
+        if auto_send:
+            return f"{call_me}, dispatched WhatsApp message to {display}: '{message}'."
+        else:
+            return f"{call_me}, opened WhatsApp for {display} with message: '{message}'. Press Enter to send."
+
+    # Direct raw phone number flow
+    digits = re.sub(r"\D", "", target.strip())
+    if len(digits) == 10:
+        phone_number = "+91" + digits
+    elif len(digits) == 12 and digits.startswith("91"):
+        phone_number = "+" + digits
     else:
-        return f"{call_me}, opened WhatsApp chat for '{display}' with message: '{message}'. Press Enter to send."
+        phone_number = "+" + digits
+
+    url_phone = re.sub(r"[^\d]", "", phone_number)
+    encoded_text = urllib.parse.quote(message.strip())
+    uri = f"whatsapp://send?phone={url_phone}&text={encoded_text}"
+    try:
+        os.startfile(uri)
+        if auto_send:
+            threading.Thread(target=_delayed_press_enter, args=(2.0, 10, 1.5), daemon=True).start()
+            return f"{call_me}, dispatched WhatsApp message to {phone_number}: '{message}'."
+        else:
+            return f"{call_me}, opened WhatsApp for {phone_number} with your message pre-filled. Press Enter to send."
+    except Exception:
+        # Fallback to desktop search with phone digits
+        dispatch_whatsapp_desktop(digits, message, auto_send=auto_send)
+        return f"{call_me}, dispatched WhatsApp message to {phone_number}: '{message}'."
 
 
 # ============================================================
