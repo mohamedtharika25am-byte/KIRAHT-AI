@@ -1329,6 +1329,21 @@ def dispatch_whatsapp_desktop(search_term: str, message: str, auto_send: bool = 
 
         threading.Thread(target=_bg_enter_watchdog, daemon=True).start()
 
+def _safe_paste_into_chat(message: str, auto_send: bool = False, delay: float = 1.3):
+    """
+    Ensures message is actively filled into WhatsApp chat input box,
+    working around the Windows WhatsApp Desktop (UWP) bug where
+    'whatsapp://send?phone=...&text=...' opens the chat but ignores the &text= parameter.
+    """
+    time.sleep(delay)
+    _activate_whatsapp_window()
+    time.sleep(0.25)
+    _set_clipboard_text(message)
+    _hotkey_ctrl(VK_V)
+    time.sleep(0.35)
+    if auto_send:
+        _send_whatsapp_enter_keystrokes(ensure_focus=False)
+
 def dispatch_whatsapp_group(group_search_term: str, message: str, auto_send: bool = True):
     """
     Alias wrapper around dispatch_whatsapp_desktop for group messaging.
@@ -1338,10 +1353,8 @@ def dispatch_whatsapp_group(group_search_term: str, message: str, auto_send: boo
 def send_whatsapp_message(target: str, message: str, call_me: str = "Sir", is_group: bool = False, auto_send: bool = True) -> str:
     """
     Opens WhatsApp desktop or web with prefilled message directed to a contact or group.
-    - If is_group: searches group in WhatsApp desktop, pastes message, and optionally auto-sends.
-    - If individual with contact name: seamlessly searches for contact in WhatsApp desktop and dispatches message in seconds!
-      (Bypasses the slow 2-minute 'whatsapp://send?phone=...' network lookup bug in Windows WhatsApp).
-    - If raw phone number: uses protocol URI with active auto-send monitor.
+    - If is_group: searches group in WhatsApp desktop, pastes message, and leaves cursor ready (fill only).
+    - If individual with contact name: opens direct URI and actively pastes message into the chat box!
     """
     # 1. GROUP MESSAGING (Fill only! Strictly never auto-send to groups)
     if is_group:
@@ -1375,8 +1388,9 @@ def send_whatsapp_message(target: str, message: str, call_me: str = "Sir", is_gr
 
     try:
         os.startfile(uri)
+        # Actively paste message into chat box to guarantee it is filled on Windows UWP
+        threading.Thread(target=_safe_paste_into_chat, args=(message, auto_send, 1.3), daemon=True).start()
         if auto_send:
-            threading.Thread(target=_delayed_press_enter, args=(2.0, 6, 1.2), daemon=True).start()
             return f"{call_me}, dispatched WhatsApp message to {display}: '{message}'."
         else:
             return f"{call_me}, opened WhatsApp for {display} with message: '{message}'. Press Enter to send."

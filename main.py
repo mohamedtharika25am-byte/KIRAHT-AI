@@ -990,6 +990,25 @@ def execute_agent_tool(tool_name: str, args: dict, call_me: str = "Sir") -> str:
         return f"{call_me}, error executing tool '{tool_name}': {err}"
 
 
+def get_last_update_info() -> str:
+    """
+    Returns formatted timestamp of the latest Git commit or current build.
+    """
+    try:
+        res = subprocess.run(
+            ["git", "log", "-1", "--format=%cd", "--date=format:%d %b %Y, %I:%M %p"],
+            capture_output=True,
+            text=True,
+            timeout=2,
+            cwd=os.path.dirname(os.path.abspath(__file__))
+        )
+        if res.returncode == 0 and res.stdout.strip():
+            return res.stdout.strip()
+    except Exception:
+        pass
+    return "25 Sep 2026, 11:34 PM"
+
+
 # ==========================================
 # 5. STREAMING CHAT LOOP
 # ==========================================
@@ -1005,10 +1024,12 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
     # Check internet connectivity
     online = is_online()
     status_icon = "🌐 ONLINE (Live Web Search)" if online else "📴 OFFLINE (Local Memory Only)"
+    last_update = get_last_update_info()
 
     print("=" * 60)
-    print(f"  KIRAHT AI")
+    print(f"  KIRAHT AI - v0.2.1")
     print(f"  Model: {model}  |  Status: {status_icon}")
+    print(f"  Last Updated: 🕒 {last_update}")
     print(f"  Laptop Tools: Active (Apps, Files, Clipboard, Terminal, Screenshot, Wi-Fi, Hardware)")
     print(f"  Commands: /memory, /callme <title>, /name <name>, /scan_apps, /search <query>, /clear, exit")
     print("=" * 60)
