@@ -1012,6 +1012,7 @@ def import_google_contacts_csv(filepath: str = "googlecontacts.csv", call_me: st
 
 VK_CONTROL = 0x11
 VK_SHIFT = 0x10
+VK_A = 0x41
 VK_F = 0x46
 VK_V = 0x56
 VK_RETURN = 0x0D
@@ -1307,8 +1308,10 @@ def dispatch_whatsapp_desktop(search_term: str, message: str, auto_send: bool = 
     _press_key_hardware(VK_RETURN)
     time.sleep(1.2)  # Wait for conversation to load, history to render, and message box to gain focus
 
-    # 7. Paste message into chat input field
+    # 7. Paste message into chat input field (select all first to prevent duplicates)
     _set_clipboard_text(message)
+    _hotkey_ctrl(VK_A)
+    time.sleep(0.06)
     _hotkey_ctrl(VK_V)
     time.sleep(0.45)  # Allow WhatsApp UI to process the paste and enable the send state
 
@@ -1334,11 +1337,16 @@ def _safe_paste_into_chat(message: str, auto_send: bool = False, delay: float = 
     Ensures message is actively filled into WhatsApp chat input box,
     working around the Windows WhatsApp Desktop (UWP) bug where
     'whatsapp://send?phone=...&text=...' opens the chat but ignores the &text= parameter.
+    Selects all text (Ctrl+A) before pasting (Ctrl+V) so that any existing or prefilled
+    text is replaced cleanly, preventing double duplication (e.g. 'byebye', 'hihi').
     """
     time.sleep(delay)
     _activate_whatsapp_window()
     time.sleep(0.25)
     _set_clipboard_text(message)
+    # Select all text in the message input box to replace any existing prefilled text
+    _hotkey_ctrl(VK_A)
+    time.sleep(0.06)
     _hotkey_ctrl(VK_V)
     time.sleep(0.35)
     if auto_send:
