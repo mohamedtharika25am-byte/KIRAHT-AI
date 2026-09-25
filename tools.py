@@ -1191,12 +1191,34 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         elif is_group:
             # Case B: For group, check words
             words = rest.split()
-            if len(words) == 1:
+            g_exact, _ = resolve_group(rest)
+            if g_exact:
                 target = rest
                 msg_text = ""
             else:
-                target = rest
-                msg_text = ""
+                matched_prefix = False
+                # Pass 1: Prioritize exact group match in prefixes (e.g. 'aiml - b' in 'aiml - b hello class')
+                for n in range(len(words) - 1, 0, -1):
+                    cand = " ".join(words[:n])
+                    c_info, _ = resolve_group(cand)
+                    if c_info:
+                        target = cand
+                        msg_text = " ".join(words[n:])
+                        matched_prefix = True
+                        break
+                # Pass 2: If no exact match prefix, check for candidates
+                if not matched_prefix:
+                    for n in range(len(words) - 1, 0, -1):
+                        cand = " ".join(words[:n])
+                        c_info, c_rel = resolve_group(cand)
+                        if c_rel:
+                            target = cand
+                            msg_text = " ".join(words[n:])
+                            matched_prefix = True
+                            break
+                if not matched_prefix:
+                    target = rest
+                    msg_text = ""
         else:
             # Case C: Check if entire rest is a known contact or alias
             phone, dname, rel = resolve_contact(rest)
@@ -1226,17 +1248,31 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         # Check if it's a group:
         if is_group:
             g_info, related_groups = resolve_group(target)
-            target_display = g_info['display'] if g_info else target.strip()
+
+            if not g_info:
+                related_data = []
+                for item in related_groups:
+                    name_str = item.get("raw_name") or item.get("display") or item.get("clean_name")
+                    related_data.append({"name": name_str})
+                return True, f"__NEED_GROUP__;;;{target};;;{msg_text};;;{json.dumps(related_data)};;;{send_flag}"
+
+            target_display = g_info.get("raw_name") or g_info.get("display", target)
             if not msg_text:
-                return True, f"__NEED_MESSAGE__:{target_display}:{target_display}:group:{send_flag}"
+                return True, f"__NEED_MESSAGE__;;;{target_display};;;{target_display};;;group;;;{send_flag}"
             else:
                 return True, send_whatsapp_message(target_display, msg_text, call_me, is_group=True, auto_send=is_auto_send)
 
         # Individual contact:
+        phone, display_name, related = resolve_contact(target)
+        if not phone:
+            related_data = []
+            for item in related:
+                related_data.append(item)
+            return True, f"__NEED_PHONE__;;;{target};;;{msg_text};;;{json.dumps(related_data)};;;{send_flag}"
+
+        disp = display_name if display_name else target.title()
         if not msg_text:
-            phone, display_name, related = resolve_contact(target)
-            disp = display_name if display_name else target.title()
-            return True, f"__NEED_MESSAGE__:{target}:{disp}:individual:{send_flag}"
+            return True, f"__NEED_MESSAGE__;;;{target};;;{disp};;;individual;;;{send_flag}"
 
         # If message text is provided, dispatch immediately!
         return True, send_whatsapp_message(target, msg_text, call_me, is_group=False, auto_send=is_auto_send)

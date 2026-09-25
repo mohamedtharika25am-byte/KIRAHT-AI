@@ -751,7 +751,7 @@ def load_all_groups() -> dict:
                             "raw_name": raw_name,
                             "jid": jid,
                             "clean_name": clean,
-                            "display": clean.title(),
+                            "display": raw_name.title() if raw_name else clean.title(),
                         }
         except Exception:
             pass
@@ -767,7 +767,7 @@ def load_all_groups() -> dict:
                     "raw_name": gname,
                     "jid": gid,
                     "clean_name": clean,
-                    "display": clean.title(),
+                    "display": gname.title() if gname else clean.title(),
                 }
     except Exception:
         pass
@@ -777,7 +777,7 @@ def load_all_groups() -> dict:
 
 def resolve_group(query: str) -> tuple[dict | None, list]:
     """
-    Finds a group from loaded groups by clean name, substring, or fuzzy match.
+    Finds a group from loaded groups by clean name, compact name, candidate matches, or fuzzy match.
     Returns: (group_info_dict_or_None, list_of_related_group_dicts)
     """
     groups = load_all_groups()
@@ -787,17 +787,41 @@ def resolve_group(query: str) -> tuple[dict | None, list]:
     if not clean_q:
         return None, []
 
-    # 1. Exact match
+    # 1. Exact match on clean name
     if clean_q in groups:
         return groups[clean_q], []
 
-    # 2. Prefix or Substring match
+    # 2. Compact match (handles 'aiml-b', 'aimlb' -> 'aiml b')
+    compact_q = clean_q.replace(" ", "")
     for k, info in groups.items():
-        if clean_q == k or k.startswith(clean_q + " ") or clean_q in k:
+        if compact_q == k.replace(" ", ""):
             return info, []
 
-    # 3. Fuzzy match for Related Groups
-    close = difflib.get_close_matches(clean_q, list(groups.keys()), n=4, cutoff=0.35)
+    # 3. Check for candidate matches (prefix, substring, or word subset)
+    candidates = []
+    for k, info in groups.items():
+        if clean_q == k or k.startswith(clean_q + " ") or clean_q in k:
+            if info not in candidates:
+                candidates.append(info)
+
+    q_words = set(clean_q.split())
+    for k, info in groups.items():
+        k_words = set(k.split())
+        if q_words and q_words.issubset(k_words):
+            if info not in candidates:
+                candidates.append(info)
+
+    # If exactly 1 match found
+    if len(candidates) == 1:
+        return candidates[0], []
+    elif len(candidates) > 1:
+        for cand in candidates:
+            if cand["clean_name"] == clean_q:
+                return cand, []
+        return None, candidates[:6]
+
+    # 4. Fuzzy match for Related Groups
+    close = difflib.get_close_matches(clean_q, list(groups.keys()), n=4, cutoff=0.25)
     related = [groups[c] for c in close if c in groups]
     return None, related
 
@@ -1236,26 +1260,32 @@ def dispatch_whatsapp_desktop(search_term: str, message: str, auto_send: bool = 
     navigates to the first result via Down Arrow, opens chat with Enter, pastes message,
     and automatically sends the message.
     """
-    # 1. Bring WhatsApp to front or launch
+    # 1. Bring WhatsApp to front or launch with robust polling
     if not _activate_whatsapp_window():
         try:
-            os.startfile("whatsapp://")
+            subprocess.Popen(["explorer.exe", "shell:AppsFolder\\5319275A.WhatsAppDesktop_cv1g1gvanyjgm!App"])
         except Exception:
             pass
-        time.sleep(1.2)
-        _activate_whatsapp_window()
+        try:
+            os.startfile("whatsapp:")
+        except Exception:
+            pass
+        for _ in range(12):
+            time.sleep(0.3)
+            if _activate_whatsapp_window():
+                break
 
-    time.sleep(0.3)
+    time.sleep(0.4)
 
     # 2. Press Escape twice to dismiss any open search query, menu, or dialog
     _press_key_hardware(VK_ESCAPE)
-    time.sleep(0.1)
-    _press_key_hardware(VK_ESCAPE)
     time.sleep(0.15)
+    _press_key_hardware(VK_ESCAPE)
+    time.sleep(0.2)
 
     # 3. Focus search bar (Ctrl + F)
     _hotkey_ctrl(VK_F)
-    time.sleep(0.25)
+    time.sleep(0.35)
 
     # 4. Clear any existing text in the search bar (Ctrl + A, Backspace)
     try:
@@ -1266,16 +1296,16 @@ def dispatch_whatsapp_desktop(search_term: str, message: str, auto_send: bool = 
         pass
     time.sleep(0.15)
 
-    # 5. Type/paste the search term (contact name or number)
+    # 5. Type/paste the search term (contact name, group name, or raw search query)
     _set_clipboard_text(search_term)
     _hotkey_ctrl(VK_V)
-    time.sleep(0.8)  # Allow WhatsApp to filter contacts locally
+    time.sleep(1.2)  # Allow WhatsApp search engine to query SQLite and render results list
 
     # 6. Navigate to top search result (Down Arrow) and open it (Enter)
     _press_key_hardware(VK_DOWN)
     time.sleep(0.25)
     _press_key_hardware(VK_RETURN)
-    time.sleep(0.9)  # Wait for conversation to load and message box to gain focus
+    time.sleep(1.2)  # Wait for conversation to load, history to render, and message box to gain focus
 
     # 7. Paste message into chat input field
     _set_clipboard_text(message)
@@ -1286,9 +1316,9 @@ def dispatch_whatsapp_desktop(search_term: str, message: str, auto_send: bool = 
     if auto_send:
         # Immediate multi-layered pulse directly into the active focused input box
         _send_whatsapp_enter_keystrokes(ensure_focus=False)
-        time.sleep(0.25)
+        time.sleep(0.3)
         _send_whatsapp_enter_keystrokes(ensure_focus=False)
-        time.sleep(0.35)
+        time.sleep(0.4)
         _send_whatsapp_enter_keystrokes(ensure_focus=False)
 
         # Background watchdog thread to guarantee delivery even under heavy system load
@@ -1313,58 +1343,45 @@ def send_whatsapp_message(target: str, message: str, call_me: str = "Sir", is_gr
       (Bypasses the slow 2-minute 'whatsapp://send?phone=...' network lookup bug in Windows WhatsApp).
     - If raw phone number: uses protocol URI with active auto-send monitor.
     """
-    # 1. GROUP MESSAGING
+    # 1. GROUP MESSAGING (Fill only! Strictly never auto-send to groups)
     if is_group:
         g_info, related_groups = resolve_group(target)
-        display = g_info["display"] if g_info else target
-        dispatch_whatsapp_desktop(display, message, auto_send=auto_send)
-        if auto_send:
-            return f"{call_me}, dispatched WhatsApp message to group '{display}': '{message}'."
-        else:
-            return f"{call_me}, opened WhatsApp group '{display}' with your message pre-filled. Press Enter to send."
+        search_term = g_info["raw_name"] if g_info else target
+        display = g_info["display"] if g_info else target.title()
+        # Strictly review mode: paste message only, never auto-press Enter on groups
+        dispatch_whatsapp_desktop(search_term, message, auto_send=False)
+        return f"{call_me}, opened WhatsApp group '{display}' with your message pre-filled. Please review and press Enter to send."
 
-    # 2. INDIVIDUAL CONTACT MESSAGING
+    # 2. INDIVIDUAL CONTACT MESSAGING (Direct, guaranteed deep-link URI to exact contact)
     phone_number, display_name, related = resolve_contact(target)
 
-    # Check if target is a raw phone number (no contact name)
-    is_raw_number = bool(re.match(r"^[\+\d\s\-\(\)]+$", target.strip()) and len(re.sub(r"\D", "", target)) >= 10)
-
-    # Preferred search name for fast local desktop search
-    search_target = display_name if (display_name and display_name.lower() != target.lower() and not re.match(r"^[\+\d\s]+$", display_name)) else target
-
-    # If it's a contact name (not a raw phone number), ALWAYS use fast local desktop search!
-    # This avoids the slow 2-minute "Starting chat..." network lookup bug in WhatsApp Desktop.
-    if not is_raw_number or display_name:
-        dispatch_whatsapp_desktop(search_target, message, auto_send=auto_send)
-        display = display_name if display_name else target.title()
-        if auto_send:
-            return f"{call_me}, dispatched WhatsApp message to {display}: '{message}'."
+    if not phone_number:
+        digits = re.sub(r"\D", "", target.strip())
+        if len(digits) >= 10:
+            if len(digits) == 10:
+                phone_number = "+91" + digits
+            elif len(digits) == 12 and digits.startswith("91"):
+                phone_number = "+" + digits
+            else:
+                phone_number = "+" + digits
+            display_name = target.strip()
         else:
-            return f"{call_me}, opened WhatsApp for {display} with message: '{message}'. Press Enter to send."
+            return f"{call_me}, contact '{target}' was not found in your contacts."
 
-    # Direct raw phone number flow
-    digits = re.sub(r"\D", "", target.strip())
-    if len(digits) == 10:
-        phone_number = "+91" + digits
-    elif len(digits) == 12 and digits.startswith("91"):
-        phone_number = "+" + digits
-    else:
-        phone_number = "+" + digits
-
-    url_phone = re.sub(r"[^\d]", "", phone_number)
+    clean_digits = re.sub(r"[^\d]", "", phone_number)
+    display = display_name if display_name else target.title()
     encoded_text = urllib.parse.quote(message.strip())
-    uri = f"whatsapp://send?phone={url_phone}&text={encoded_text}"
+    uri = f"whatsapp://send?phone={clean_digits}&text={encoded_text}"
+
     try:
         os.startfile(uri)
         if auto_send:
-            threading.Thread(target=_delayed_press_enter, args=(2.0, 10, 1.5), daemon=True).start()
-            return f"{call_me}, dispatched WhatsApp message to {phone_number}: '{message}'."
+            threading.Thread(target=_delayed_press_enter, args=(2.0, 6, 1.2), daemon=True).start()
+            return f"{call_me}, dispatched WhatsApp message to {display}: '{message}'."
         else:
-            return f"{call_me}, opened WhatsApp for {phone_number} with your message pre-filled. Press Enter to send."
-    except Exception:
-        # Fallback to desktop search with phone digits
-        dispatch_whatsapp_desktop(digits, message, auto_send=auto_send)
-        return f"{call_me}, dispatched WhatsApp message to {phone_number}: '{message}'."
+            return f"{call_me}, opened WhatsApp for {display} with message: '{message}'. Press Enter to send."
+    except Exception as err:
+        return f"{call_me}, could not open WhatsApp: {err}"
 
 
 # ============================================================

@@ -152,7 +152,10 @@ def build_system_prompt(memory: dict) -> str:
         f"- Lock Workstation: When asked to lock ('lock laptop', 'lock screen'), call `system_power_control(action='lock')`.\n"
         f"- Volume & Audio: When asked to change volume ('vol up', 'vol down', 'mute', 'unmute'), call `control_volume`.\n"
         f"- Microphone: When asked to mute, unmute, or turn on/off microphone ('mic mute', 'mic off', 'mic on', 'unmute mic'), call `control_microphone`.\n"
-        f"- NEVER claim you lack permissions to execute these actions. You are authorized to control the machine as requested.\n\n"
+        f"OPERATIONAL HONESTY & ACTION DIRECTIVES:\n"
+        f"- NEVER claim you have created a folder, modified a directory, or executed a system task unless you actually called a tool that completed it.\n"
+        f"- Never confuse college degrees (such as AIML), educational groups, or projects with folder creation.\n"
+        f"- Always be 100% honest and accurate about system actions.\n\n"
         f"PROGRAMMING, KNOWLEDGE & CONCEPTUAL QUERIES:\n"
         f"- You are an elite AI engineer, programmer, and knowledgeable companion.\n"
         f"- When {call_me} asks for an example, explanation, coding snippet, or algorithm (e.g. 'deque example', 'binary search', 'how to sort in python'):\n"
@@ -1025,90 +1028,160 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
 
             # Multi-turn WhatsApp interactive resolution (missing message, phone number, or group)
             if pending_whatsapp:
-                if user_input.lower() in ("cancel", "abort", "no", "stop"):
+                user_clean = user_input.strip().lower()
+                cancel_words = (
+                    "cancel", "abort", "no", "stop", "exit", "quit", "close",
+                    "nevermind", "vendam", "cancel pannu", "cancel panni", "/cancel"
+                )
+                if user_clean in cancel_words or any(user_clean.startswith(cw) for cw in ("cancel", "abort", "stop")):
                     pending_whatsapp = None
                     print(f"\nkiraht AI: Operation cancelled, {call_me}.")
                     continue
 
-                p_type = pending_whatsapp.get("type")
-                auto_send = pending_whatsapp.get("auto_send", False)
-
-                if p_type == "need_message":
-                    rec = pending_whatsapp["target"]
-                    is_group = pending_whatsapp.get("is_group", False)
+                # Check if user typed a completely different system command or prompt
+                lower_in = user_input.lower().strip()
+                is_override = (
+                    lower_in.startswith(("whatsapp", "send whatsapp", "open ", "close ", "vol ", "volume ", "time", "date", "battery", "wifi", "note:", "ping", "/"))
+                )
+                if is_override:
                     pending_whatsapp = None
-                    from system_tools import send_whatsapp_message
-                    res = send_whatsapp_message(rec, user_input, call_me, is_group=is_group, auto_send=auto_send)
-                    print(f"\nkiraht AI: {res}")
-                    continue
+                    # Fall through to execute the command directly
+                else:
+                    p_type = pending_whatsapp.get("type")
+                    auto_send = pending_whatsapp.get("auto_send", False)
 
-                elif p_type == "need_group":
-                    user_choice = user_input.strip()
-                    related = pending_whatsapp.get("related", [])
-                    msg = pending_whatsapp.get("message", "")
-                    target_grp = None
-
-                    if user_choice.isdigit() and 1 <= int(user_choice) <= len(related):
-                        target_grp = related[int(user_choice) - 1]["name"]
-                    else:
-                        for item in related:
-                            if user_choice.lower() in item["name"].lower():
-                                target_grp = item["name"]
-                                break
-                        if not target_grp:
-                            target_grp = user_choice
-
-                    pending_whatsapp = None
-                    from system_tools import send_whatsapp_message
-                    res = send_whatsapp_message(target_grp, msg, call_me, is_group=True, auto_send=auto_send)
-                    print(f"\nkiraht AI: {res}")
-                    continue
-
-                elif p_type == "need_phone":
-                    user_choice = user_input.strip()
-                    related = pending_whatsapp.get("related", [])
-                    msg = pending_whatsapp.get("message", "")
-                    rec = pending_whatsapp["target"]
-
-                    # 1. Check if user selected an option number (1, 2, 3...)
-                    if user_choice.isdigit() and 1 <= int(user_choice) <= len(related):
-                        chosen = related[int(user_choice) - 1]
+                    if p_type == "need_message":
+                        rec = pending_whatsapp["target"]
+                        is_group = pending_whatsapp.get("is_group", False)
                         pending_whatsapp = None
                         from system_tools import send_whatsapp_message
-                        res = send_whatsapp_message(chosen["phone"], msg, call_me, auto_send=auto_send)
-                        print(f"\nkiraht AI: Selected {chosen['name']} ({chosen['phone']}). {res}")
+                        res = send_whatsapp_message(rec, user_input, call_me, is_group=is_group, auto_send=auto_send)
+                        print(f"\nkiraht AI: {res}")
                         continue
 
-                    # 2. Check if user typed a name matching one of the related options
-                    matched_opt = None
-                    for item in related:
-                        if user_choice.lower() in item["name"].lower() and item.get("phone"):
-                            matched_opt = item
-                            break
-                    if matched_opt:
-                        pending_whatsapp = None
-                        from system_tools import send_whatsapp_message
-                        res = send_whatsapp_message(matched_opt["phone"], msg, call_me, auto_send=auto_send)
-                        print(f"\nkiraht AI: Selected {matched_opt['name']} ({matched_opt['phone']}). {res}")
-                        continue
+                    elif p_type == "need_group":
+                        user_choice = user_input.strip()
+                        related = pending_whatsapp.get("related", [])
+                        msg = pending_whatsapp.get("message", "")
+                        target_grp = None
 
-                    # 3. Check if user entered a 10-digit phone number
-                    digits = re.sub(r"\D", "", user_input)
-                    if len(digits) >= 10:
-                        from system_tools import add_contact, send_whatsapp_message
-                        add_contact(rec, digits, call_me)
-                        pending_whatsapp = None
-                        if msg:
-                            res = send_whatsapp_message(rec, msg, call_me, auto_send=auto_send)
-                            print(f"\nkiraht AI: Saved contact '{rec.title()}' (+91{digits[-10:]}) and {res}")
+                        if user_choice.isdigit() and 1 <= int(user_choice) <= len(related):
+                            chosen_item = related[int(user_choice) - 1]
+                            if chosen_item.get("is_direct_search"):
+                                target_grp = chosen_item.get("query", pending_whatsapp.get("target"))
+                            else:
+                                target_grp = chosen_item["name"]
+                        elif user_choice.lower() in ("search", "desktop", "direct", "find", "search whatsapp"):
+                            target_grp = pending_whatsapp.get("target")
                         else:
-                            print(f"\nkiraht AI: Saved contact '{rec.title()}' with number +91{digits[-10:]}, {call_me}.")
+                            for item in related:
+                                if user_choice.lower() in item["name"].lower():
+                                    if item.get("is_direct_search"):
+                                        target_grp = item.get("query", pending_whatsapp.get("target"))
+                                    else:
+                                        target_grp = item["name"]
+                                    break
+                            if not target_grp:
+                                target_grp = user_choice
+
+                        pending_whatsapp = None
+
+                        # If no message was provided yet, transition to need_message
+                        if not msg:
+                            pending_whatsapp = {
+                                "type": "need_message",
+                                "target": target_grp,
+                                "display": target_grp,
+                                "is_group": True,
+                                "auto_send": auto_send
+                            }
+                            print(f"\nkiraht AI: Selected group '{target_grp}'. What message would you like to send to this group? (or type 'cancel')")
+                            continue
+
+                        from system_tools import send_whatsapp_message
+                        res = send_whatsapp_message(target_grp, msg, call_me, is_group=True, auto_send=auto_send)
+                        print(f"\nkiraht AI: {res}")
                         continue
-                    else:
-                        rel_count = len(related)
-                        opt_hint = f"option number (1-{rel_count}) or a " if rel_count > 0 else ""
-                        print(f"\nkiraht AI: Please enter a valid {opt_hint}10-digit phone number (or type 'cancel'):")
-                        continue
+
+                    elif p_type == "need_phone":
+                        user_choice = user_input.strip()
+                        related = pending_whatsapp.get("related", [])
+                        msg = pending_whatsapp.get("message", "")
+                        rec = pending_whatsapp["target"]
+
+                        # 1. Check if user selected an option number (1, 2, 3...)
+                        if user_choice.isdigit() and 1 <= int(user_choice) <= len(related):
+                            chosen = related[int(user_choice) - 1]
+                            pending_whatsapp = None
+                            from system_tools import send_whatsapp_message
+                            if chosen.get("is_direct_search"):
+                                if not msg:
+                                    pending_whatsapp = {
+                                        "type": "need_message",
+                                        "target": rec,
+                                        "display": rec.title(),
+                                        "is_group": False,
+                                        "auto_send": auto_send,
+                                    }
+                                    print(f"\nkiraht AI: Searching WhatsApp for '{rec}'. What message would you like to send? (or type 'cancel')")
+                                    continue
+                                res = send_whatsapp_message(chosen.get("query", rec), msg, call_me, auto_send=auto_send)
+                                print(f"\nkiraht AI: Searching WhatsApp Desktop for '{rec}'. {res}")
+                            else:
+                                if not msg:
+                                    pending_whatsapp = {
+                                        "type": "need_message",
+                                        "target": chosen["phone"],
+                                        "display": chosen["name"],
+                                        "is_group": False,
+                                        "auto_send": auto_send,
+                                    }
+                                    print(f"\nkiraht AI: Selected {chosen['name']}. What message would you like to send? (or type 'cancel')")
+                                    continue
+                                res = send_whatsapp_message(chosen["phone"], msg, call_me, auto_send=auto_send)
+                                print(f"\nkiraht AI: Selected {chosen['name']} ({chosen['phone']}). {res}")
+                            continue
+
+                        # 2. Check if user typed a name matching one of the related options
+                        matched_opt = None
+                        for item in related:
+                            if user_choice.lower() in item["name"].lower() and item.get("phone"):
+                                matched_opt = item
+                                break
+                        if matched_opt:
+                            pending_whatsapp = None
+                            from system_tools import send_whatsapp_message
+                            if not msg:
+                                pending_whatsapp = {
+                                    "type": "need_message",
+                                    "target": matched_opt["phone"],
+                                    "display": matched_opt["name"],
+                                    "is_group": False,
+                                    "auto_send": auto_send,
+                                }
+                                print(f"\nkiraht AI: Selected {matched_opt['name']}. What message would you like to send? (or type 'cancel')")
+                                continue
+                            res = send_whatsapp_message(matched_opt["phone"], msg, call_me, auto_send=auto_send)
+                            print(f"\nkiraht AI: Selected {matched_opt['name']} ({matched_opt['phone']}). {res}")
+                            continue
+
+                        # 3. Check if user entered a 10-digit phone number
+                        digits = re.sub(r"\D", "", user_input)
+                        if len(digits) >= 10:
+                            from system_tools import add_contact, send_whatsapp_message
+                            add_contact(rec, digits, call_me)
+                            pending_whatsapp = None
+                            if msg:
+                                res = send_whatsapp_message(rec, msg, call_me, auto_send=auto_send)
+                                print(f"\nkiraht AI: Saved contact '{rec.title()}' (+91{digits[-10:]}) and {res}")
+                            else:
+                                print(f"\nkiraht AI: Saved contact '{rec.title()}' with number +91{digits[-10:]}, {call_me}.")
+                            continue
+                        else:
+                            rel_count = len(related)
+                            opt_hint = f"option number (1-{rel_count}) or a " if rel_count > 0 else ""
+                            print(f"\nkiraht AI: Please enter a valid {opt_hint}10-digit phone number (or type 'cancel'):")
+                            continue
 
             # Check for repeat / again / now command
             if user_input.lower() in ("again", "now", "repeat", "once more", "one more time", "/again"):
@@ -1205,28 +1278,30 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
             # Check for laptop / OS operation commands (Desktop Apps, Files, Hardware)
             handled, action_result = execute_system_command(user_input, call_me)
             if handled:
-                if action_result.startswith("__NEED_MESSAGE__:"):
-                    parts = action_result.split(":")
+                if action_result.startswith("__NEED_MESSAGE__"):
+                    parts = action_result.split(";;;") if ";;;" in action_result else action_result.split(":")
                     rec = parts[1]
                     display = parts[2] if len(parts) > 2 else rec.title()
                     grp_flag = parts[3] if len(parts) > 3 else "individual"
                     send_flag = parts[4] if len(parts) > 4 else "review"
                     is_group = (grp_flag == "group")
-                    auto_send = (send_flag == "send")
+                    # Strict Safety Lock: Groups are ALWAYS review mode (fill only, never auto-send)
+                    auto_send = (send_flag == "send" and not is_group)
                     pending_whatsapp = {"type": "need_message", "target": rec, "display": display, "is_group": is_group, "auto_send": auto_send}
                     if is_group:
-                        print(f"\nkiraht AI: Sir, what message would you like to send to group '{display}'?")
+                        print(f"\nkiraht AI: Sir, what message would you like to send to group '{display}'? (or type 'cancel')")
                     else:
-                        print(f"\nkiraht AI: Sir, what message would you like to send to {display}?")
+                        print(f"\nkiraht AI: Sir, what message would you like to send to {display}? (or type 'cancel')")
                     continue
 
-                if action_result.startswith("__NEED_GROUP__:"):
-                    parts = action_result.split(":", 4)
+                if action_result.startswith("__NEED_GROUP__"):
+                    parts = action_result.split(";;;") if ";;;" in action_result else action_result.split(":", 4)
                     target = parts[1]
                     msg = parts[2] if len(parts) > 2 else ""
                     related_raw = parts[3] if len(parts) > 3 else "[]"
                     send_flag = parts[4] if len(parts) > 4 else "review"
-                    auto_send = (send_flag == "send")
+                    # Strict Safety Lock: Groups are ALWAYS review mode (fill only, never auto-send)
+                    auto_send = False
                     try:
                         related_list = json.loads(related_raw)
                     except Exception:
@@ -1252,8 +1327,8 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                         print(f"\nkiraht AI: Sir, group '{target}' was not found in your WhatsApp groups (or type 'cancel').")
                     continue
 
-                if action_result.startswith("__NEED_PHONE__:"):
-                    parts = action_result.split(":", 4)
+                if action_result.startswith("__NEED_PHONE__"):
+                    parts = action_result.split(";;;") if ";;;" in action_result else action_result.split(":", 4)
                     rec = parts[1]
                     msg = parts[2] if len(parts) > 2 else ""
                     related_raw = parts[3] if len(parts) > 3 else "[]"
@@ -1424,7 +1499,15 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                 messages.pop()
                 print(f"\nkiraht AI: [Error] {err}")
 
-        except (KeyboardInterrupt, EOFError):
+        except KeyboardInterrupt:
+            if pending_whatsapp:
+                pending_whatsapp = None
+                print(f"\n\n[kiraht AI: Operation cancelled by {call_me}]")
+            else:
+                print(f"\n\n[kiraht AI: Cancelled by {call_me}]")
+            continue
+
+        except EOFError:
             print(f"\nkiraht AI: Systems standing by. Goodbye, {call_me}!")
             break
 
