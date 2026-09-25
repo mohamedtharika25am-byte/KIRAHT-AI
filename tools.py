@@ -653,10 +653,10 @@ def launch_desktop_app(app_name: str, call_me: str = "Sir") -> tuple[bool, str]:
 # ============================================================
 def get_current_time_and_date(call_me: str = "Sir") -> str:
     """
-    Returns current local time, day of the week, and formatted date.
+    Returns current local time (including seconds), day of the week, and formatted date.
     """
     now = datetime.datetime.now()
-    time_str = now.strftime("%I:%M %p")
+    time_str = now.strftime("%I:%M:%S %p")
     date_str = now.strftime("%A, %d %B %Y")
     return f"{call_me}, the current time is {time_str} on {date_str}."
 
@@ -852,14 +852,20 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     and hardware automation tools. Returns (handled, response_string).
     """
     cleaned = user_text.strip().lower()
+    cleaned = re.sub(r"[?!.,;]+$", "", cleaned).strip()
 
     # 1. Rescan Installed Applications Cache
     if cleaned in ("/scan_apps", "scan apps", "rescan apps", "refresh apps"):
         apps = scan_installed_apps()
         return True, f"{call_me}, scanned and indexed {len(apps)} installed desktop applications into apps_cache.json."
 
-    # 2. Time and Date Engine
-    if re.search(r"\b(time|current time|what time|what is the time|time now|date|today date|current date|what date|what day|today)\b", cleaned):
+    # 2. Time and Date Engine (Strict matching to avoid hijacking instructional / conversational queries)
+    time_or_date_match = (
+        re.search(r"^(?:what(?:'s|\s+is)?\s+(?:the\s+)?(?:current\s+)?time(?:\s+now)?(?:\s+please)?|what\s+time\s+is\s+it|tell\s+me\s+(?:the\s+)?(?:current\s+)?time|current\s+time(?:\s+now)?|time\s+now|time)$", cleaned)
+        or re.search(r"^(?:what(?:'s|\s+is)?\s+(?:the\s+)?(?:current\s+|today(?:'s)?\s+)?date(?:\s+today)?(?:\s+please)?|what\s+date\s+is\s+it|what\s+day\s+is\s+(?:it|today)|today(?:'s)?\s+date|current\s+date|date\s+today|date)$", cleaned)
+        or re.search(r"^(?:tell\s+me\s+)?(?:the\s+)?(?:time\s+and\s+date|date\s+and\s+time)$", cleaned)
+    )
+    if time_or_date_match:
         return True, get_current_time_and_date(call_me)
 
     # 3. Battery / Power / System Performance
@@ -891,17 +897,27 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         return True, lock_workstation(call_me)
 
     # 5. Precision Windows Audio & Volume Controls
-    vol_set_match = re.search(r"\b(?:set\s+volume\s+(?:to\s+)?|vol\s+|volume\s+)(\d{1,3})(?:%|\b)", cleaned)
+    vol_set_match = (
+        re.search(r"\b(?:vol|volume)\s*(?:set)?\s*(?:to|=)?\s*(\d{1,3})\s*%?\b", cleaned)
+        or re.search(r"\b(?:set|change|put)\s+(?:the\s+)?(?:vol|volume)\s*(?:level|to|=)?\s*(\d{1,3})\s*%?\b", cleaned)
+        or re.search(r"\bst\s+vol\s+(\d{1,3})\b", cleaned)
+    )
     if vol_set_match:
         target_val = int(vol_set_match.group(1))
         return True, set_volume_level(target_val, call_me)
 
-    vol_inc_by = re.search(r"\b(?:increase|raise|boost)\s+volume\s+by\s+(\d{1,3})\b", cleaned)
+    vol_inc_by = (
+        re.search(r"\b(?:increase|raise|boost|up)\s+(?:the\s+)?(?:vol|volume)\s*(?:by)?\s*(\d{1,3})\b", cleaned)
+        or re.search(r"\b(?:vol|volume)\s+up\s*(?:by)?\s*(\d{1,3})\b", cleaned)
+    )
     if vol_inc_by:
         delta = int(vol_inc_by.group(1))
         return True, adjust_volume_delta(delta, call_me)
 
-    vol_dec_by = re.search(r"\b(?:decrease|lower|reduce)\s+volume\s+by\s+(\d{1,3})\b", cleaned)
+    vol_dec_by = (
+        re.search(r"\b(?:decrease|lower|reduce|down)\s+(?:the\s+)?(?:vol|volume)\s*(?:by)?\s*(\d{1,3})\b", cleaned)
+        or re.search(r"\b(?:vol|volume)\s+down\s*(?:by)?\s*(\d{1,3})\b", cleaned)
+    )
     if vol_dec_by:
         delta = int(vol_dec_by.group(1))
         return True, adjust_volume_delta(-delta, call_me)
@@ -918,9 +934,9 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     if re.search(r"\b(?:toggle\s+(?:mic|microphone)|(?:mic|microphone)\s+toggle)\b", cleaned):
         return True, toggle_mic_mute("toggle", call_me)
 
-    if re.search(r"\b(unmute(?:\s+volume|\s+pc|\s+audio)?)\b", cleaned) and not re.search(r"\b(mic|microphone)\b", cleaned):
+    if re.search(r"\b(?:unmute(?:\s+volume|\s+vol|\s+pc|\s+audio)?|(?:volume|vol|audio)\s+unmute)\b", cleaned) and not re.search(r"\b(mic|microphone)\b", cleaned):
         return True, toggle_mute("unmute", call_me)
-    if re.search(r"\b(mute(?:\s+volume|\s+pc|\s+audio)?)\b", cleaned) and not re.search(r"\b(mic|microphone)\b", cleaned):
+    if re.search(r"\b(?:mute(?:\s+volume|\s+vol|\s+pc|\s+audio)?|(?:volume|vol|audio)\s+mute|vol\s*mute|mute\s*vol)\b", cleaned) and not re.search(r"\b(mic|microphone)\b", cleaned):
         return True, toggle_mute("mute", call_me)
 
     # 6. Clipboard Operations

@@ -113,7 +113,7 @@ def build_system_prompt(memory: dict) -> str:
     notes = memory.get("custom_notes", [])
     notes_str = "\n".join(f"- {n}" for n in notes)
     import datetime
-    current_dt = datetime.datetime.now().strftime("%A, %d %B %Y %I:%M %p")
+    current_dt = datetime.datetime.now().strftime("%A, %d %B %Y %I:%M:%S %p")
 
     return (
         f"You are KIRAHT AI, an elite personal AI assistant. Your persona is {persona}.\n"
