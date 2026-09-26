@@ -850,7 +850,7 @@ AVAILABLE_TOOLS = [
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "recipient": {"type": "string", "description": "Contact name, group name, or phone number (e.g. 'juhail', 'rahul', 'mom', 'roombies')"},
+                    "recipient": {"type": "string", "description": "The exact contact name, group name, or phone number explicitly specified by the user in this conversation. Never assume or invent a name."},
                     "message": {"type": "string", "description": "The exact message text to send to the recipient"},
                     "is_group": {"type": "boolean", "description": "True if sending to a WhatsApp group, False for individual"}
                 },
@@ -976,13 +976,13 @@ def execute_agent_tool(tool_name: str, args: dict, call_me: str = "Sir") -> str:
 
         elif tool_name == "send_whatsapp":
             from system_tools import send_whatsapp_message
-            recipient = args.get("recipient", "")
-            msg = args.get("message", "")
+            recipient = str(args.get("recipient", "")).strip()
+            msg = str(args.get("message", "")).strip()
             is_grp = args.get("is_group", False)
             if not recipient:
                 return f"{call_me}, please specify who to send the WhatsApp message to."
-            if not msg:
-                return f"{call_me}, please provide the message content you would like to send."
+            if not msg or msg.lower() in ("how can i assist you today?", "how can i help you?", "hello", "hi"):
+                return f"{call_me}, please specify what message you would like to send to {recipient}."
             return send_whatsapp_message(recipient, msg, call_me=call_me, is_group=is_grp, auto_send=True)
 
         return f"{call_me}, executed tool '{tool_name}'."
@@ -1085,6 +1085,10 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                         from system_tools import send_whatsapp_message
                         res = send_whatsapp_message(rec, user_input, call_me, is_group=is_group, auto_send=auto_send)
                         print(f"\nkiraht AI: {res}")
+                        prefix = "send whatsapp" if auto_send else "whatsapp"
+                        grp_word = "group " if is_group else ""
+                        last_system_command = f"{prefix} {grp_word}{rec} {user_input}"
+                        last_chat_prompt = ""
                         continue
 
                     elif p_type == "need_group":
@@ -1129,6 +1133,9 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                         from system_tools import send_whatsapp_message
                         res = send_whatsapp_message(target_grp, msg, call_me, is_group=True, auto_send=auto_send)
                         print(f"\nkiraht AI: {res}")
+                        prefix = "send whatsapp" if auto_send else "whatsapp"
+                        last_system_command = f"{prefix} group {target_grp} {msg}"
+                        last_chat_prompt = ""
                         continue
 
                     elif p_type == "need_phone":
@@ -1168,6 +1175,9 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                                     continue
                                 res = send_whatsapp_message(chosen["phone"], msg, call_me, auto_send=auto_send)
                                 print(f"\nkiraht AI: Selected {chosen['name']} ({chosen['phone']}). {res}")
+                                prefix = "send whatsapp" if auto_send else "whatsapp"
+                                last_system_command = f"{prefix} {chosen['name']} {msg}"
+                                last_chat_prompt = ""
                             continue
 
                         # 2. Check if user typed a name matching one of the related options
@@ -1191,6 +1201,9 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                                 continue
                             res = send_whatsapp_message(matched_opt["phone"], msg, call_me, auto_send=auto_send)
                             print(f"\nkiraht AI: Selected {matched_opt['name']} ({matched_opt['phone']}). {res}")
+                            prefix = "send whatsapp" if auto_send else "whatsapp"
+                            last_system_command = f"{prefix} {matched_opt['name']} {msg}"
+                            last_chat_prompt = ""
                             continue
 
                         # 3. Check if user entered a 10-digit phone number
@@ -1202,6 +1215,9 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                             if msg:
                                 res = send_whatsapp_message(rec, msg, call_me, auto_send=auto_send)
                                 print(f"\nkiraht AI: Saved contact '{rec.title()}' (+91{digits[-10:]}) and {res}")
+                                prefix = "send whatsapp" if auto_send else "whatsapp"
+                                last_system_command = f"{prefix} {rec} {msg}"
+                                last_chat_prompt = ""
                             else:
                                 print(f"\nkiraht AI: Saved contact '{rec.title()}' with number +91{digits[-10:]}, {call_me}.")
                             continue

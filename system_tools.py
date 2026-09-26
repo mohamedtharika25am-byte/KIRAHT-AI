@@ -684,18 +684,21 @@ def load_contacts_data() -> dict:
 
     try:
         with open(CONTACTS_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            if not isinstance(data, dict):
-                return default_data
-            if "contacts" not in data and "aliases" not in data:
-                data = {"contacts": data, "aliases": {}, "groups": {}}
-            raw_contacts = data.get("contacts", {}) if isinstance(data.get("contacts"), dict) else {}
-            raw_aliases = data.get("aliases", {}) if isinstance(data.get("aliases"), dict) else {}
-            raw_groups = data.get("groups", {}) if isinstance(data.get("groups"), dict) else {}
-            data["contacts"] = {str(k).lower().strip(): str(v).strip() for k, v in raw_contacts.items() if str(k).strip()}
-            data["aliases"] = {str(k).lower().strip(): str(v).lower().strip() for k, v in raw_aliases.items() if str(k).strip()}
-            data["groups"] = {str(k).lower().strip(): v for k, v in raw_groups.items() if str(k).strip()}
-            return data
+            raw_text = f.read()
+        cleaned_text = re.sub(r"^\s*//.*$", "", raw_text, flags=re.MULTILINE)
+        cleaned_text = re.sub(r",\s*([\]}])", r"\1", cleaned_text)
+        data = json.loads(cleaned_text)
+        if not isinstance(data, dict):
+            return default_data
+        if "contacts" not in data and "aliases" not in data:
+            data = {"contacts": data, "aliases": {}, "groups": {}}
+        raw_contacts = data.get("contacts", {}) if isinstance(data.get("contacts"), dict) else {}
+        raw_aliases = data.get("aliases", {}) if isinstance(data.get("aliases"), dict) else {}
+        raw_groups = data.get("groups", {}) if isinstance(data.get("groups"), dict) else {}
+        data["contacts"] = {str(k).lower().strip(): str(v).strip() for k, v in raw_contacts.items() if str(k).strip()}
+        data["aliases"] = {str(k).lower().strip(): str(v).lower().strip() for k, v in raw_aliases.items() if str(k).strip()}
+        data["groups"] = {str(k).lower().strip(): v for k, v in raw_groups.items() if str(k).strip()}
+        return data
     except Exception:
         return default_data
 
@@ -741,18 +744,21 @@ def load_all_groups() -> dict:
     if os.path.exists(WHATSAPP_CONTACTS_FILE):
         try:
             with open(WHATSAPP_CONTACTS_FILE, "r", encoding="utf-8") as f:
-                wa_data = json.load(f)
-                wa_groups = wa_data.get("groups", {})
-                for raw_name, jid in wa_groups.items():
-                    clean = re.sub(r"[^\w\s]", " ", raw_name).strip().lower()
-                    clean = re.sub(r"\s+", " ", clean).strip()
-                    if clean:
-                        groups_map[clean] = {
-                            "raw_name": raw_name,
-                            "jid": jid,
-                            "clean_name": clean,
-                            "display": raw_name.title() if raw_name else clean.title(),
-                        }
+                raw_text = f.read()
+            cleaned_text = re.sub(r"^\s*//.*$", "", raw_text, flags=re.MULTILINE)
+            cleaned_text = re.sub(r",\s*([\]}])", r"\1", cleaned_text)
+            wa_data = json.loads(cleaned_text)
+            wa_groups = wa_data.get("groups", {})
+            for raw_name, jid in wa_groups.items():
+                clean = re.sub(r"[^\w\s]", " ", raw_name).strip().lower()
+                clean = re.sub(r"\s+", " ", clean).strip()
+                if clean:
+                    groups_map[clean] = {
+                        "raw_name": raw_name,
+                        "jid": jid,
+                        "clean_name": clean,
+                        "display": raw_name.title() if raw_name else clean.title(),
+                    }
         except Exception:
             pass
 

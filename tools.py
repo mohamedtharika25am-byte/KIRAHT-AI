@@ -1175,6 +1175,18 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     if re.search(r"\b(list contacts|show contacts|view contacts|contacts list|my contacts)\b", cleaned):
         return True, list_contacts(call_me)
 
+    # 20.1 Intercept Voice & Phone Calling Attempts (Calling is not supported; guide to WhatsApp)
+    call_match = re.search(r"^(?:please\s+)?(?:call|make\s+(?:a\s+)?call\s+(?:to)?|voice\s*call|phone|dial)\s+([a-zA-Z0-9_\-\.\s]+)$", cleaned)
+    if call_match:
+        target_person = call_match.group(1).strip()
+        return True, f"{call_me}, voice and phone calling are not supported on this laptop. To message on WhatsApp, please say 'whatsapp {target_person} <message>'."
+    if cleaned in ("call", "make a call", "voice call", "phone call"):
+        return True, f"{call_me}, calling is not supported on this laptop. You can send WhatsApp messages instead using 'whatsapp <name> <message>'."
+
+    # 20.2 Intercept isolated 'through whatsapp' / 'via whatsapp' phrases
+    if cleaned in ("through whatsapp", "via whatsapp", "on whatsapp", "whatsapp la", "in whatsapp", "through whatsap"):
+        return True, f"{call_me}, who would you like to message on WhatsApp, and what is your message? (e.g. 'whatsapp <name> <message>')"
+
     WA_TRIGS = r"(?:whats?\s*app|whatasapp|whataspp|whatsap|whatapp|whatsappp|whatssap|watsapp|watapp|watsp|whapp|whasap|whtsp|whtsapp|wa|wp)"
     GRP_TRIGS = r"(?:group|grp|grop|grup|groupp)"
 
