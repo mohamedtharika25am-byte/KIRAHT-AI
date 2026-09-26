@@ -685,7 +685,7 @@ def load_contacts_data() -> dict:
     try:
         with open(CONTACTS_FILE, "r", encoding="utf-8") as f:
             raw_text = f.read()
-        cleaned_text = re.sub(r"^\s*//.*$", "", raw_text, flags=re.MULTILINE)
+        cleaned_text = re.sub(r"(?<!https:)(?<!http:)//.*$", "", raw_text, flags=re.MULTILINE)
         cleaned_text = re.sub(r",\s*([\]}])", r"\1", cleaned_text)
         data = json.loads(cleaned_text)
         if not isinstance(data, dict):
@@ -745,7 +745,7 @@ def load_all_groups() -> dict:
         try:
             with open(WHATSAPP_CONTACTS_FILE, "r", encoding="utf-8") as f:
                 raw_text = f.read()
-            cleaned_text = re.sub(r"^\s*//.*$", "", raw_text, flags=re.MULTILINE)
+            cleaned_text = re.sub(r"(?<!https:)(?<!http:)//.*$", "", raw_text, flags=re.MULTILINE)
             cleaned_text = re.sub(r",\s*([\]}])", r"\1", cleaned_text)
             wa_data = json.loads(cleaned_text)
             wa_groups = wa_data.get("groups", {})
