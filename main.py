@@ -386,11 +386,19 @@ def should_enable_tools(user_text: str) -> bool:
         r"\bexample\b",
         r"\bhow\s+to\b",
         r"\bhow\s+do\b",
+        r"\bhow\s+does\b",
+        r"\bhow\s+can\b",
         r"\bwhat\s+is\b",
         r"\bwhat\s+are\b",
+        r"\bwhat\s+can\b",
+        r"\bwhat\s+did\b",
+        r"\bwhat\s+do\b",
+        r"\bwhat\s+does\b",
+        r"\bwhat\s+will\b",
         r"\bwhy\s+is\b",
         r"\bwhy\s+does\b",
         r"\bexplain\b",
+        r"\bexplanation\b",
         r"\bmeaning\b",
         r"\bdifference\b",
         r"\btutorial\b",
@@ -419,12 +427,24 @@ def should_enable_tools(user_text: str) -> bool:
         r"\bwhen\s+did\b",
         r"\bcan\s+you\s+explain\b",
         r"\btell\s+me\s+about\b",
+        r"\btell\s+me\b",
         r"\bguide\b",
         r"\bdefinition\b",
         r"\bsyntax\b",
         r"\bimplementation\b",
         r"\binterview\b",
         r"\bquestions?\b",
+        r"\bfeatures\b",
+        r"\bperspective\b",
+        r"\bsimpler\b",
+        r"\bbreakdown\b",
+        r"\bdetails\b",
+        r"\boverview\b",
+        r"\btips\b",
+        r"\badvantages\b",
+        r"\bbenefits\b",
+        r"\bclarity\b",
+        r"\babout\b",
     ]
     for p in coding_and_question_patterns:
         if re.search(p, lower):
@@ -449,17 +469,12 @@ def should_enable_tools(user_text: str) -> bool:
         if re.search(p, lower):
             return False
 
-    # 3. Actionable system command patterns
+    # 3. Actionable system command patterns (Strict imperative action phrases only)
     action_triggers = [
-        r"\b(?:open|launch|start|run)\s+[a-zA-Z0-9_\-\.\s]+",
-        r"\b(?:close|kill|quit|terminate)\s+[a-zA-Z0-9_\-\.\s]+",
-        r"\b(?:vol|volume|sound|mute|unmute|mic|microphone)\b",
-        r"\b(?:sleep|standby|shutdown|shut\s*down|reboot|restart|power\s*off|screen\s*off|lock\s*screen|lock\s*pc|lock\s*laptop)\b",
-        r"\b(?:brightness|dim|dimmer)\b",
-        r"\b(?:running\s+processes|top\s+processes|task\s*manager|cpu\s+usage|ram\s+usage)\b",
-        r"\b(?:battery|wifi|wi-fi|ssid|ping\s+latency)\b",
-        r"\b(?:search\s+file|find\s+file|read\s+file)\b",
-        r"\b(?:whatsapp|whatsap|watsapp|send\s+message)\b",
+        r"^(?:please\s+)?(?:can you\s+)?(?:could you\s+)?(?:set|adjust|change|put)\s+(?:the\s+)?(?:brightness|screen|volume|vol|sound)\b",
+        r"^(?:please\s+)?(?:can you\s+)?(?:could you\s+)?(?:increase|raise|boost|decrease|lower|dim|mute|unmute)\s+(?:the\s+)?(?:brightness|screen|volume|vol|sound|mic)\b",
+        r"^(?:please\s+)?(?:can you\s+)?(?:could you\s+)?(?:turn|switch)\s+(?:on|off)\s+(?:the\s+)?(?:screen|display|sound|mic|volume)\b",
+        r"^(?:please\s+)?(?:can you\s+)?(?:could you\s+)?(?:launch|start|open|close|kill|terminate)\s+(?:app|application|program|software|process)\s+[a-zA-Z0-9_\-\.]+",
     ]
     for p in action_triggers:
         if re.search(p, lower):
@@ -1233,6 +1248,11 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                     print(f"\n[KIRAHT AI: 🔄 Repeating last command: '{last_system_command}']")
                     user_input = last_system_command
                 elif last_chat_prompt:
+                    clean_last = last_chat_prompt.strip().lower()
+                    words = clean_last.split()
+                    if len(words) <= 2 or clean_last in ("through whatsapp", "via whatsapp", "on whatsapp", "yeah", "yes", "ok", "cancel", "1", "2", "3", "4", "hi", "hello"):
+                        print(f"\nkiraht AI: No previous command or question to repeat, {call_me}.")
+                        continue
                     print(f"\n[KIRAHT AI: 🔄 Re-explaining with fresh clarity: '{last_chat_prompt}']")
                     user_input = f"Provide a fresh, simpler explanation or alternative practical perspective on: {last_chat_prompt}"
                 else:
