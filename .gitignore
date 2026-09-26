@@ -33,3 +33,7 @@ whatsapp_contacts.json
 googlecontacts.csv
 *.vcf
 *.csv
+
+# KIRAHT AI Security Trash / Safety Backups
+.kiraht_trash/
+

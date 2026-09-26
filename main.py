@@ -1026,9 +1026,13 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
     status_icon = "🌐 ONLINE (Live Web Search)" if online else "📴 OFFLINE (Local Memory Only)"
     last_update = get_last_update_info()
 
+    from security import get_security_mode_label
+    security_label = get_security_mode_label()
+
     print("=" * 60)
     print(f"  KIRAHT AI - v0.2.1")
     print(f"  Model: {model}  |  Status: {status_icon}")
+    print(f"  Security: {security_label}")
     print(f"  Last Updated: 🕒 {last_update}")
     print(f"  Laptop Tools: Active (Apps, Files, Clipboard, Terminal, Screenshot, Wi-Fi, Hardware)")
     print(f"  Commands: /memory, /callme <title>, /name <name>, /scan_apps, /search <query>, /clear, exit")
@@ -1279,7 +1283,7 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                 print(f"\nkiraht AI: Scanned and indexed {len(apps)} installed desktop apps into apps_cache.json, {call_me}.")
                 continue
 
-            # Intent: Create file with content (with safety confirmation guardrail)
+            # Intent: Create file with content (gated by Security Permission Gate)
             create_file_match = re.search(
                 r"^create\s+file\s+([a-zA-Z0-9_\-\./\\]+)\s+with\s+(.+)$",
                 user_input,
@@ -1288,8 +1292,8 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
             if create_file_match:
                 target_name = create_file_match.group(1).strip()
                 new_code = create_file_match.group(2).strip()
-                confirm = input(f"\nkiraht AI: Sir, are you sure you want to write to '{target_name}'? (y/n): ").strip().lower()
-                if confirm in ("y", "yes"):
+                from security import request_permission
+                if request_permission("file_write", f"Create or overwrite file '{target_name}'", call_me=call_me):
                     from file_tools import safe_create_or_modify_file
                     res = safe_create_or_modify_file(target_name, new_code, call_me=call_me)
                     print(f"\nkiraht AI: {res}")

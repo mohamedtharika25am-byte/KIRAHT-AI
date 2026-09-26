@@ -305,3 +305,28 @@ def search_files_across_folders(query: str, target_location: str = "all", max_re
     for label, fname, sz, fullpath in matches:
         lines.append(f"  • [{label}] {fname} ({sz})\n    Path: {fullpath}")
     return "\n".join(lines)
+
+
+def safe_delete_file(filepath: str, call_me: str = "Sir") -> str:
+    """
+    Safely deletes a file after saving a timestamped backup in .kiraht_trash/.
+    """
+    full_path = resolve_path(filepath)
+    if not os.path.exists(full_path):
+        return f"{call_me}, file '{filepath}' does not exist."
+    if os.path.isdir(full_path):
+        return f"{call_me}, '{filepath}' is a directory. Folder deletion is restricted for safety."
+
+    base_name = os.path.basename(full_path)
+    try:
+        bak_dir = os.path.join(WORKSPACE_DIR, ".kiraht_trash")
+        os.makedirs(bak_dir, exist_ok=True)
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        bak_path = os.path.join(bak_dir, f"{base_name}_{timestamp}.bak")
+        shutil.copy2(full_path, bak_path)
+
+        os.remove(full_path)
+        return f"{call_me}, successfully deleted '{base_name}'. (Safety backup saved in .kiraht_trash/)"
+    except Exception as err:
+        return f"{call_me}, failed to delete '{base_name}': {err}"
+

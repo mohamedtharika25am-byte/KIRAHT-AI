@@ -37,8 +37,14 @@ from file_tools import (
     list_workspace_files,
     read_file_content,
     safe_create_or_modify_file,
+    safe_delete_file,
     resolve_path,
     search_files_across_folders,
+)
+from security import (
+    are_writes_allowed,
+    request_permission,
+    is_destructive_shell_command,
 )
 
 # Import system tools engine (Clipboard, Terminal, Screenshot, Volume, Notes, OS controls)
@@ -1005,11 +1011,15 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     if re.search(r"\b(show notes|read notes|my notes|view notes|notes list)\b", cleaned):
         return True, get_notes(call_me)
     if re.search(r"\b(clear notes|empty notes|delete notes)\b", cleaned):
-        return True, clear_notes(call_me)
+        if request_permission("clear_notes", "Permanently clear all saved notes in notes.json", call_me=call_me):
+            return True, clear_notes(call_me)
+        return True, f"{call_me}, clear notes operation was cancelled."
 
     # 10. Empty Recycle Bin
     if re.search(r"\b(empty recycle bin|clean recycle bin|clear recycle bin|empty trash)\b", cleaned):
-        return True, empty_recycle_bin(call_me)
+        if request_permission("empty_recycle_bin", "Permanently empty the Windows Recycle Bin", call_me=call_me):
+            return True, empty_recycle_bin(call_me)
+        return True, f"{call_me}, Recycle Bin emptying was cancelled."
 
     # 10.1 Task Manager App vs Running Processes / System Load Listing
     if re.search(r"\b(?:open|launch|start)\s+(?:the\s+)?(?:task\s*manager|taskmgr)\b", cleaned):
@@ -1036,10 +1046,13 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         f_loc = search_file_match.group(2) or "all"
         return True, search_files_across_folders(f_query, f_loc, max_results=8, call_me=call_me)
 
-    # 11. Direct Terminal / Developer Execution (Safe runner)
+    # 11. Direct Terminal / Developer Execution (Safe runner with Permission Gate)
     run_cmd_match = re.search(r"^(?:run|exec|execute|terminal|cmd)\s+(.+)$", user_text.strip(), re.IGNORECASE)
     if run_cmd_match:
         cmd = run_cmd_match.group(1).strip()
+        if is_destructive_shell_command(cmd):
+            if not request_permission("destructive_shell_command", f"Execute destructive shell command: '{cmd}'", call_me=call_me):
+                return True, f"{call_me}, execution of '{cmd}' was cancelled."
         return True, run_terminal_command(cmd, call_me)
     if re.search(r"^git\s+(status|diff|branch|log|pull|commit|push)\b", cleaned):
         return True, run_terminal_command(user_text.strip(), call_me)
@@ -1071,6 +1084,19 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     if read_match:
         target_file = read_match.group(1).strip()
         return True, read_file_content(target_file, max_lines=60, call_me=call_me)
+
+    # 15.1 Delete File with Permission Gate
+    del_file_match = re.search(
+        r"^(?:please\s+)?(?:delete\s+file|remove\s+file|del\s+file|delete|remove|del)\s+([a-zA-Z0-9_\-\./\\]+)\b",
+        cleaned,
+    )
+    if del_file_match:
+        target_file = del_file_match.group(1).strip()
+        if is_file_target(target_file) or os.path.isfile(resolve_path(target_file)):
+            if request_permission("file_delete", f"Permanently delete file '{target_file}'", call_me=call_me):
+                return True, safe_delete_file(target_file, call_me=call_me)
+            else:
+                return True, f"{call_me}, file deletion for '{target_file}' was cancelled."
 
     # 16. YouTube Search with Query
     yt_match = (
