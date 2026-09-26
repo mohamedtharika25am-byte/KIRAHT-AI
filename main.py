@@ -118,6 +118,7 @@ def build_system_prompt(memory: dict) -> str:
     return (
         f"You are KIRAHT AI, an elite personal AI assistant. Your persona is {persona}.\n"
         f"Current System Time: {current_dt}\n"
+        f"Workspace Location: d:\\KIRAHT AI (All project files and newly created files reside here by default)\n"
         f"Creator & Boss: You were developed and created by {user_name} ({preferred}). He is your sole Boss, Master, and Creator.\n"
         f"Master Identity: You are speaking with {user_name}. Always address him with high respect as '{call_me}'.\n\n"
         f"Master's Background & Identity (from persistent memory):\n"
@@ -1331,7 +1332,7 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
 
             # Intent: Create file with content (gated by Security Permission Gate)
             create_file_match = re.search(
-                r"^create\s+file\s+([a-zA-Z0-9_\-\./\\]+)\s+with\s+(.+)$",
+                r"^(?:please\s+)?create\s+(?:a\s+)?(?:new\s+)?file\s+([a-zA-Z0-9_\-\./\\]+)\s+with(?:\s+content)?\s+(.+)$",
                 user_input,
                 re.DOTALL | re.IGNORECASE,
             )
@@ -1340,11 +1341,12 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                 new_code = create_file_match.group(2).strip()
                 from security import request_permission
                 if request_permission("file_write", f"Create or overwrite file '{target_name}'", call_me=call_me):
-                    from file_tools import safe_create_or_modify_file
+                    from file_tools import safe_create_or_modify_file, resolve_path
                     res = safe_create_or_modify_file(target_name, new_code, call_me=call_me)
-                    print(f"\nkiraht AI: {res}")
+                    full_p = resolve_path(target_name)
+                    print(f"\nkiraht AI: {res} (Location: {full_p})")
                     messages.append({"role": "user", "content": user_input})
-                    messages.append({"role": "assistant", "content": res})
+                    messages.append({"role": "assistant", "content": f"{res} (Location: {full_p})"})
                 else:
                     print(f"\nkiraht AI: Operation cancelled, {call_me}. '{target_name}' was not modified.")
                 continue

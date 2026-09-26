@@ -1075,6 +1075,30 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         target_file = size_match.group(1).strip()
         return True, get_file_info(target_file, call_me)
 
+    # 13.1 Locate / Search File Location Across Workspace & System
+    loc_file_match = (
+        re.search(r"^(?:where\s+is\s+(?:the\s+)?(?:file\s+)?location\s+of|where\s+is\s+(?:the\s+)?file|where\s+is|find\s+file|search\s+file|locate\s+file|path\s+of)\s+([a-zA-Z0-9_\-\./\\]+)\b", cleaned)
+        or re.search(r"^([a-zA-Z0-9_\-\./\\]+)\s+(?:file\s+)?(?:location|path)(?:\s+enna)?\b", cleaned)
+    )
+    if loc_file_match:
+        target_f = loc_file_match.group(1).strip()
+        if target_f not in ("you", "my", "the", "contacts", "wifi", "time", "date", "laptop", "current"):
+            return True, search_files_across_folders(target_f, call_me=call_me)
+
+    # 13.2 Check if file is in workspace / kiraht ai folder
+    in_folder_match = re.search(r"^is\s+(?:it|([a-zA-Z0-9_\-\./\\]+))\s+in\s+(?:the\s+)?(?:kiraht|workspace|project)(?:\s+folder|\s+ai)?\??$", cleaned)
+    if in_folder_match:
+        chk_file = in_folder_match.group(1)
+        if chk_file:
+            chk_file = chk_file.strip()
+            ws_path = os.path.join(WORKSPACE_DIR, chk_file)
+            if os.path.exists(ws_path):
+                return True, f"{call_me}, yes! '{chk_file}' is in the KIRAHT AI workspace folder at '{ws_path}'."
+            else:
+                return True, f"{call_me}, '{chk_file}' is not currently in the KIRAHT AI folder ('{WORKSPACE_DIR}')."
+        else:
+            return True, f"{call_me}, yes! By default, all project files and newly created files in this session reside in the KIRAHT AI workspace folder at '{WORKSPACE_DIR}'."
+
     # 14. List Workspace / Project Files
     if re.search(r"\b(list files|show files|files in project|project files|directory files|dir files|all files)\b", cleaned):
         return True, list_workspace_files(WORKSPACE_DIR, call_me)
@@ -1195,6 +1219,46 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     if bare_wa_match:
         is_auto = "send" in cleaned
         return True, f"__NEED_RECIPIENT__:{'send' if is_auto else 'review'}"
+
+    # 20.3 Tanglish WhatsApp: "<target> ku <msg> nu (anupu|podu|msg anupu)"
+    tanglish_nu_match = re.search(
+        rf"^([a-zA-Z0-9_\-\.\s]+?)\s+ku\s+(.+?)\s+nu\s+(?:(?:msg|message|whatsapp)\s+)?(?:anupu|podu|send\s*pannu|anupunga)\b",
+        cleaned,
+        re.IGNORECASE
+    )
+    if tanglish_nu_match:
+        t_name = tanglish_nu_match.group(1).strip()
+        t_msg = tanglish_nu_match.group(2).strip()
+        phone, dname, rel = resolve_contact(t_name)
+        if phone:
+            return True, send_whatsapp_message(phone, t_msg, call_me, auto_send=True)
+        else:
+            rel_json = json.dumps(rel) if rel else "[]"
+            return True, f"__NEED_PHONE__:{t_name}:{t_msg}:{rel_json}:send"
+
+    # 20.4 Tanglish WhatsApp: "<target> ku (msg|message|whatsapp) (anupanum|anupu|podanum|podu|send pannu|pannu) [optional msg]"
+    tanglish_wa_match = re.search(
+        rf"^([a-zA-Z0-9_\-\.\s]+?)\s+ku\s+(?:msg|message|whatsapp|whats\s*app)\s+(?:anupanum|anupu|podanum|podu|pannu|send\s*pannu|send\s*panu|anupunga)(?:\s+(?:solli\s+|saying\s+|that\s+|:\s*)?(.*))?$",
+        cleaned,
+        re.IGNORECASE
+    )
+    if tanglish_wa_match:
+        t_name = tanglish_wa_match.group(1).strip()
+        t_msg = (tanglish_wa_match.group(2) or "").strip()
+        phone, dname, rel = resolve_contact(t_name)
+        disp = dname or t_name.title()
+        if t_msg:
+            if phone:
+                return True, send_whatsapp_message(phone, t_msg, call_me, auto_send=True)
+            else:
+                rel_json = json.dumps(rel) if rel else "[]"
+                return True, f"__NEED_PHONE__:{t_name}:{t_msg}:{rel_json}:send"
+        else:
+            if phone:
+                return True, f"__NEED_MESSAGE__:{t_name}:{disp}:individual:send"
+            else:
+                rel_json = json.dumps(rel) if rel else "[]"
+                return True, f"__NEED_PHONE__:{t_name}::{rel_json}:send"
 
     # Check "send <target> (from|on|via|through) whatsapp <msg>" (e.g. "send juhail from whatsapp hi")
     wa_from_match = re.search(rf"^(?:please\s+)?send\s+([a-zA-Z0-9_\-\.\s]+?)\s+(?:from|on|via|through)\s+{WA_TRIGS}\s*(.*)$", user_text.strip(), re.IGNORECASE)
