@@ -1093,7 +1093,13 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                     p_type = pending_whatsapp.get("type")
                     auto_send = pending_whatsapp.get("auto_send", False)
 
-                    if p_type == "need_message":
+                    if p_type == "need_recipient":
+                        pending_whatsapp = None
+                        prefix = "send whatsapp" if auto_send else "whatsapp"
+                        user_input = f"{prefix} {user_input.strip()}"
+                        # Fall through to execute the command directly below
+
+                    elif p_type == "need_message":
                         rec = pending_whatsapp["target"]
                         is_group = pending_whatsapp.get("is_group", False)
                         pending_whatsapp = None
@@ -1243,7 +1249,11 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                             continue
 
             # Check for repeat / again / now command
-            if user_input.lower() in ("again", "now", "repeat", "once more", "one more time", "/again"):
+            repeat_triggers = (
+                "again", "now", "repeat", "once more", "one more time", "/again",
+                "send again", "send it again", "resend", "repeat send", "send once more", "again send"
+            )
+            if user_input.lower().strip() in repeat_triggers:
                 if last_system_command:
                     print(f"\n[KIRAHT AI: 🔄 Repeating last command: '{last_system_command}']")
                     user_input = last_system_command
@@ -1342,6 +1352,14 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
             # Check for laptop / OS operation commands (Desktop Apps, Files, Hardware)
             handled, action_result = execute_system_command(user_input, call_me)
             if handled:
+                if action_result.startswith("__NEED_RECIPIENT__"):
+                    parts = action_result.split(":")
+                    send_flag = parts[1] if len(parts) > 1 else "review"
+                    auto_send = (send_flag == "send")
+                    pending_whatsapp = {"type": "need_recipient", "auto_send": auto_send}
+                    print(f"\nkiraht AI: Sir, who would you like to send a WhatsApp message to? (or type 'cancel')")
+                    continue
+
                 if action_result.startswith("__NEED_MESSAGE__"):
                     parts = action_result.split(";;;") if ";;;" in action_result else action_result.split(":")
                     rec = parts[1]

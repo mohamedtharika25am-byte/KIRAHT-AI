@@ -1183,12 +1183,18 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     if cleaned in ("call", "make a call", "voice call", "phone call"):
         return True, f"{call_me}, calling is not supported on this laptop. You can send WhatsApp messages instead using 'whatsapp <name> <message>'."
 
-    # 20.2 Intercept isolated 'through whatsapp' / 'via whatsapp' phrases
-    if cleaned in ("through whatsapp", "via whatsapp", "on whatsapp", "whatsapp la", "in whatsapp", "through whatsap"):
-        return True, f"{call_me}, who would you like to message on WhatsApp, and what is your message? (e.g. 'whatsapp <name> <message>')"
-
     WA_TRIGS = r"(?:whats?\s*app|whatasapp|whataspp|whatsap|whatapp|whatsappp|whatssap|watsapp|watapp|watsp|whapp|whasap|whtsp|whtsapp|wa|wp)"
     GRP_TRIGS = r"(?:group|grp|grop|grup|groupp)"
+
+    # 20.2 Intercept bare WhatsApp command phrases (e.g. 'send whatsapp', 'whatsapp', 'through whatsapp')
+    bare_wa_match = re.search(
+        rf"^(?:please\s+)?(?:send\s+(?:a\s+)?(?:{WA_TRIGS}\s+)?(?:message|msg)\s*(?:to)?|send\s+{WA_TRIGS}(?:\s+to)?|{WA_TRIGS}|through\s+{WA_TRIGS}|via\s+{WA_TRIGS}|on\s+{WA_TRIGS})$",
+        cleaned,
+        re.IGNORECASE
+    )
+    if bare_wa_match:
+        is_auto = "send" in cleaned
+        return True, f"__NEED_RECIPIENT__:{'send' if is_auto else 'review'}"
 
     # Check "send <target> (from|on|via|through) whatsapp <msg>" (e.g. "send juhail from whatsapp hi")
     wa_from_match = re.search(rf"^(?:please\s+)?send\s+([a-zA-Z0-9_\-\.\s]+?)\s+(?:from|on|via|through)\s+{WA_TRIGS}\s*(.*)$", user_text.strip(), re.IGNORECASE)
