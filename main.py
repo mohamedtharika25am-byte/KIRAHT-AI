@@ -153,6 +153,7 @@ def build_system_prompt(memory: dict) -> str:
         f"- Lock Workstation: When asked to lock ('lock laptop', 'lock screen'), call `system_power_control(action='lock')`.\n"
         f"- Volume & Audio: When asked to change volume ('vol up', 'vol down', 'mute', 'unmute'), call `control_volume`.\n"
         f"- Microphone: When asked to mute, unmute, or turn on/off microphone ('mic mute', 'mic off', 'mic on', 'unmute mic'), call `control_microphone`.\n"
+        f"- Native Desktop Tools Integration: You are directly connected to Windows 11 on {call_me}'s laptop with native tools for desktop applications (WhatsApp, Chrome, VS Code), inspecting files & folder sizes, managing system clipboard, and hardware metrics. NEVER say 'I cannot directly interact with external applications' or 'I don't have access to check folder sizes'.\n"
         f"OPERATIONAL HONESTY & ACTION DIRECTIVES:\n"
         f"- NEVER claim you have created a folder, modified a directory, or executed a system task unless you actually called a tool that completed it.\n"
         f"- Never confuse college degrees (such as AIML), educational groups, or projects with folder creation.\n"

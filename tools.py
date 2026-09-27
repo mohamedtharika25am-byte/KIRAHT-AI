@@ -1065,15 +1065,19 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         reminder_msg = notify_match.group(1).strip()
         return True, show_desktop_notification("KIRAHT AI", reminder_msg, call_me)
 
-    # 13. File Size / File Info Operations
+    # 13. File & Folder Size / Inspection Engine
     size_match = (
-        re.search(r"\b(?:size of|file size of|info of|details of)\s+([a-zA-Z0-9_\-\./\\]+)\b", cleaned)
-        or re.search(r"^([a-zA-Z0-9_\-\./\\]+)\s+(?:size|file size)\b", cleaned)
-        or re.search(r"^([a-zA-Z0-9_\-\./\\]+)\s+size\s+enna\b", cleaned)
+        re.search(r"^(?:(?:what(?:'s|\s+is)?\s+(?:the\s+)?)?(?:size|file\s+size|folder\s+size|dir\s+size|directory\s+size)\s+(?:of\s+)?|(?:what(?:'s|\s+is)?\s+(?:the\s+)?info\s+(?:of|on)\s+))([a-zA-Z0-9_\-\./\\\s]+?)\??$", cleaned)
+        or re.search(r"^([a-zA-Z0-9_\-\./\\\s]+?)\s+(?:folder\s+|dir\s+|directory\s+|file\s+)?size(?:\s+enna)?\??$", cleaned)
+        or re.search(r"^([a-zA-Z0-9_\-\./\\\s]+?)\s+size\s*(?:enna)?\??$", cleaned)
+        or re.search(r"\b(?:size of|file size of|folder size of|info of|details of)\s+([a-zA-Z0-9_\-\./\\\s]+?)\??$", cleaned)
     )
     if size_match:
         target_file = size_match.group(1).strip()
-        return True, get_file_info(target_file, call_me)
+        if target_file not in ("you", "me", "my", "this", "that", "it", "the"):
+            resolved = resolve_path(target_file)
+            if os.path.exists(resolved) or target_file.lower() in ("workspace", "kiraht", "kiraht ai", "project", "downloads", "desktop", "documents"):
+                return True, get_file_info(target_file, call_me)
 
     # 13.1 Locate / Search File Location Across Workspace & System
     loc_file_match = (
@@ -1419,13 +1423,26 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         if is_file_target(target_item):
             return True, open_file_in_editor(target_item, call_me)
 
+    # 22.1 Compound Open Command: "open <app> and <action>" (e.g. "open whatsapp and check ...", "open chrome and search ...")
+    compound_open = re.search(r"^(?:please\s+)?(?:open|launch|start|run)\s+([a-zA-Z0-9_\-\s]+?)\s+and\s+(.+)$", cleaned)
+    if compound_open:
+        primary_app = compound_open.group(1).strip()
+        secondary_action = compound_open.group(2).strip()
+        clean_cand = APP_ALIASES.get(primary_app, primary_app)
+        app_info = find_installed_app(clean_cand)
+        if app_info or primary_app in ("whatsapp", "chrome", "notepad", "spotify", "vscode", "vs code", "calculator", "word", "excel", "edge"):
+            launched, msg = launch_desktop_app(primary_app, call_me=call_me)
+            if launched:
+                return True, f"{msg} You can now proceed to {secondary_action}."
+
     # 23. Open Desktop Application (Native Laptop App First, with Browser Fallback)
     if cleaned in ("open", "launch", "start", "run") or re.match(r"^(?:please\s+)?(?:open|launch|start|run)\s*$", cleaned):
         return True, f"{call_me}, which application would you like me to open?"
 
-    open_app_match = re.search(r"^(?:please\s+)?(?:open|launch|start|run)\s+([a-zA-Z0-9\s\-]+)\b", cleaned)
+    open_app_match = re.search(r"^(?:please\s+)?(?:open|launch|start|run)\s+([a-zA-Z0-9\s\-\\\/]+)\b", cleaned)
     if open_app_match:
         app_to_open = open_app_match.group(1).strip()
+        app_to_open = re.sub(r"[\\/]+$", "", app_to_open).strip()
         if not app_to_open:
             return True, f"{call_me}, which application would you like me to open?"
         if app_to_open in ("it", "that", "this", "again", "the app", "it again"):

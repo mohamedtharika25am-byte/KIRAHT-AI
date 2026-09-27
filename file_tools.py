@@ -5,6 +5,7 @@ directory exploration, and safe code reading/editing for KIRAHT AI.
 """
 
 import os
+import re
 import datetime
 import shutil
 import subprocess
@@ -19,6 +20,10 @@ def get_user_known_folders() -> dict:
     home = os.path.expanduser("~")
     folders = {
         "workspace": WORKSPACE_DIR,
+        "kiraht": WORKSPACE_DIR,
+        "kiraht ai": WORKSPACE_DIR,
+        "kiraht-ai": WORKSPACE_DIR,
+        "project": WORKSPACE_DIR,
         "downloads": os.path.join(home, "Downloads"),
         "documents": os.path.join(home, "Documents"),
         "desktop": os.path.join(home, "Desktop"),
@@ -52,7 +57,14 @@ def resolve_path(target_path: str) -> str:
         return clean_path
 
     known = get_user_known_folders()
-    lower_p = clean_path.lower()
+    lower_p = clean_path.lower().strip()
+
+    # Strip trailing "folder" or "dir" or "directory" keyword (e.g. "kiraht ai folder" -> "kiraht ai")
+    lower_clean = re.sub(r"\s+(?:folder|dir|directory)$", "", lower_p).strip()
+    if lower_clean in known:
+        return known[lower_clean]
+    if lower_p in known:
+        return known[lower_p]
 
     # Prefix checks (e.g. "downloads/resume.pdf" or "desktop/file.txt")
     for key in ("downloads", "desktop", "documents", "workspace"):
