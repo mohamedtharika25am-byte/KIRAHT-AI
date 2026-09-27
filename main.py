@@ -153,7 +153,7 @@ def build_system_prompt(memory: dict) -> str:
         f"- Lock Workstation: When asked to lock ('lock laptop', 'lock screen'), call `system_power_control(action='lock')`.\n"
         f"- Volume & Audio: When asked to change volume ('vol up', 'vol down', 'mute', 'unmute'), call `control_volume`.\n"
         f"- Microphone: When asked to mute, unmute, or turn on/off microphone ('mic mute', 'mic off', 'mic on', 'unmute mic'), call `control_microphone`.\n"
-        f"- Native Desktop Tools Integration: You are directly connected to Windows 11 on {call_me}'s laptop with native tools for desktop applications (WhatsApp, Chrome, VS Code), inspecting files & folder sizes, managing system clipboard, and hardware metrics. NEVER say 'I cannot directly interact with external applications' or 'I don't have access to check folder sizes'.\n"
+        f"- Native Desktop Tools Integration: You are directly connected to Windows 11 on {call_me}'s laptop with native tools for desktop applications (WhatsApp, Chrome, VS Code), opening any folder or file across drives, inspecting files & folder sizes, managing system clipboard, and hardware metrics. NEVER say 'I cannot directly interact with external applications', 'I don't have direct access to open folders', or 'I don't have access to check folder sizes'.\n"
         f"OPERATIONAL HONESTY & ACTION DIRECTIVES:\n"
         f"- NEVER claim you have created a folder, modified a directory, or executed a system task unless you actually called a tool that completed it.\n"
         f"- Never confuse college degrees (such as AIML), educational groups, or projects with folder creation.\n"
@@ -1244,10 +1244,55 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                             else:
                                 print(f"\nkiraht AI: Saved contact '{rec.title()}' with number +91{digits[-10:]}, {call_me}.")
                             continue
+                        # 4. Check if user re-entered a contact name
+                        from system_tools import resolve_contact, send_whatsapp_message
+                        new_phone, new_dname, new_related = resolve_contact(user_choice)
+                        if new_phone:
+                            pending_whatsapp = None
+                            if not msg:
+                                pending_whatsapp = {
+                                    "type": "need_message",
+                                    "target": new_phone,
+                                    "display": new_dname,
+                                    "is_group": False,
+                                    "auto_send": auto_send,
+                                }
+                                print(f"\nkiraht AI: Selected {new_dname}. What message would you like to send? (or type 'cancel')")
+                                continue
+                            res = send_whatsapp_message(new_phone, msg, call_me, auto_send=auto_send)
+                            print(f"\nkiraht AI: Selected {new_dname} ({new_phone}). {res}")
+                            prefix = "send whatsapp" if auto_send else "whatsapp"
+                            last_system_command = f"{prefix} {new_dname} {msg}"
+                            last_chat_prompt = ""
+                            continue
+                        elif new_related:
+                            pending_whatsapp["target"] = user_choice
+                            pending_whatsapp["related"] = new_related
+                            new_valid = [it for it in new_related if it.get("phone")]
+                            if new_valid:
+                                opts = "\n".join([f"    [{i+1}] {item['name']} ({item['phone']})" for i, item in enumerate(new_valid)])
+                                print(
+                                    f"\nkiraht AI: Sir, '{user_choice.title()}' is not in your contacts.\n"
+                                    f"  Related contact options:\n{opts}\n\n"
+                                    f"  Reply with:\n"
+                                    f"    * Option number (1-{len(new_valid)}) to send to that contact\n"
+                                    f"    * Or re-enter the correct contact name to search again\n"
+                                    f"    * Or enter a 10-digit phone number to save '{user_choice.title()}'\n"
+                                    f"    * Or 'cancel' to abort"
+                                )
+                            else:
+                                print(
+                                    f"\nkiraht AI: Sir, '{user_choice.title()}' is not in your contacts.\n"
+                                    f"  Reply with:\n"
+                                    f"    * Re-enter the correct contact name to search again\n"
+                                    f"    * Or enter a 10-digit phone number to save '{user_choice.title()}'\n"
+                                    f"    * Or 'cancel' to abort"
+                                )
+                            continue
                         else:
                             rel_count = len(related)
-                            opt_hint = f"option number (1-{rel_count}) or a " if rel_count > 0 else ""
-                            print(f"\nkiraht AI: Please enter a valid {opt_hint}10-digit phone number (or type 'cancel'):")
+                            opt_hint = f"option number (1-{rel_count}), " if rel_count > 0 else ""
+                            print(f"\nkiraht AI: '{user_choice.title()}' was not found. Please enter a valid {opt_hint}re-enter the contact name, or enter a 10-digit phone number (or type 'cancel'):")
                             continue
 
             # Check for repeat / again / now command
@@ -1439,11 +1484,18 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                             f"  Related contact options:\n{opts}\n\n"
                             f"  Reply with:\n"
                             f"    * Option number (1-{len(valid_opts)}) to send to that contact\n"
+                            f"    * Or re-enter the correct contact name to search again\n"
                             f"    * Or a 10-digit phone number to save '{rec.title()}'\n"
                             f"    * Or 'cancel' to abort"
                         )
                     else:
-                        print(f"\nkiraht AI: Sir, '{rec.title()}' is not in your contacts.\n  Please provide their 10-digit phone number to save and proceed (or type 'cancel'):")
+                        print(
+                            f"\nkiraht AI: Sir, '{rec.title()}' is not in your contacts.\n"
+                            f"  Reply with:\n"
+                            f"    * Re-enter the correct contact name to search again\n"
+                            f"    * Or provide a 10-digit phone number to save '{rec.title()}'\n"
+                            f"    * Or 'cancel' to abort"
+                        )
                     continue
 
                 print(f"\nkiraht AI: {action_result}")

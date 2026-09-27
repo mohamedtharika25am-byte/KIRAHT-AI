@@ -864,37 +864,47 @@ def resolve_contact(query: str) -> tuple[str | None, str, list]:
     if clean_query in groups:
         return "group", groups[clean_query].title(), []
 
-    # 4. Prefix / Substring Match in Contacts
-    for name, phone in contacts.items():
-        if name == clean_query or name.startswith(clean_query + " ") or (len(clean_query) >= 3 and clean_query in name):
-            return phone, name.title(), []
+    # 4. Normalized Alphanumeric Exact Match (e.g. "sivakumar" vs "siva kumar")
+    norm_query = re.sub(r"[^a-z0-9]", "", clean_query)
+    if len(norm_query) >= 3:
+        norm_matches = []
+        for name, phone in contacts.items():
+            norm_name = re.sub(r"[^a-z0-9]", "", name)
+            if norm_name == norm_query:
+                norm_matches.append((name, phone))
+        if len(norm_matches) == 1:
+            m_name, m_phone = norm_matches[0]
+            return m_phone, m_name.title(), []
 
-    # 5. Check aliases prefix/substring
-    for alias, target in aliases.items():
-        if alias == clean_query or alias.startswith(clean_query + " "):
-            t_clean = target.lower().strip()
-            if t_clean in contacts:
-                return contacts[t_clean], t_clean.title(), []
-
-    # 6. Check Groups substring
-    for gname, gid in groups.items():
-        if clean_query in gname or gname.startswith(clean_query):
-            return "group", gname.title(), []
-
-    # 7. Fuzzy matching for Related Contacts
-    all_names = list(contacts.keys()) + list(aliases.keys())
-    close_matches = difflib.get_close_matches(clean_query, all_names, n=4, cutoff=0.35)
+    # 5. Build Related / Close Candidates List (Strictly NOT auto-dispatched, shown as options)
     related = []
     seen_phones = set()
-    for match in close_matches:
-        match_phone = contacts.get(match) or contacts.get(aliases.get(match, "").lower(), "")
-        if match_phone and match_phone not in seen_phones:
-            seen_phones.add(match_phone)
-            related.append({"name": match.title(), "phone": match_phone})
-        elif not match_phone:
-            related.append({"name": match.title(), "phone": ""})
 
-    return None, query.title(), related
+    # 5.1 Token-based exact word matches (clean_query is a full word in the contact name)
+    for name, phone in contacts.items():
+        tokens = [t.strip() for t in re.split(r"[\s\-_/\\()]+", name) if t.strip()]
+        if clean_query in tokens:
+            if phone and phone not in seen_phones:
+                seen_phones.add(phone)
+                related.append({"name": name.title(), "phone": phone})
+
+    # 5.2 Prefix match: contacts starting with clean_query
+    for name, phone in contacts.items():
+        if name.startswith(clean_query + " ") or name.startswith(clean_query):
+            if phone and phone not in seen_phones:
+                seen_phones.add(phone)
+                related.append({"name": name.title(), "phone": phone})
+
+    # 5.3 Fuzzy string matching via difflib (e.g. "santhosh" -> "santhos")
+    all_names = list(contacts.keys()) + list(aliases.keys())
+    close_matches = difflib.get_close_matches(clean_query, all_names, n=4, cutoff=0.55)
+    for match in close_matches:
+        m_phone = contacts.get(match) or contacts.get(aliases.get(match, "").lower(), "")
+        if m_phone and m_phone not in seen_phones:
+            seen_phones.add(m_phone)
+            related.append({"name": match.title(), "phone": m_phone})
+
+    return None, query.title(), related[:5]
 
 
 def add_group(group_name: str, call_me: str = "Sir") -> str:

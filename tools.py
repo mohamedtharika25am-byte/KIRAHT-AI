@@ -40,6 +40,7 @@ from file_tools import (
     safe_delete_file,
     resolve_path,
     search_files_across_folders,
+    open_system_item,
 )
 from security import (
     are_writes_allowed,
@@ -823,27 +824,23 @@ def open_web(site_name: str, search_query: str = "", call_me: str = "Sir") -> st
 
 def open_folder(folder_name: str, call_me: str = "Sir") -> str:
     """
-    Opens a specific user or workspace folder in Windows File Explorer.
+    Opens any user, workspace, or system folder in Windows File Explorer.
     """
-    clean = folder_name.lower().strip()
-    home = os.path.expanduser("~")
-
-    folder_map = {
-        "downloads": os.path.join(home, "Downloads"),
-        "documents": os.path.join(home, "Documents"),
-        "pictures": os.path.join(home, "Pictures"),
-        "screenshots": os.path.join(home, "Pictures", "Screenshots"),
-        "desktop": os.path.join(home, "Desktop"),
-        "project": WORKSPACE_DIR,
-        "workspace": WORKSPACE_DIR,
-        "kiraht": WORKSPACE_DIR,
-    }
-
-    target = folder_map.get(clean, folder_name)
+    target = resolve_path(folder_name)
     if os.path.exists(target):
-        os.startfile(target)
-        return f"{call_me}, opened folder: {target}."
-    return f"{call_me}, folder '{folder_name}' was not found."
+        if os.path.isdir(target):
+            try:
+                os.startfile(target)
+                return f"{call_me}, opened folder: {target}."
+            except Exception as err:
+                return f"{call_me}, error opening folder '{target}': {err}"
+        else:
+            parent = os.path.dirname(target)
+            if os.path.exists(parent):
+                os.startfile(parent)
+                return f"{call_me}, opened containing folder: {parent}."
+
+    return f"{call_me}, folder '{folder_name}' was not found on your system."
 
 
 def adjust_volume(action: str, call_me: str = "Sir", steps: int = 5) -> str:
@@ -1065,18 +1062,18 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         reminder_msg = notify_match.group(1).strip()
         return True, show_desktop_notification("KIRAHT AI", reminder_msg, call_me)
 
-    # 13. File & Folder Size / Inspection Engine
+    # 13. File & Folder Size / Inspection Engine (Any file or folder across drives, supports emojis & typos)
     size_match = (
-        re.search(r"^(?:(?:what(?:'s|\s+is)?\s+(?:the\s+)?)?(?:size|file\s+size|folder\s+size|dir\s+size|directory\s+size)\s+(?:of\s+)?|(?:what(?:'s|\s+is)?\s+(?:the\s+)?info\s+(?:of|on)\s+))([a-zA-Z0-9_\-\./\\\s]+?)\??$", cleaned)
-        or re.search(r"^([a-zA-Z0-9_\-\./\\\s]+?)\s+(?:folder\s+|dir\s+|directory\s+|file\s+)?size(?:\s+enna)?\??$", cleaned)
-        or re.search(r"^([a-zA-Z0-9_\-\./\\\s]+?)\s+size\s*(?:enna)?\??$", cleaned)
-        or re.search(r"\b(?:size of|file size of|folder size of|info of|details of)\s+([a-zA-Z0-9_\-\./\\\s]+?)\??$", cleaned)
+        re.search(r"^(?:(?:what(?:'s|\s+is)?\s+(?:the\s+)?)?(?:size|file\s*size|folder\s*size|foler\s*size|floder\s*size|dir\s*size|directory\s*size)\s+(?:of\s+)?|(?:what(?:'s|\s+is)?\s+(?:the\s+)?info\s+(?:of|on)\s+))(.+?)\??$", user_text.strip(), re.IGNORECASE)
+        or re.search(r"^(.+?)\s+(?:folder|foler|floder|dir|directory|file)?\s*size(?:\s+enna)?\??$", user_text.strip(), re.IGNORECASE)
+        or re.search(r"\b(?:size of|file size of|folder size of|foler size of|floder size of|info of|details of)\s+(.+?)\??$", user_text.strip(), re.IGNORECASE)
     )
     if size_match:
-        target_file = size_match.group(1).strip()
-        if target_file not in ("you", "me", "my", "this", "that", "it", "the"):
+        target_file = (size_match.group(1) or "").strip()
+        target_file = re.sub(r"^[🎬📁📂📄\s]+|[🎬📁📂📄\s]+$", "", target_file).strip()
+        if target_file and target_file.lower() not in ("you", "me", "my", "this", "that", "it", "the"):
             resolved = resolve_path(target_file)
-            if os.path.exists(resolved) or target_file.lower() in ("workspace", "kiraht", "kiraht ai", "project", "downloads", "desktop", "documents"):
+            if os.path.exists(resolved) or any(k in target_file.lower() for k in ("workspace", "kiraht", "project", "downloads", "desktop", "documents", "movies", "videos", "pictures")):
                 return True, get_file_info(target_file, call_me)
 
     # 13.1 Locate / Search File Location Across Workspace & System
@@ -1150,14 +1147,21 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         site = web_match.group(1).strip()
         return True, open_web(site, call_me=call_me)
 
-    # 19. Open Folders
-    folder_match = re.search(
-        r"^(?:please\s+)?open\s+(downloads|documents|pictures|screenshots|desktop|project|workspace|kiraht)(?:\s+folder)?\b",
-        cleaned,
+    # 19. Open Folders (Universal: e.g. "open downloads", "open movies folder", "open folder Kaiko", "open 🎬movies folder")
+    open_folder_explicit = (
+        re.search(r"^(?:please\s+)?open\s+(?:the\s+)?(.+?)\s+(?:folder|foler|floder|dir|directory)$", user_text.strip(), re.IGNORECASE)
+        or re.search(r"^(?:please\s+)?open\s+(?:the\s+)?(?:folder|foler|floder|dir|directory)\s+(?:of\s+|for\s+)?(.+)$", user_text.strip(), re.IGNORECASE)
     )
-    if folder_match:
-        target_folder = folder_match.group(1).strip()
-        return True, open_folder(target_folder, call_me=call_me)
+    if open_folder_explicit:
+        f_target = open_folder_explicit.group(1).strip()
+        f_target = re.sub(r"^[🎬📁📂\s]+|[🎬📁📂\s]+$", "", f_target).strip()
+        return True, open_folder(f_target, call_me=call_me)
+
+    known_folder_re = r"^(?:please\s+)?open\s+(downloads|documents|pictures|screenshots|desktop|project|workspace|kiraht|videos|movies|music)(?:\s+(?:folder|foler|dir|directory))?$"
+    kf_match = re.search(known_folder_re, cleaned)
+    if kf_match:
+        f_target = kf_match.group(1).strip()
+        return True, open_folder(f_target, call_me=call_me)
 
     # 20. Contacts & WhatsApp Messaging Engine
     contact_add_match = re.search(
@@ -1238,7 +1242,7 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
             return True, send_whatsapp_message(phone, t_msg, call_me, auto_send=True)
         else:
             rel_json = json.dumps(rel) if rel else "[]"
-            return True, f"__NEED_PHONE__:{t_name}:{t_msg}:{rel_json}:send"
+            return True, f"__NEED_PHONE__;;;{t_name};;;{t_msg};;;{rel_json};;;send"
 
     # 20.4 Tanglish WhatsApp: "<target> ku (msg|message|whatsapp) (anupanum|anupu|podanum|podu|send pannu|pannu) [optional msg]"
     tanglish_wa_match = re.search(
@@ -1256,25 +1260,27 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
                 return True, send_whatsapp_message(phone, t_msg, call_me, auto_send=True)
             else:
                 rel_json = json.dumps(rel) if rel else "[]"
-                return True, f"__NEED_PHONE__:{t_name}:{t_msg}:{rel_json}:send"
+                return True, f"__NEED_PHONE__;;;{t_name};;;{t_msg};;;{rel_json};;;send"
         else:
             if phone:
-                return True, f"__NEED_MESSAGE__:{t_name}:{disp}:individual:send"
+                return True, f"__NEED_MESSAGE__;;;{t_name};;;{disp};;;individual;;;send"
             else:
                 rel_json = json.dumps(rel) if rel else "[]"
-                return True, f"__NEED_PHONE__:{t_name}::{rel_json}:send"
+                return True, f"__NEED_PHONE__;;;{t_name};;;;;;{rel_json};;;send"
 
     # Check "send <target> (from|on|via|through) whatsapp <msg>" (e.g. "send juhail from whatsapp hi")
     wa_from_match = re.search(rf"^(?:please\s+)?send\s+([a-zA-Z0-9_\-\.\s]+?)\s+(?:from|on|via|through)\s+{WA_TRIGS}\s*(.*)$", user_text.strip(), re.IGNORECASE)
     if wa_from_match:
         target = wa_from_match.group(1).strip()
         msg_text = wa_from_match.group(2).strip()
-        if msg_text:
-            return True, send_whatsapp_message(target, msg_text, call_me, is_group=False, auto_send=True)
-        else:
-            phone, display_name, related = resolve_contact(target)
-            disp = display_name if display_name else target.title()
-            return True, f"__NEED_MESSAGE__:{target}:{disp}:individual:send"
+        phone, display_name, related = resolve_contact(target)
+        if not phone:
+            rel_json = json.dumps(related) if related else "[]"
+            return True, f"__NEED_PHONE__;;;{target};;;{msg_text};;;{rel_json};;;send"
+        disp = display_name if display_name else target.title()
+        if not msg_text:
+            return True, f"__NEED_MESSAGE__;;;{target};;;{disp};;;individual;;;send"
+        return True, send_whatsapp_message(target, msg_text, call_me, is_group=False, auto_send=True)
 
     wa_pattern = rf"^(?:please\s+)?(?:send\s+(?:a\s+)?(?:{WA_TRIGS}\s+)?(?:message|msg)\s+(?:to\s+)?|send\s+{WA_TRIGS}(?:\s+to)?|{WA_TRIGS})\s+(.*)$"
     wa_match = re.search(wa_pattern, user_text.strip(), re.IGNORECASE)
@@ -1416,12 +1422,17 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         app_to_close = close_match.group(1).strip()
         return True, close_app(app_to_close, call_me=call_me)
 
-    # 22. Open File in Editor (e.g. "open main.py", "open file memory.json")
-    open_file_match = re.search(r"^(?:please\s+)?open\s+(?:file\s+)?([a-zA-Z0-9_\-\./\\]+)\b", cleaned)
+    # 22. Open File or Folder (e.g. "open main.py", "open file contacts.json", "open movie.mp4")
+    open_file_match = re.search(r"^(?:please\s+)?open\s+(?:the\s+)?(?:file\s+)?([^\n]+)$", user_text.strip(), re.IGNORECASE)
     if open_file_match:
         target_item = open_file_match.group(1).strip()
-        if is_file_target(target_item):
-            return True, open_file_in_editor(target_item, call_me)
+        clean_item = target_item.lower()
+        if clean_item not in ("app", "the app", "it", "that", "this", "terminal", "cmd", "browser") and clean_item not in APP_ALIASES and clean_item not in APP_COMMANDS:
+            resolved = resolve_path(target_item)
+            if os.path.exists(resolved):
+                if os.path.isdir(resolved):
+                    return True, open_folder(target_item, call_me=call_me)
+                return True, open_system_item(resolved, call_me=call_me)
 
     # 22.1 Compound Open Command: "open <app> and <action>" (e.g. "open whatsapp and check ...", "open chrome and search ...")
     compound_open = re.search(r"^(?:please\s+)?(?:open|launch|start|run)\s+([a-zA-Z0-9_\-\s]+?)\s+and\s+(.+)$", cleaned)

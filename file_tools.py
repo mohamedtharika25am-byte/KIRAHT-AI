@@ -15,7 +15,7 @@ WORKSPACE_DIR = r"d:\KIRAHT AI"
 
 def get_user_known_folders() -> dict:
     """
-    Returns verified paths to Workspace, Downloads, Desktop, and Documents.
+    Returns verified paths to Workspace, Downloads, Desktop, Documents, Pictures, Videos, Movies, and Music.
     """
     home = os.path.expanduser("~")
     folders = {
@@ -27,6 +27,11 @@ def get_user_known_folders() -> dict:
         "downloads": os.path.join(home, "Downloads"),
         "documents": os.path.join(home, "Documents"),
         "desktop": os.path.join(home, "Desktop"),
+        "pictures": os.path.join(home, "Pictures"),
+        "screenshots": os.path.join(home, "Pictures", "Screenshots"),
+        "videos": os.path.join(home, "Videos"),
+        "movies": os.path.join(home, "Videos", "Movies"),
+        "music": os.path.join(home, "Music"),
     }
     # Check OneDrive variants
     for candidate in [
@@ -45,66 +50,125 @@ def get_user_known_folders() -> dict:
             folders["documents"] = candidate
             break
 
+    # Discover Movies on root drives or home
+    for candidate in [
+        "D:\\\U0001f3acMovies",
+        "D:\\Movies",
+        os.path.join(home, "Videos", "\U0001f3acMovies"),
+        os.path.join(home, "Videos", "Movies"),
+        os.path.join(home, "Movies"),
+    ]:
+        if os.path.exists(candidate):
+            folders["movies"] = candidate
+            folders["\U0001f3acmovies"] = candidate
+            folders["movie"] = candidate
+            break
+
     return folders
 
 
 def resolve_path(target_path: str) -> str:
     """
-    Resolves relative path against workspace, or known user folders (Downloads, Desktop, Documents).
+    Resolves relative path against workspace, known user folders, or root drives.
+    Supports emojis, common typos (foler/folder), and multi-word names.
     """
     clean_path = target_path.strip().strip('"').strip("'")
-    if os.path.isabs(clean_path):
+    if not clean_path:
+        return WORKSPACE_DIR
+    if os.path.isabs(clean_path) and os.path.exists(clean_path):
         return clean_path
 
     known = get_user_known_folders()
     lower_p = clean_path.lower().strip()
 
-    # Strip trailing "folder" or "dir" or "directory" keyword (e.g. "kiraht ai folder" -> "kiraht ai")
-    lower_clean = re.sub(r"\s+(?:folder|dir|directory)$", "", lower_p).strip()
-    if lower_clean in known:
+    # Strip trailing "folder" or "foler" or "floder" or "dir" or "directory" or "file"
+    lower_clean = re.sub(r"\s+(?:folder|foler|floder|fldr|dir|directory|file)$", "", lower_p).strip()
+    if lower_clean in known and os.path.exists(known[lower_clean]):
         return known[lower_clean]
-    if lower_p in known:
+    if lower_p in known and os.path.exists(known[lower_p]):
         return known[lower_p]
 
+    # Normalized alphanumeric matching (handles emojis like 🎬movies -> movies)
+    norm_target = re.sub(r"[^a-zA-Z0-9_\-]", "", lower_clean).strip().lower()
+    if norm_target:
+        for k, v in known.items():
+            norm_k = re.sub(r"[^a-zA-Z0-9_\-]", "", k).strip().lower()
+            if norm_k == norm_target and os.path.exists(v):
+                return v
+
     # Prefix checks (e.g. "downloads/resume.pdf" or "desktop/file.txt")
-    for key in ("downloads", "desktop", "documents", "workspace"):
-        if lower_p.startswith(f"{key}/") or lower_p.startswith(f"{key}\\"):
-            rel = clean_path[len(key) + 1:]
-            return os.path.join(known[key], rel)
+    for key in ("downloads", "desktop", "documents", "workspace", "videos", "pictures", "movies", "music"):
+        if key in known:
+            if lower_p.startswith(f"{key}/") or lower_p.startswith(f"{key}\\"):
+                rel = clean_path[len(key) + 1:]
+                return os.path.join(known[key], rel)
 
     # 1. Try workspace first
     ws_candidate = os.path.abspath(os.path.join(WORKSPACE_DIR, clean_path))
     if os.path.exists(ws_candidate):
         return ws_candidate
 
-    # 2. Check if file exists directly in Downloads, Desktop, or Documents
-    for folder in (known["downloads"], known["desktop"], known["documents"]):
-        candidate = os.path.join(folder, clean_path)
-        if os.path.exists(candidate):
-            return candidate
+    ws_clean_cand = os.path.abspath(os.path.join(WORKSPACE_DIR, lower_clean))
+    if os.path.exists(ws_clean_cand):
+        return ws_clean_cand
+
+    # 2. Search root directories, user home, and known folders
+    home = os.path.expanduser("~")
+    search_roots = [
+        WORKSPACE_DIR,
+        "D:\\",
+        home,
+        known.get("downloads", ""),
+        known.get("desktop", ""),
+        known.get("documents", ""),
+        known.get("videos", ""),
+        known.get("pictures", ""),
+    ]
+    for root in search_roots:
+        if not root or not os.path.exists(root):
+            continue
+        cand = os.path.join(root, clean_path)
+        if os.path.exists(cand):
+            return cand
+        cand_clean = os.path.join(root, lower_clean)
+        if os.path.exists(cand_clean):
+            return cand_clean
+
+        # Entry-level matching inside root (case-insensitive and emoji-tolerant)
+        try:
+            for entry in os.listdir(root):
+                if entry.lower() in (lower_clean, lower_p):
+                    return os.path.join(root, entry)
+                norm_e = re.sub(r"[^a-zA-Z0-9_\-]", "", entry).strip().lower()
+                if norm_target and norm_e == norm_target:
+                    return os.path.join(root, entry)
+        except Exception:
+            pass
 
     return ws_candidate
 
 
 def format_size(size_bytes: int) -> str:
     """
-    Formats byte size into readable string (Bytes, KB, MB).
+    Formats byte size into readable string (Bytes, KB, MB, GB).
     """
     if size_bytes < 1024:
         return f"{size_bytes} Bytes"
     elif size_bytes < 1024 * 1024:
         return f"{size_bytes / 1024:.2f} KB"
-    else:
+    elif size_bytes < 1024 * 1024 * 1024:
         return f"{size_bytes / (1024 * 1024):.2f} MB"
+    else:
+        return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
 
 
 def get_file_info(filepath: str, call_me: str = "Sir") -> str:
     """
-    Returns file size, total lines count, and last modified date.
+    Returns file or folder size, total lines/files count, and last modified date.
     """
     full_path = resolve_path(filepath)
     if not os.path.exists(full_path):
-        return f"{call_me}, the file '{os.path.basename(filepath)}' was not found in the workspace."
+        return f"{call_me}, could not find '{os.path.basename(filepath)}' in your workspace, user folders, or drives."
 
     if os.path.isdir(full_path):
         return get_folder_info(full_path, call_me)
@@ -175,6 +239,33 @@ def open_file_in_editor(filepath: str, call_me: str = "Sir") -> str:
     try:
         os.startfile(full_path)
         return f"{call_me}, opened '{base_name}' in default editor."
+    except Exception as err:
+        return f"{call_me}, could not open '{base_name}': {err}"
+
+
+def open_system_item(filepath: str, call_me: str = "Sir") -> str:
+    """
+    Opens any file or folder using its native application (VS Code for code/text, Explorer for folders, default player for media).
+    """
+    full_path = resolve_path(filepath)
+    if not os.path.exists(full_path):
+        return f"{call_me}, could not find '{os.path.basename(filepath)}' on your system."
+
+    if os.path.isdir(full_path):
+        try:
+            os.startfile(full_path)
+            return f"{call_me}, opened folder: {full_path}."
+        except Exception as err:
+            return f"{call_me}, could not open folder '{full_path}': {err}"
+
+    base_name = os.path.basename(full_path)
+    code_exts = (".py", ".json", ".txt", ".md", ".env", ".csv", ".log", ".html", ".js", ".css", ".bat", ".sh", ".c", ".cpp", ".java", ".xml", ".yaml", ".yml")
+    if any(base_name.lower().endswith(ext) for ext in code_exts):
+        return open_file_in_editor(full_path, call_me=call_me)
+
+    try:
+        os.startfile(full_path)
+        return f"{call_me}, opened '{base_name}'."
     except Exception as err:
         return f"{call_me}, could not open '{base_name}': {err}"
 
