@@ -695,7 +695,21 @@ def load_contacts_data() -> dict:
         raw_contacts = data.get("contacts", {}) if isinstance(data.get("contacts"), dict) else {}
         raw_aliases = data.get("aliases", {}) if isinstance(data.get("aliases"), dict) else {}
         raw_groups = data.get("groups", {}) if isinstance(data.get("groups"), dict) else {}
-        data["contacts"] = {str(k).lower().strip(): str(v).strip() for k, v in raw_contacts.items() if str(k).strip()}
+        normalized_contacts = {}
+        for k, v in raw_contacts.items():
+            if not str(k).strip():
+                continue
+            clean_k = str(k).lower().strip()
+            val = str(v).strip()
+            digits = re.sub(r"\D", "", val)
+            if len(digits) == 10:
+                val = "+91" + digits
+            elif len(digits) == 11 and digits.startswith("0"):
+                val = "+91" + digits[1:]
+            elif len(digits) == 12 and digits.startswith("91") and not val.startswith("+"):
+                val = "+" + digits
+            normalized_contacts[clean_k] = val
+        data["contacts"] = normalized_contacts
         data["aliases"] = {str(k).lower().strip(): str(v).lower().strip() for k, v in raw_aliases.items() if str(k).strip()}
         data["groups"] = {str(k).lower().strip(): v for k, v in raw_groups.items() if str(k).strip()}
         return data
@@ -1374,6 +1388,27 @@ def dispatch_whatsapp_group(group_search_term: str, message: str, auto_send: boo
     """
     dispatch_whatsapp_desktop(group_search_term, message, auto_send=auto_send)
 
+def sanitize_whatsapp_phone(raw_phone: str) -> str:
+    """
+    Standardizes any phone number into full international format without leading '+'
+    suitable for WhatsApp URI (whatsapp://send?phone=<digits>).
+    Guarantees that 10-digit Indian numbers are prefixed with '91' so WhatsApp
+    never confuses the first 3 digits as a foreign country code (e.g. +809).
+    """
+    digits = re.sub(r"\D", "", str(raw_phone).strip())
+    if len(digits) == 10:
+        return "91" + digits
+    if len(digits) == 11 and digits.startswith("0"):
+        return "91" + digits[1:]
+    if len(digits) == 12 and digits.startswith("91"):
+        return digits
+    if len(digits) == 11 and digits[0] in "6789":
+        return "91" + digits[:10]
+    if len(digits) > 10 and not digits.startswith("91"):
+        return "91" + digits[-10:]
+    return digits
+
+
 def send_whatsapp_message(target: str, message: str, call_me: str = "Sir", is_group: bool = False, auto_send: bool = True) -> str:
     """
     Opens WhatsApp desktop or web with prefilled message directed to a contact or group.
@@ -1395,17 +1430,13 @@ def send_whatsapp_message(target: str, message: str, call_me: str = "Sir", is_gr
     if not phone_number:
         digits = re.sub(r"\D", "", target.strip())
         if len(digits) >= 10:
-            if len(digits) == 10:
-                phone_number = "+91" + digits
-            elif len(digits) == 12 and digits.startswith("91"):
-                phone_number = "+" + digits
-            else:
-                phone_number = "+" + digits
+            clean_digits = sanitize_whatsapp_phone(digits)
+            phone_number = "+" + clean_digits
             display_name = target.strip()
         else:
             return f"{call_me}, contact '{target}' was not found in your contacts."
 
-    clean_digits = re.sub(r"[^\d]", "", phone_number)
+    clean_digits = sanitize_whatsapp_phone(phone_number)
     display = display_name if display_name else target.title()
     encoded_text = urllib.parse.quote(message.strip())
     uri = f"whatsapp://send?phone={clean_digits}&text={encoded_text}"
@@ -1419,7 +1450,12 @@ def send_whatsapp_message(target: str, message: str, call_me: str = "Sir", is_gr
         else:
             return f"{call_me}, opened WhatsApp for {display} with message: '{message}'. Press Enter to send."
     except Exception as err:
-        return f"{call_me}, could not open WhatsApp: {err}"
+        try:
+            # Fallback: search contact or 10-digit number directly in WhatsApp Desktop search
+            dispatch_whatsapp_desktop(display_name or clean_digits[-10:], message, auto_send=auto_send)
+            return f"{call_me}, opened WhatsApp for {display} with message: '{message}'."
+        except Exception:
+            return f"{call_me}, could not open WhatsApp: {err}"
 
 
 # ============================================================
