@@ -476,6 +476,85 @@ def take_screenshot(call_me: str = "Sir") -> str:
         return f"{call_me}, screenshot operation failed: {err}"
 
 
+def take_silent_screenshot() -> str | None:
+    """
+    Captures primary screen and returns saved filepath without opening photo viewer.
+    Used internally for AI vision and screen inspection.
+    """
+    try:
+        from PIL import Image
+
+        pictures_dir = os.path.join(os.path.expanduser("~"), "Pictures", "Screenshots")
+        if not os.path.exists(pictures_dir):
+            try:
+                os.makedirs(pictures_dir, exist_ok=True)
+            except Exception:
+                pictures_dir = os.path.join(os.path.expanduser("~"), "Desktop")
+
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"vision_{timestamp}.png"
+        filepath = os.path.join(pictures_dir, filename)
+
+        user32 = ctypes.windll.user32
+        gdi32 = ctypes.windll.gdi32
+
+        try:
+            ctypes.windll.shcore.SetProcessDpiAwareness(2)
+        except Exception:
+            try:
+                user32.SetProcessDPIAware()
+            except Exception:
+                pass
+
+        w = user32.GetSystemMetrics(0)
+        h = user32.GetSystemMetrics(1)
+        hdc_screen = user32.GetDC(0)
+        hdc_mem = gdi32.CreateCompatibleDC(hdc_screen)
+        hbmp = gdi32.CreateCompatibleBitmap(hdc_screen, w, h)
+        gdi32.SelectObject(hdc_mem, hbmp)
+
+        # SRCCOPY = 0x00CC0020
+        gdi32.BitBlt(hdc_mem, 0, 0, w, h, hdc_screen, 0, 0, 0x00CC0020)
+
+        class BITMAPINFOHEADER(ctypes.Structure):
+            _fields_ = [
+                ("biSize", ctypes.c_uint32),
+                ("biWidth", ctypes.c_int32),
+                ("biHeight", ctypes.c_int32),
+                ("biPlanes", ctypes.c_uint16),
+                ("biBitCount", ctypes.c_uint16),
+                ("biCompression", ctypes.c_uint32),
+                ("biSizeImage", ctypes.c_uint32),
+                ("biXPelsPerMeter", ctypes.c_int32),
+                ("biYPelsPerMeter", ctypes.c_int32),
+                ("biClrUsed", ctypes.c_uint32),
+                ("biClrImportant", ctypes.c_uint32),
+            ]
+
+        bmi = BITMAPINFOHEADER()
+        bmi.biSize = ctypes.sizeof(BITMAPINFOHEADER)
+        bmi.biWidth = w
+        bmi.biHeight = -h
+        bmi.biPlanes = 1
+        bmi.biBitCount = 32
+        bmi.biCompression = 0
+
+        buf = (ctypes.c_char * (w * h * 4))()
+        gdi32.GetDIBits(hdc_mem, hbmp, 0, h, buf, ctypes.byref(bmi), 0)
+
+        im = Image.frombuffer("RGBA", (w, h), bytes(buf), "raw", "BGRA", 0, 1)
+        im = im.convert("RGB")
+        im.save(filepath)
+
+        gdi32.DeleteObject(hbmp)
+        gdi32.DeleteDC(hdc_mem)
+        user32.ReleaseDC(0, hdc_screen)
+
+        return filepath if os.path.exists(filepath) else None
+    except Exception:
+        return None
+
+
 # ============================================================
 # 4. TERMINAL RUNNER & OS CONTROLS
 # ============================================================

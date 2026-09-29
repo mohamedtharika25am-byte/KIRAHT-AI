@@ -556,6 +556,61 @@ def get_client_and_model():
     return client, model, host
 
 
+def get_gemini_client():
+    """
+    Initializes Google GenAI client if GEMINI_API_KEY is present in .env.
+    """
+    load_dotenv()
+    key = os.getenv("GEMINI_API_KEY", "").strip()
+    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+    if not key:
+        return None, model
+    try:
+        from google import genai
+        client = genai.Client(api_key=key)
+        return client, model
+    except Exception:
+        return None, model
+
+
+def inspect_screen_with_gemini(gemini_client, gemini_model: str, user_prompt: str, call_me: str = "Sir") -> tuple[bool, str]:
+    """
+    Captures primary screen and streams Gemini Vision analysis.
+    """
+    if not gemini_client:
+        return False, f"{call_me}, screen vision requires a Google Gemini API key. Please add GEMINI_API_KEY in your .env file."
+
+    from system_tools import take_silent_screenshot
+    from PIL import Image
+
+    print(f"\n[KIRAHT AI: 📸 Capturing live screen for Gemini Vision analysis...]")
+    shot_path = take_silent_screenshot()
+    if not shot_path or not os.path.exists(shot_path):
+        return False, f"{call_me}, failed to capture screen for vision inspection."
+
+    try:
+        img = Image.open(shot_path)
+        prompt = (
+            f"You are KIRAHT AI, a razor-sharp, elite personal AI assistant. Address the user as '{call_me}'.\n"
+            f"User request: '{user_prompt}'\n"
+            f"Task: Inspect the attached screen capture of the user's laptop. Provide a direct, crystal-clear, step-by-step diagnosis or explanation. If there is code, terminal errors, or UI issues visible, pinpoint the exact root cause and solution."
+        )
+        response_stream = gemini_client.models.generate_content_stream(
+            model=gemini_model,
+            contents=[img, prompt]
+        )
+        print(f"\nkiraht AI: ", end="", flush=True)
+        chunks = []
+        for chunk in response_stream:
+            text = chunk.text or ""
+            print(text, end="", flush=True)
+            chunks.append(text)
+        print()
+        return True, "".join(chunks).strip()
+    except Exception as err:
+        return False, f"{call_me}, screen vision error: {err}"
+
+
 def verify_and_ensure_ollama(model: str, initial_host: str) -> tuple[ollama.Client, str]:
     """
     Verifies that the local Ollama daemon is reachable and the requested model exists.
@@ -1118,6 +1173,11 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
     session_start_dt = datetime.datetime.now()
     session_start_time = session_start_dt.strftime("%d %b %Y • %I:%M:%S %p (%A)")
 
+    gemini_client, gemini_model = get_gemini_client()
+    engine_mode = "auto"
+    active_engine = "gemini" if gemini_client and online else "ollama"
+    engine_display = f"🚀 GEMINI ({gemini_model})" if active_engine == "gemini" else f"🛡️ LOCAL OLLAMA ({model})"
+
     print("=" * 68)
     print("  :::    ::: ::: :::::::::      :::     :::    ::: ::::::::::: ")
     print("  :+:   :+:  :+: :+:    :+:   :+: :+:   :+:    :+:     :+:     ")
@@ -1130,10 +1190,10 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
     print(f"  ⚡ System          : KIRAHT AI - v0.2.1")
     print(f"  🕒 Session Started : {session_start_time}")
     print(f"  📦 Last Code Update: {last_update}")
-    print(f"  🤖 Active Model    : {model}  |  {status_icon}")
+    print(f"  🤖 Active Engine   : {engine_display}  |  {status_icon}")
     print(f"  🛡️ Security Mode   : {security_label}")
     print(f"  🛠️ Laptop Tools    : Active (Apps, Files, Folders, WhatsApp, Screenshot, Wi-Fi)")
-    print(f"  💡 Quick Commands  : /memory, /uptime, /think, /thoughts, /callme, /scan_apps, exit")
+    print(f"  💡 Quick Commands  : /engine, /memory, /uptime, /think, /thoughts, /callme, exit")
     print(f"  🧠 Shortcuts       : Ctrl+T (Toggle Thoughts)  |  Ctrl+C (Cancel Response)")
     print("=" * 68)
     print(f"\nkiraht AI: Online and ready, {call_me}. How may I assist you?")
@@ -1154,6 +1214,28 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                 continue
 
             is_processing = True
+
+            # Vision Screen Inspection Intent
+            is_vision_request = any(trig in user_input.lower() for trig in (
+                "inspect screen", "see screen", "look at screen", "read screen",
+                "screen paaru", "screen-la enna iruku", "screen la error enna",
+                "what is on my screen", "what's on my screen", "debug my screen",
+                "explain my screen", "check my screen", "screen-ah paaru", "screen analyze pannu"
+            ))
+            if is_vision_request:
+                if gemini_client:
+                    ok, res = inspect_screen_with_gemini(gemini_client, gemini_model, user_input, call_me)
+                    if ok:
+                        messages.append({"role": "user", "content": user_input})
+                        messages.append({"role": "assistant", "content": res})
+                    else:
+                        print(f"\nkiraht AI: {res}")
+                    continue
+                else:
+                    from system_tools import take_screenshot
+                    shot_res = take_screenshot(call_me)
+                    print(f"\nkiraht AI: {shot_res}\n  💡 To analyze this screenshot with Vision AI, add your GEMINI_API_KEY in .env!")
+                    continue
 
             # Multi-turn WhatsApp interactive resolution (missing message, phone number, or group)
             if pending_whatsapp:
@@ -1461,6 +1543,39 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                     print(f"\nkiraht AI: No active thought reasoning available from the last turn, {call_me}.")
                 continue
 
+            # Command: /engine [gemini|ollama|local|auto]
+            if user_input.lower().strip().startswith(("/engine", "engine")):
+                cmd_parts = user_input.lower().strip().split()
+                if len(cmd_parts) > 1:
+                    target_eng = cmd_parts[1]
+                    if target_eng in ("gemini", "cloud"):
+                        if gemini_client:
+                            active_engine = "gemini"
+                            engine_mode = "gemini"
+                            print(f"\nkiraht AI: Switched active engine to 🚀 Google Gemini ({gemini_model}), {call_me}.")
+                        else:
+                            print(f"\nkiraht AI: Google Gemini API key not found in .env. Please configure GEMINI_API_KEY first, {call_me}.")
+                    elif target_eng in ("ollama", "local", "offline"):
+                        active_engine = "ollama"
+                        engine_mode = "ollama"
+                        print(f"\nkiraht AI: Switched active engine to 🛡️ Local Ollama ({model}), {call_me}.")
+                    elif target_eng in ("auto", "hybrid", "default"):
+                        engine_mode = "auto"
+                        active_engine = "gemini" if gemini_client and is_online() else "ollama"
+                        print(f"\nkiraht AI: Engine set to Auto/Hybrid (Active: {active_engine.title()}), {call_me}.")
+                else:
+                    curr_name = f"🚀 Google Gemini ({gemini_model})" if active_engine == "gemini" else f"🛡️ Local Ollama ({model})"
+                    gem_status = f"Ready ({gemini_model})" if gemini_client else "Not configured (add GEMINI_API_KEY in .env)"
+                    print(
+                        f"\n[KIRAHT AI Dual-Engine Status]\n"
+                        f"  Active Engine : {curr_name}\n"
+                        f"  Engine Mode   : {engine_mode.title()}\n"
+                        f"  Local Ollama  : {model} (Ready)\n"
+                        f"  Gemini Cloud  : {gem_status}\n"
+                        f"  Switch command: /engine gemini | /engine local | /engine auto"
+                    )
+                continue
+
             # Command: /callme <title>
             if user_input.lower().startswith("/callme "):
                 new_title = user_input[8:].strip()
@@ -1696,6 +1811,28 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                     else:
                         response_stream = [res]
                 else:
+                    # If active engine is Gemini and online, stream with Google Gemini Cloud Engine
+                    if active_engine == "gemini" and gemini_client and is_online():
+                        try:
+                            print(f"\nkiraht AI: ", end="", flush=True)
+                            g_stream = gemini_client.models.generate_content_stream(
+                                model=gemini_model,
+                                contents=prompt_content
+                            )
+                            reply_chunks = []
+                            for g_chunk in g_stream:
+                                txt = g_chunk.text or ""
+                                print(txt, end="", flush=True)
+                                reply_chunks.append(txt)
+                            print()
+                            full_reply = "".join(reply_chunks).strip()
+                            if prompt_content != user_input:
+                                messages[-1] = {"role": "user", "content": user_input}
+                            messages.append({"role": "assistant", "content": full_reply})
+                            continue
+                        except Exception as gem_err:
+                            print(f"\n[KIRAHT AI: ⚠️ Gemini API error ({gem_err}) — falling back to local Ollama]")
+
                     # 2. Pure streaming chat mode for questions, coding, explanations, and knowledge
                     response_stream = client.chat(
                         model=model,
