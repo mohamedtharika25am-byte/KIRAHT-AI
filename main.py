@@ -13,6 +13,7 @@ Key Features:
 - 100% local model inference (qwen2.5:3b or custom) via native Ollama client.
 """
 
+import datetime
 import json
 import os
 import re
