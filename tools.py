@@ -454,6 +454,15 @@ WEB_SITES = {
     "twitter": "https://x.com",
     "x": "https://x.com",
     "chatgpt": "https://chatgpt.com",
+    "canva": "https://www.canva.com",
+    "figma": "https://www.figma.com",
+    "notion": "https://www.notion.so",
+    "instagram": "https://www.instagram.com",
+    "facebook": "https://www.facebook.com",
+    "reddit": "https://www.reddit.com",
+    "netflix": "https://www.netflix.com",
+    "drive": "https://drive.google.com",
+    "maps": "https://maps.google.com",
 }
 
 
@@ -1466,6 +1475,8 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     if open_app_match:
         app_to_open = open_app_match.group(1).strip()
         app_to_open = re.sub(r"[\\/]+$", "", app_to_open).strip()
+        # Clean duplicate trigger words (e.g. "open open canva" -> "canva")
+        app_to_open = re.sub(r"^(?:open|launch|start|run)\s+", "", app_to_open, flags=re.IGNORECASE).strip()
         if not app_to_open:
             return True, f"{call_me}, which application would you like me to open?"
         if app_to_open in ("it", "that", "this", "again", "the app", "it again"):

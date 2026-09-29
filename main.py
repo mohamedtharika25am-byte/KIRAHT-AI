@@ -393,7 +393,16 @@ def should_enable_tools(user_text: str) -> bool:
     if any(re.search(p, lower) for p in pure_coding_patterns):
         return False
 
-    # 2. Actionable system command & device inspection triggers (Folders, Files, Sizes, Apps, WhatsApp, Hardware)
+    # 2. User confirmation & follow-up affirmations (e.g. "yeah thats right buddy", "check it out", "yes do it")
+    affirmation_patterns = [
+        r"\b(?:yeah|yes|yep|sure|ok|okay|thats\s+right|that's\s+right|correct|do\s+it|go\s+ahead|proceed)\b",
+        r"\b(?:then\s+check|check\s+it\s+out|check\s+that|tell\s+me\s+then|i\s+mentioned)\b",
+    ]
+    for p in affirmation_patterns:
+        if re.search(p, lower):
+            return True
+
+    # 3. Actionable system command & device inspection triggers (Folders, Files, Sizes, Apps, WhatsApp, Hardware)
     system_action_triggers = [
         # Folders, Files, and Disk Size inspection
         r"\b(?:folder|foler|floder|directory|dir|drive)\b",
@@ -971,7 +980,8 @@ def execute_agent_tool(tool_name: str, args: dict, call_me: str = "Sir") -> str:
             return f"{call_me}, file inspected."
 
         elif tool_name == "open_application":
-            app = args.get("app_name", "").strip()
+            app = str(args.get("app_name", "")).strip()
+            app = re.sub(r"^(?:open|launch|start|run)\s+", "", app, flags=re.IGNORECASE).strip()
             if not app or app.lower() in ("app", "application", "none", "null"):
                 return f"{call_me}, which application would you like me to open?"
             if app.lower() in ("it", "that", "this", "again", "the app", "it again"):
@@ -982,7 +992,11 @@ def execute_agent_tool(tool_name: str, args: dict, call_me: str = "Sir") -> str:
                 else:
                     return f"{call_me}, which application would you like me to open?"
             handled, res = execute_system_command(f"open {app}", call_me=call_me)
-            return res if handled else f"{call_me}, attempted to launch {app}."
+            if handled:
+                return res
+            from tools import launch_desktop_app
+            launched, msg = launch_desktop_app(app, call_me=call_me)
+            return msg if launched else f"{call_me}, attempted to launch {app}."
 
         elif tool_name == "close_application":
             app = args.get("app_name", "").strip()
@@ -1119,7 +1133,8 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
     print(f"  🤖 Active Model    : {model}  |  {status_icon}")
     print(f"  🛡️ Security Mode   : {security_label}")
     print(f"  🛠️ Laptop Tools    : Active (Apps, Files, Folders, WhatsApp, Screenshot, Wi-Fi)")
-    print(f"  💡 Quick Commands  : /memory, /uptime, /callme, /scan_apps, /clear, exit")
+    print(f"  💡 Quick Commands  : /memory, /uptime, /think, /thoughts, /callme, /scan_apps, exit")
+    print(f"  🧠 Shortcuts       : Ctrl+T (Toggle Thoughts)  |  Ctrl+C (Cancel Response)")
     print("=" * 68)
     print(f"\nkiraht AI: Online and ready, {call_me}. How may I assist you?")
 
@@ -1127,6 +1142,8 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
     last_system_command = ""
     last_chat_prompt = ""
     pending_whatsapp = None
+    show_thoughts = False
+    last_thought_process = ""
 
     while True:
         is_processing = False
@@ -1420,6 +1437,30 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                 print(f"\nkiraht AI: Current session started at {session_start_time}.\n  Active uptime: ⏳ {elapsed_str}, {call_me}.")
                 continue
 
+            # Command: /think [on|off] or Ctrl+T toggle
+            if user_input.lower().strip() in ("/think", "think", "/think on", "/think off", "/think toggle", "\x14"):
+                cmd_parts = user_input.lower().strip().split()
+                if len(cmd_parts) > 1 and cmd_parts[1] in ("on", "true", "1"):
+                    show_thoughts = True
+                elif len(cmd_parts) > 1 and cmd_parts[1] in ("off", "false", "0"):
+                    show_thoughts = False
+                else:
+                    show_thoughts = not show_thoughts
+                status = "ON (Reasoning stream visible)" if show_thoughts else "OFF (Compact mode - press Ctrl+T to view)"
+                print(f"\nkiraht AI: 🧠 Thought Process Visibility: {status}, {call_me}.")
+                continue
+
+            # Command: /thoughts or /why
+            if user_input.lower().strip() in ("/thoughts", "/thought", "/why", "/brain", "why", "thoughts", "show thoughts", "show thinking"):
+                if last_thought_process.strip():
+                    print(f"\n┌─ 💭 [KIRAHT AI Thought Process] " + "─" * 40)
+                    for line in last_thought_process.strip().splitlines():
+                        print(f"│  {line}")
+                    print("└" + "─" * 70)
+                else:
+                    print(f"\nkiraht AI: No active thought reasoning available from the last turn, {call_me}.")
+                continue
+
             # Command: /callme <title>
             if user_input.lower().startswith("/callme "):
                 new_title = user_input[8:].strip()
@@ -1670,28 +1711,85 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                 print(f"\nkiraht AI: ", end="", flush=True)
 
                 reply_chunks = []
+                thought_chunks = []
                 is_thinking = False
+                in_tool_tag = False
 
                 for chunk in response_stream:
+                    # Live Ctrl+T or Tab keystroke intercept during generation on Windows
+                    if sys.platform == "win32":
+                        try:
+                            import msvcrt
+                            if msvcrt.kbhit():
+                                ch = msvcrt.getch()
+                                if ch in (b'\x14', b'\t'):  # Ctrl+T (0x14) or Tab (0x09)
+                                    show_thoughts = not show_thoughts
+                                    t_stat = "EXPANDED" if show_thoughts else "COLLAPSED"
+                                    print(f"\n\033[93m[KIRAHT AI: 🧠 Thoughts {t_stat}]\033[0m", flush=True)
+                                    if not show_thoughts and is_thinking:
+                                        print("\r\033[K[Thinking... (Press Ctrl+T to expand)] ", end="", flush=True)
+                                        is_thinking = False
+                        except Exception:
+                            pass
+
                     thinking = getattr(chunk.message, "thinking", None)
                     content = chunk.message.content or ""
 
                     if thinking and not content:
-                        if not is_thinking:
-                            print("[Thinking...] ", end="", flush=True)
-                            is_thinking = True
+                        thought_chunks.append(thinking)
+                        if show_thoughts:
+                            if not is_thinking:
+                                print(f"\n\033[90m┌─ 💭 [Thinking Process] " + "─" * 45 + "\033[0m\n", end="", flush=True)
+                                is_thinking = True
+                            print(f"\033[90m{thinking}\033[0m", end="", flush=True)
+                        else:
+                            if not is_thinking:
+                                print("[Thinking... (Press Ctrl+T to view)] ", end="", flush=True)
+                                is_thinking = True
                         continue
 
                     if content:
                         if is_thinking:
-                            # Clear the [Thinking...] text and reset line
-                            print("\r\033[Kkiraht AI: ", end="", flush=True)
+                            if show_thoughts:
+                                print(f"\n\033[90m└" + "─" * 68 + "\033[0m\n\nkiraht AI: ", end="", flush=True)
+                            else:
+                                print("\r\033[Kkiraht AI: ", end="", flush=True)
                             is_thinking = False
+
+                        # Intercept raw <tool_call> tags from leaking to terminal
+                        if "<tool_call>" in content or in_tool_tag:
+                            in_tool_tag = True
+                            reply_chunks.append(content)
+                            if "</tool_call>" in content:
+                                in_tool_tag = False
+                            continue
+
                         print(content, end="", flush=True)
                         reply_chunks.append(content)
 
+                if is_thinking and show_thoughts:
+                    print(f"\n\033[90m└" + "─" * 68 + "\033[0m", flush=True)
+
                 print()  # newline after streaming completes
                 full_reply = "".join(reply_chunks).strip()
+                last_thought_process = "".join(thought_chunks).strip()
+
+                # Intercept model raw <tool_call> text outputs and execute immediately
+                tc_match = re.search(r"<tool_call>\s*(\{.*?\})\s*</tool_call>", full_reply, re.DOTALL)
+                if tc_match:
+                    try:
+                        tc_data = json.loads(tc_match.group(1))
+                        fn_name = tc_data.get("name")
+                        fn_args = tc_data.get("arguments", {})
+                        if fn_name:
+                            print(f"\r\033[K[KIRAHT AI: ⚙️ Executing {fn_name}()]")
+                            tool_res = execute_agent_tool(fn_name, fn_args, call_me)
+                            print(f"\nkiraht AI: {tool_res}")
+                            messages.append({"role": "assistant", "content": f"Executed {fn_name}."})
+                            messages.append({"role": "tool", "content": tool_res})
+                            full_reply = tool_res
+                    except Exception:
+                        pass
 
                 # If web context was attached, rewrite last user message in history to clean user_input
                 if prompt_content != user_input:

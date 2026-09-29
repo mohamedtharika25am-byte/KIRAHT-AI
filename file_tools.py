@@ -64,6 +64,26 @@ def get_user_known_folders() -> dict:
             folders["movie"] = candidate
             break
 
+    # Discover VS Code Extensions folder (~/.vscode/extensions)
+    vscode_ext = os.path.join(home, ".vscode", "extensions")
+    if os.path.exists(vscode_ext):
+        folders["extensions"] = vscode_ext
+        folders["extension"] = vscode_ext
+        folders["xtensions"] = vscode_ext
+        folders["xtension"] = vscode_ext
+        folders["vscode extensions"] = vscode_ext
+        folders["vs code extensions"] = vscode_ext
+
+    # Discover GitHub folder in Documents or home
+    for gh_cand in [
+        os.path.join(home, "Documents", "GitHub"),
+        os.path.join(home, "GitHub"),
+    ]:
+        if os.path.exists(gh_cand):
+            folders["github"] = gh_cand
+            folders["git hub"] = gh_cand
+            break
+
     return folders
 
 
