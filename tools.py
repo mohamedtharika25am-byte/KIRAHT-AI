@@ -826,8 +826,15 @@ def open_folder(folder_name: str, call_me: str = "Sir") -> str:
     """
     Opens any user, workspace, or system folder in Windows File Explorer.
     """
-    target = resolve_path(folder_name)
+    from file_tools import resolve_path, set_last_path, get_last_path
+    clean = folder_name.strip() if folder_name else ""
+    if clean.lower() in ("that", "it", "this", "that folder", "the folder", "same"):
+        target = get_last_path()
+    else:
+        target = resolve_path(clean)
+
     if os.path.exists(target):
+        set_last_path(target)
         if os.path.isdir(target):
             try:
                 os.startfile(target)
@@ -837,6 +844,7 @@ def open_folder(folder_name: str, call_me: str = "Sir") -> str:
         else:
             parent = os.path.dirname(target)
             if os.path.exists(parent):
+                set_last_path(parent)
                 os.startfile(parent)
                 return f"{call_me}, opened containing folder: {parent}."
 
@@ -1162,6 +1170,10 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     if kf_match:
         f_target = kf_match.group(1).strip()
         return True, open_folder(f_target, call_me=call_me)
+
+    if cleaned in ("open that", "open it", "open that folder", "open that directory", "open the folder"):
+        from file_tools import get_last_path
+        return True, open_folder(get_last_path(), call_me=call_me)
 
     # 20. Contacts & WhatsApp Messaging Engine
     contact_add_match = re.search(

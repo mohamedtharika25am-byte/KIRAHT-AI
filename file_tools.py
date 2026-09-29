@@ -67,26 +67,64 @@ def get_user_known_folders() -> dict:
     return folders
 
 
+LAST_ACCESSED_PATH = WORKSPACE_DIR
+
+
+def set_last_path(path: str) -> None:
+    """
+    Tracks the most recently inspected file or folder path for follow-up resolution.
+    """
+    global LAST_ACCESSED_PATH
+    if path and os.path.exists(path):
+        LAST_ACCESSED_PATH = os.path.abspath(path)
+
+
+def get_last_path() -> str:
+    """
+    Returns the most recently inspected file or folder path.
+    """
+    global LAST_ACCESSED_PATH
+    return LAST_ACCESSED_PATH
+
+
 def resolve_path(target_path: str) -> str:
     """
     Resolves relative path against workspace, known user folders, or root drives.
-    Supports emojis, common typos (foler/folder), and multi-word names.
+    Supports emojis, common typos (foler/folder), pronoun follow-ups ('that folder'), and multi-word names.
     """
     clean_path = target_path.strip().strip('"').strip("'")
     if not clean_path:
         return WORKSPACE_DIR
+
+    lower_p = clean_path.lower().strip()
+
+    # Coreference / pronoun resolution for follow-ups ("that folder", "that", "it", "this")
+    if lower_p in ("that", "this", "it", "same", "the folder", "the file", "that folder", "that directory", "that file"):
+        last = get_last_path()
+        if last and os.path.exists(last):
+            return last
+
     if os.path.isabs(clean_path) and os.path.exists(clean_path):
+        set_last_path(clean_path)
         return clean_path
 
     known = get_user_known_folders()
-    lower_p = clean_path.lower().strip()
 
     # Strip trailing "folder" or "foler" or "floder" or "dir" or "directory" or "file"
     lower_clean = re.sub(r"\s+(?:folder|foler|floder|fldr|dir|directory|file)$", "", lower_p).strip()
+    if lower_clean in ("that", "this", "it", "same"):
+        last = get_last_path()
+        if last and os.path.exists(last):
+            return last
+
     if lower_clean in known and os.path.exists(known[lower_clean]):
-        return known[lower_clean]
+        cand = known[lower_clean]
+        set_last_path(cand)
+        return cand
     if lower_p in known and os.path.exists(known[lower_p]):
-        return known[lower_p]
+        cand = known[lower_p]
+        set_last_path(cand)
+        return cand
 
     # Normalized alphanumeric matching (handles emojis like 🎬movies -> movies)
     norm_target = re.sub(r"[^a-zA-Z0-9_\-]", "", lower_clean).strip().lower()
@@ -199,11 +237,16 @@ def get_file_info(filepath: str, call_me: str = "Sir") -> str:
 
 def get_folder_info(folder_path: str, call_me: str = "Sir") -> str:
     """
-    Returns total size and file count of a directory.
+    Returns total size, file count, and location of a directory.
     """
+    full_path = resolve_path(folder_path)
+    if not os.path.exists(full_path):
+        return f"{call_me}, folder '{folder_path}' was not found on your system."
+
+    set_last_path(full_path)
     total_size = 0
     total_files = 0
-    for root, _, files in os.walk(folder_path):
+    for root, _, files in os.walk(full_path):
         for f in files:
             fp = os.path.join(root, f)
             try:
@@ -213,8 +256,8 @@ def get_folder_info(folder_path: str, call_me: str = "Sir") -> str:
                 continue
 
     size_str = format_size(total_size)
-    base_name = os.path.basename(folder_path.rstrip("/\\")) or folder_path
-    return f"{call_me}, folder '{base_name}' contains {total_files} files ({size_str})."
+    base_name = os.path.basename(full_path.rstrip("/\\")) or full_path
+    return f"{call_me}, folder '{base_name}' contains {total_files} files ({size_str}) at '{full_path}'."
 
 
 def open_file_in_editor(filepath: str, call_me: str = "Sir") -> str:

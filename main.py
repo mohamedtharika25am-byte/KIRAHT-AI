@@ -375,15 +375,47 @@ def should_trigger_search(user_text: str) -> tuple[bool, str]:
 def should_enable_tools(user_text: str) -> bool:
     """
     Determines if the user's input is an actionable laptop/system control command
-    that requires native function tool calling.
+    or inspection (files, folders, sizes, apps, WhatsApp, hardware) that requires native function tool calling.
 
-    Returns False for questions, explanations, coding requests, internet lookups,
-    and conversational prompts so the model uses its full knowledge and streams
-    direct answers instead of hallucinating tool signature mismatches.
+    Returns False for pure programming/algorithmic questions, conceptual tutorials,
+    and purely conversational prompts so the model uses internal knowledge directly.
     """
     lower = user_text.lower().strip()
 
-    # 1. Obvious question, educational, algorithmic, conceptual queries -> NEVER pass tools
+    # 1. Check if user is asking a pure theoretical coding or algorithmic problem
+    pure_coding_patterns = [
+        r"\b(?:write|code|script)\s+(?:a\s+)?(?:python|java|c\+\+|javascript|typescript|sql|bash|html)\b",
+        r"\b(?:algorithm|data\s+structure|leetcode|deque|binary\s+tree|recursion|quicksort|mergesort)\b",
+        r"\b(?:tutorial|teach|syntax\s+of|interview\s+question)\b",
+        r"\bwrite\s+(?:a\s+)?(?:code|program|function|class|essay|story|poem)\b",
+    ]
+    if any(re.search(p, lower) for p in pure_coding_patterns):
+        return False
+
+    # 2. Actionable system command & device inspection triggers (Folders, Files, Sizes, Apps, WhatsApp, Hardware)
+    system_action_triggers = [
+        # Folders, Files, and Disk Size inspection
+        r"\b(?:folder|foler|floder|directory|dir|drive)\b",
+        r"\b(?:file|files|storage|size|mb|gb|bytes|capacity)\b",
+        r"\b(?:workspace|downloads|desktop|documents|movies|pictures|videos)\b",
+        # Installed Apps and Window control
+        r"\b(?:open|launch|start|run|close|kill|terminate|exit)\s+[a-zA-Z0-9_\-\.]+",
+        r"\b(?:open|launch|start|run|close)\s+(?:app|application|software|tool|program)\b",
+        # WhatsApp & Messaging
+        r"\b(?:whatsapp|whatsap|watsapp|wa|wp|message|msg)\b",
+        # Screen Brightness & Audio Volume
+        r"\b(?:brightness|screen|display|volume|vol|sound|mute|unmute|mic|microphone)\b",
+        # Laptop Metrics & System Controls
+        r"\b(?:battery|power|charging|wifi|ping|ram|cpu|processes|process|taskmgr|task\s*manager)\b",
+        r"\b(?:sleep|shutdown|restart|reboot|hibernate|lock)\b",
+        # Pronoun & contextual follow-ups ("open that", "open that folder", "check that")
+        r"\b(?:open\s+(?:that|it|this)|check\s+(?:that|it)|that\s+folder)\b",
+    ]
+    for p in system_action_triggers:
+        if re.search(p, lower):
+            return True
+
+    # 3. Conversational / educational question filters
     coding_and_question_patterns = [
         r"\bexample\b",
         r"\bhow\s+to\b",
@@ -405,54 +437,22 @@ def should_enable_tools(user_text: str) -> bool:
         r"\bdifference\b",
         r"\btutorial\b",
         r"\bteach\b",
-        r"\bwrite\s+(?:a\s+)?(?:code|script|program|function|class|essay|story|poem)\b",
-        r"\bpython\b",
-        r"\bjava\b",
-        r"\bc\+\+\b",
-        r"\bjavascript\b",
-        r"\balgorithm\b",
-        r"\bdata\s+structure\b",
-        r"\bdeque\b",
-        r"\bstack\b",
-        r"\bqueue\b",
-        r"\bleetcode\b",
-        r"\bsolve\b",
-        r"\bdebug\b",
-        r"\berror\b",
-        r"\bissue\b",
-        r"\bconcept\b",
-        r"\bsummarize\b",
-        r"\bnotes\s+on\b",
         r"\bwho\s+is\b",
         r"\bwhere\s+is\b",
         r"\bwhich\s+is\b",
         r"\bwhen\s+did\b",
         r"\bcan\s+you\s+explain\b",
         r"\btell\s+me\s+about\b",
-        r"\btell\s+me\b",
         r"\bguide\b",
         r"\bdefinition\b",
-        r"\bsyntax\b",
-        r"\bimplementation\b",
-        r"\binterview\b",
-        r"\bquestions?\b",
-        r"\bfeatures\b",
-        r"\bperspective\b",
-        r"\bsimpler\b",
-        r"\bbreakdown\b",
-        r"\bdetails\b",
-        r"\boverview\b",
-        r"\btips\b",
-        r"\badvantages\b",
-        r"\bbenefits\b",
-        r"\bclarity\b",
-        r"\babout\b",
+        r"\bconcept\b",
+        r"\bsummarize\b",
     ]
     for p in coding_and_question_patterns:
         if re.search(p, lower):
             return False
 
-    # 2. Tanglish question and conversation patterns -> NEVER pass tools
+    # 4. Tanglish general question patterns
     tanglish_questions = [
         r"\benna\b",
         r"\bepdi\b",
@@ -470,17 +470,6 @@ def should_enable_tools(user_text: str) -> bool:
     for p in tanglish_questions:
         if re.search(p, lower):
             return False
-
-    # 3. Actionable system command patterns (Strict imperative action phrases only)
-    action_triggers = [
-        r"^(?:please\s+)?(?:can you\s+)?(?:could you\s+)?(?:set|adjust|change|put)\s+(?:the\s+)?(?:brightness|screen|volume|vol|sound)\b",
-        r"^(?:please\s+)?(?:can you\s+)?(?:could you\s+)?(?:increase|raise|boost|decrease|lower|dim|mute|unmute)\s+(?:the\s+)?(?:brightness|screen|volume|vol|sound|mic)\b",
-        r"^(?:please\s+)?(?:can you\s+)?(?:could you\s+)?(?:turn|switch)\s+(?:on|off)\s+(?:the\s+)?(?:screen|display|sound|mic|volume)\b",
-        r"^(?:please\s+)?(?:can you\s+)?(?:could you\s+)?(?:launch|start|open|close|kill|terminate)\s+(?:app|application|program|software|process)\s+[a-zA-Z0-9_\-\.]+",
-    ]
-    for p in action_triggers:
-        if re.search(p, lower):
-            return True
 
     return False
 
@@ -874,6 +863,47 @@ AVAILABLE_TOOLS = [
                 "required": ["recipient", "message"]
             }
         }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_folder_info",
+            "description": "Inspects any directory or folder on the user's laptop (e.g. 'KIRAHT AI', 'Downloads', 'Desktop', 'Documents', 'Movies', 'D:\\' drive) and returns its exact disk size (KB/MB/GB), total file count, and verified path. Call this whenever the user asks for folder size, directory size, or folder inspection.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "folder_name": {"type": "string", "description": "Name or path of the folder to inspect (e.g. 'KIRAHT AI', 'Downloads', 'Desktop', 'D:\\', or 'that folder')"}
+                },
+                "required": ["folder_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "open_folder",
+            "description": "Opens any directory or folder in Windows File Explorer (e.g. 'Downloads', 'Documents', 'Desktop', 'KIRAHT AI', 'Movies', 'D:\\' drive, or 'that folder').",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "folder_name": {"type": "string", "description": "Name or path of the folder to open (e.g. 'Downloads', 'KIRAHT AI', 'that folder')"}
+                },
+                "required": ["folder_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_directory_contents",
+            "description": "Lists all files and subdirectories inside a given folder on the user's laptop.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "folder_name": {"type": "string", "description": "Folder to list files from (e.g. 'KIRAHT AI', 'Downloads', or workspace root)"}
+                }
+            }
+        }
     }
 ]
 
@@ -1002,6 +1032,30 @@ def execute_agent_tool(tool_name: str, args: dict, call_me: str = "Sir") -> str:
                 return f"{call_me}, please specify what message you would like to send to {recipient}."
             return send_whatsapp_message(recipient, msg, call_me=call_me, is_group=is_grp, auto_send=True)
 
+        elif tool_name == "get_folder_info":
+            from file_tools import get_file_info, get_last_path
+            folder = str(args.get("folder_name", "")).strip()
+            if not folder or folder.lower() in ("that", "it", "this", "that folder", "the folder", "same"):
+                folder = get_last_path() or "d:\\KIRAHT AI"
+            return get_file_info(folder, call_me=call_me)
+
+        elif tool_name == "open_folder":
+            from tools import open_folder
+            from file_tools import get_last_path
+            folder = str(args.get("folder_name", "")).strip()
+            if not folder or folder.lower() in ("that", "it", "this", "that folder", "the folder", "same"):
+                folder = get_last_path() or "d:\\KIRAHT AI"
+            return open_folder(folder, call_me=call_me)
+
+        elif tool_name == "list_directory_contents":
+            from file_tools import list_workspace_files, resolve_path, WORKSPACE_DIR
+            folder = str(args.get("folder_name", "")).strip()
+            if not folder or folder.lower() in ("workspace", "project", "kiraht", "kiraht ai"):
+                target = WORKSPACE_DIR
+            else:
+                target = resolve_path(folder)
+            return list_workspace_files(target, call_me=call_me)
+
         return f"{call_me}, executed tool '{tool_name}'."
     except Exception as err:
         return f"{call_me}, error executing tool '{tool_name}': {err}"
@@ -1046,14 +1100,26 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
     from security import get_security_mode_label
     security_label = get_security_mode_label()
 
-    print("=" * 60)
-    print(f"  KIRAHT AI - v0.2.1")
-    print(f"  Model: {model}  |  Status: {status_icon}")
-    print(f"  Security: {security_label}")
-    print(f"  Last Updated: 🕒 {last_update}")
-    print(f"  Laptop Tools: Active (Apps, Files, Clipboard, Terminal, Screenshot, Wi-Fi, Hardware)")
-    print(f"  Commands: /memory, /callme <title>, /name <name>, /scan_apps, /search <query>, /clear, exit")
-    print("=" * 60)
+    session_start_dt = datetime.datetime.now()
+    session_start_time = session_start_dt.strftime("%d %b %Y • %I:%M:%S %p (%A)")
+
+    print("=" * 68)
+    print("  :::    ::: ::: :::::::::      :::     :::    ::: ::::::::::: ")
+    print("  :+:   :+:  :+: :+:    :+:   :+: :+:   :+:    :+:     :+:     ")
+    print("  +:+  +:+   +:+ +:+    +:+  +:+   +:+  +:+    +:+     +:+     ")
+    print("  +#++:++    +#+ +#++:++#:  +#++:++#++: +#++:++#++     +#+     ")
+    print("  +#+  +#+   +#+ +#+    +#+ +#+     +#+ +#+    +#+     +#+     ")
+    print("  #+#   #+#  #+# #+#    #+# #+#     #+# #+#    #+#     #+#     ")
+    print("  ###    ### ### ###    ### ###     ### ###    ###     ###     ")
+    print("=" * 68)
+    print(f"  ⚡ System          : KIRAHT AI - v0.2.1")
+    print(f"  🕒 Session Started : {session_start_time}")
+    print(f"  📦 Last Code Update: {last_update}")
+    print(f"  🤖 Active Model    : {model}  |  {status_icon}")
+    print(f"  🛡️ Security Mode   : {security_label}")
+    print(f"  🛠️ Laptop Tools    : Active (Apps, Files, Folders, WhatsApp, Screenshot, Wi-Fi)")
+    print(f"  💡 Quick Commands  : /memory, /uptime, /callme, /scan_apps, /clear, exit")
+    print("=" * 68)
     print(f"\nkiraht AI: Online and ready, {call_me}. How may I assist you?")
 
     messages = [{"role": "system", "content": system_prompt}]
@@ -1336,6 +1402,21 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                     proj_names = ", ".join(p.get("name") for p in projects)
                     print(f"  Projects: {proj_names}")
                 print(f"  Style: {memory.get('response_style')}")
+                continue
+
+            # Command: /uptime
+            if user_input.lower().strip() in ("/uptime", "uptime", "session time"):
+                elapsed = datetime.datetime.now() - session_start_dt
+                hours, rem = divmod(int(elapsed.total_seconds()), 3600)
+                minutes, seconds = divmod(rem, 60)
+                parts = []
+                if hours > 0:
+                    parts.append(f"{hours}h")
+                if minutes > 0 or hours > 0:
+                    parts.append(f"{minutes}m")
+                parts.append(f"{seconds}s")
+                elapsed_str = " ".join(parts)
+                print(f"\nkiraht AI: Current session started at {session_start_time}.\n  Active uptime: ⏳ {elapsed_str}, {call_me}.")
                 continue
 
             # Command: /callme <title>
