@@ -98,6 +98,14 @@ APPS_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "apps
 
 # Nickname & common typo aliases for instant matching
 APP_ALIASES = {
+    # Atomic Boom Game
+    "atomic boom": "atomic boom",
+    "atomic game": "atomic boom",
+    "atomic boom game": "atomic boom",
+    "atomic": "atomic boom",
+    "kiraht project": "atomic boom",
+    "kirahts project": "atomic boom",
+
     # 1. VS Code / Code Editors
     "vscode": "visual studio code",
     "vs code": "visual studio code",
@@ -619,6 +627,18 @@ def launch_desktop_app(app_name: str, call_me: str = "Sir") -> tuple[bool, str]:
 
     if not clean_name:
         return False, f"{call_me}, which application would you like me to open?"
+
+    # Dedicated launcher for Tharik's Atomic Boom Game project
+    if clean_name in ("atomic boom", "atomic game", "atomic boom game", "atomic", "kiraht project", "kirahts project", "kiraht's project"):
+        atomic_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "Kiraht's project", "atomic.html"))
+        if os.path.exists(atomic_path):
+            set_last_app("atomic boom")
+            try:
+                import webbrowser
+                webbrowser.open(f"file:///{atomic_path}")
+                return True, f"{call_me}, launching your 'Atomic Boom' arcade game in browser."
+            except Exception as e:
+                return False, f"{call_me}, failed to open Atomic Boom game: {e}"
 
     # Dedicated direct handler for Task Manager application
     if clean_name in ("task manager", "taskmgr", "task man", "taskmanager"):

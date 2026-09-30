@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Atomic Boom — Orbital Defense Arcade</title>
+    <link rel="stylesheet" href="colour.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- Glassmorphic HUD Overlay -->
+        <header id="gameHUD">
+            <!-- Top Left: Hull & Shields -->
+            <div class="hud-panel hud-left">
+                <div class="hud-label">HULL INTEGRITY</div>
+                <div class="bar-container hull-bar-bg">
+                    <div id="hullBar" class="bar-fill hull-fill" style="width: 100%;"></div>
+                </div>
+                <div class="hud-subinfo">
+                    <span id="shieldIndicator" class="shield-badge">SHIELD: ACTIVE</span>
+                    <span id="weaponLevelBadge" class="weapon-badge">CANNON: LVL 1</span>
+                </div>
+            </div>
+
+            <!-- Top Center: Score, Multiplier & Wave -->
+            <div class="hud-panel hud-center">
+                <div class="wave-title" id="waveDisplay">WAVE 1</div>
+                <div class="score-value" id="scoreDisplay">000000</div>
+                <div class="score-sub"><span id="multiplierDisplay">1.0x</span> MULTIPLIER</div>
+            </div>
+
+            <!-- Top Right: High Score, Mute, Pause -->
+            <div class="hud-panel hud-right">
+                <div class="hud-label">RECORD HIGH</div>
+                <div class="high-score-val" id="highScoreDisplay">000000</div>
+                <div class="hud-controls-row">
+                    <button id="soundToggleBtn" class="hud-btn" title="Toggle Sound">🔊 AUDIO</button>
+                    <button id="pauseBtn" class="hud-btn" title="Pause Game">⏸️ PAUSE</button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Bottom Superweapon Reactor Gauge -->
+        <div id="reactorContainer">
+            <div class="reactor-header">
+                <span class="reactor-icon">☢️</span>
+                <span class="reactor-title">ATOMIC REACTOR CORE</span>
+                <span id="reactorPercent" class="reactor-pct">0%</span>
+            </div>
+            <div class="reactor-bar-bg">
+                <div id="reactorBar" class="reactor-fill" style="width: 0%;"></div>
+                <div id="reactorReadyPrompt" class="reactor-ready-pulse hidden">
+                    ⚡ PRESS [SPACE] OR [B] FOR ATOMIC BOOM ⚡
+                </div>
+            </div>
+            <div class="reactor-hint">Collect ☢️ Uranium Cores & destroy warheads to charge superweapon</div>
+        </div>
+
+        <!-- Start / Mission Briefing Screen Modal -->
+        <div id="startModal" class="screen-modal active">
+            <div class="modal-card">
+                <div class="glitch-title" data-text="ATOMIC BOOM">ATOMIC BOOM</div>
+                <div class="modal-subtitle">ORBITAL DEFENSE INITIATIVE • KIRAHT CORE</div>
+                <div class="modal-description">
+                    Alien warhead drones and radioactive asteroids are descending on Earth's energy grid.
+                    Piloting the <strong>Kiraht-Vanguard Interceptor</strong>, eliminate the fleet and charge your
+                    <strong>Atomic Superweapon</strong> to trigger total orbital obliteration!
+                </div>
+
+                <div class="controls-guide">
+                    <div class="ctrl-col">
+                        <div class="ctrl-key">A / D or ◄ / ►</div>
+                        <div class="ctrl-desc">Maneuver Ship</div>
+                    </div>
+                    <div class="ctrl-col">
+                        <div class="ctrl-key">W / ▲ or MOUSE</div>
+                        <div class="ctrl-desc">Fire Plasma Cannons</div>
+                    </div>
+                    <div class="ctrl-col">
+                        <div class="ctrl-key">SPACE / B</div>
+                        <div class="ctrl-desc">☢️ Unleash Atomic Boom</div>
+                    </div>
+                </div>
+
+                <button id="startGameBtn" class="primary-btn deploy-btn">
+                    <span>DEPLOY INTERCEPTOR</span>
+                </button>
+                <div class="project-credit">Conceived & Directed by <strong>Mohamed Tharik</strong> • Powered by <strong>KIRAHT AI</strong></div>
+            </div>
+        </div>
+
+        <!-- Pause Modal -->
+        <div id="pauseModal" class="screen-modal hidden">
+            <div class="modal-card pause-card">
+                <div class="modal-title">MISSION PAUSED</div>
+                <div class="modal-body-stats">
+                    <div>Current Score: <span id="pauseScore">0</span></div>
+                    <div>Sector Reached: <span id="pauseWave">Wave 1</span></div>
+                </div>
+                <div class="btn-group">
+                    <button id="resumeBtn" class="primary-btn">RESUME COMBAT</button>
+                    <button id="restartFromPauseBtn" class="secondary-btn">RESTART</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Game Over Modal -->
+        <div id="gameOverModal" class="screen-modal hidden">
+            <div class="modal-card gameover-card">
+                <div class="gameover-title">HULL BREACHED</div>
+                <div class="gameover-subtitle">REACTOR DESTROYED IN ORBIT</div>
+
+                <div class="stats-summary">
+                    <div class="stat-box">
+                        <div class="stat-label">FINAL SCORE</div>
+                        <div class="stat-val" id="finalScoreDisplay">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">SECTORS CLEARED</div>
+                        <div class="stat-val" id="finalWaveDisplay">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">ENEMIES VAPORIZED</div>
+                        <div class="stat-val" id="finalKillsDisplay">0</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-label">ATOMIC BOOMS FIRED</div>
+                        <div class="stat-val" id="finalBoomsDisplay">0</div>
+                    </div>
+                </div>
+
+                <div id="newHighscoreBadge" class="new-highscore-badge hidden">🏆 NEW RECORD HIGH SCORE!</div>
+
+                <button id="retryGameBtn" class="primary-btn deploy-btn">
+                    <span>RE-DEPLOY INTERCEPTOR</span>
+                </button>
+                <div class="project-credit">Original Concept & Idea: <strong>KIRAHT AI</strong> for <strong>Mohamed Tharik</strong></div>
+            </div>
+        </div>
+
+        <!-- Floating Notification Banner -->
+        <div id="toastBanner" class="toast-banner hidden"></div>
+    </div>
+
+    <script src="backend.js"></script>
+</body>
+</html>
