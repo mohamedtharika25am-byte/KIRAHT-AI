@@ -71,6 +71,11 @@
 
   const netSsid = document.getElementById('net-ssid');
   const osName = document.getElementById('os-name');
+  const securityModeText = document.getElementById('security-mode-text');
+
+  let lastTelemetryTime = Date.now();
+  let telemetryTickCount = 0;
+  let highCpuAlertFired = false;
 
   const CIRCLE_CIRCUMFERENCE = 251.2; // 2 * PI * 40
 
@@ -202,6 +207,8 @@
 
   function updateTelemetry(data) {
     if (!data) return;
+    lastTelemetryTime = Date.now();
+    telemetryTickCount++;
 
     // CPU
     if (data.cpu) {
@@ -275,11 +282,50 @@
       headerEngineText.textContent = `AI: ${enginePart}`;
     }
 
+    // Security Mode Pill
+    if (securityModeText) {
+      const sMode = data.security || 'WRITE MODE';
+      securityModeText.textContent = sMode;
+      securityModeText.style.color = sMode.includes('WRITE') ? 'var(--accent-green)' : 'var(--accent-cyan)';
+    }
+
     // Uptime
     if (data.uptime && hudUptime) {
       hudUptime.textContent = `UPTIME: ${data.uptime.session || '0m 0s'}`;
     }
+
+    // Stream active telemetry status into the Activity Telemetry Stream
+    if (telemetryTickCount % 3 === 0) {
+      const cpuVal = data.cpu ? `${data.cpu.percent}%` : '--%';
+      const ramVal = data.ram ? `${data.ram.percent}%` : '--%';
+      const pingVal = data.network ? (data.network.ping || '24ms') : '24ms';
+      const dlVal = data.network ? (data.network.download || '0.0 KB/s') : '0.0 KB/s';
+      const ulVal = data.network ? (data.network.upload || '0.0 KB/s') : '0.0 KB/s';
+      logActivity('Telemetry', 'Sync', `CPU: ${cpuVal} • RAM: ${ramVal} • Ping: ${pingVal} • [↓${dlVal} ↑${ulVal}]`);
+    }
+
+    // High compute spike detection
+    if (data.cpu && data.cpu.percent > 70 && !highCpuAlertFired) {
+      logActivity('System', 'Compute Spike', `CPU load elevated to ${data.cpu.percent}%`);
+      highCpuAlertFired = true;
+      setTimeout(function () { highCpuAlertFired = false; }, 10000);
+    }
   }
+
+  // Active Telemetry Stream Watchdog & Polling Fallback
+  setInterval(async function () {
+    if (Date.now() - lastTelemetryTime > 2500) {
+      try {
+        const resp = await fetch('/api/telemetry');
+        if (resp.ok) {
+          const telemData = await resp.json();
+          updateTelemetry(telemData);
+        }
+      } catch (e) {
+        // network or server busy
+      }
+    }
+  }, 2000);
 
   // =========================================================================
   // 4. CHAT HISTORY & MESSAGING

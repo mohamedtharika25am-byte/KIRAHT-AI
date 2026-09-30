@@ -25,6 +25,7 @@ import httpx
 import ollama
 import psutil
 from dotenv import load_dotenv
+from security import are_writes_allowed
 
 # Base paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -456,6 +457,7 @@ def get_system_telemetry() -> Dict[str, Any]:
             "model": gemini_model if ("Gemini" in ai_engine) else ollama_model,
             "online": online,
         },
+        "security": "WRITE MODE" if are_writes_allowed() else "SAFE MODE",
     }
 
 

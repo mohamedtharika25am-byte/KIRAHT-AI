@@ -176,20 +176,31 @@ async def handle_quick_action(req: QuickActionRequest):
 class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
+        self._locks: Dict[WebSocket, asyncio.Lock] = {}
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
+        self._locks[websocket] = asyncio.Lock()
 
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
+        self._locks.pop(websocket, None)
 
     async def send_json(self, websocket: WebSocket, data: dict):
-        try:
-            await websocket.send_text(json.dumps(data, ensure_ascii=False))
-        except Exception:
-            pass
+        lock = self._locks.get(websocket)
+        if lock:
+            async with lock:
+                try:
+                    await websocket.send_text(json.dumps(data, ensure_ascii=False))
+                except Exception:
+                    pass
+        else:
+            try:
+                await websocket.send_text(json.dumps(data, ensure_ascii=False))
+            except Exception:
+                pass
 
 
 manager = ConnectionManager()
@@ -202,7 +213,7 @@ async def websocket_endpoint(websocket: WebSocket):
     # Initial payload on client connection
     try:
         # 1. Telemetry
-        telem = get_system_telemetry()
+        telem = await asyncio.to_thread(get_system_telemetry)
         await manager.send_json(websocket, {"type": "telemetry", "data": telem})
 
         # 2. Past Chat History
@@ -218,17 +229,19 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as err:
         print(f"[!] WebSocket handshake error: {err}")
 
-    # Background task to push live telemetry every 2.5 seconds
+    # Background task to push live telemetry continuously every 1.5 seconds
     async def telemetry_pusher():
-        try:
-            while True:
-                await asyncio.sleep(2.5)
+        while True:
+            try:
+                await asyncio.sleep(1.5)
+                if websocket not in manager.active_connections:
+                    break
                 live_telem = await asyncio.to_thread(get_system_telemetry)
                 await manager.send_json(websocket, {"type": "telemetry", "data": live_telem})
-        except asyncio.CancelledError:
-            pass
-        except Exception:
-            pass
+            except asyncio.CancelledError:
+                break
+            except Exception as push_err:
+                await asyncio.sleep(1.0)
 
     push_task = asyncio.create_task(telemetry_pusher())
 
@@ -327,9 +340,10 @@ async def websocket_endpoint(websocket: WebSocket):
                         })
 
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
-        push_task.cancel()
+        pass
     except Exception as err:
+        pass
+    finally:
         manager.disconnect(websocket)
         push_task.cancel()
 
