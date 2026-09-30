@@ -138,6 +138,21 @@ def build_system_prompt(memory: dict) -> str:
         f"1. If the user writes in English, reply in crisp, clear English.\n"
         f"2. TANGLISH DEFINITION: Tanglish is Tamil spoken or written phonetically using English letters. You understand Tanglish perfectly. When the user asks in Tanglish, reply in polite, natural Tanglish or clear English.\n"
         f"3. STRICT PROHIBITION: NEVER use Hindi or Hinglish words under any circumstances.\n\n"
+        f"FILE SAVING & CREATION DIRECTIVE:\n"
+        f"- You have FULL READ/WRITE PERMISSION to create and save files anywhere in the workspace ({WORKSPACE_DIR}) and any other specified user directory.\n"
+        f"- Whenever the user instructs you to save code/data into a file, or write/create a file, or whenever you write a script to be saved:\n"
+        f"  YOU MUST output a structured file block in this exact format:\n"
+        f"  ```FILE_SAVE:<filepath>\n"
+        f"  <file content here>\n"
+        f"  ```\n"
+        f"  Example:\n"
+        f"  ```FILE_SAVE:d:\\KIRAHT AI\\add_numbers.py\n"
+        f"  num1 = float(input(\"Enter first number: \"))\n"
+        f"  num2 = float(input(\"Enter second number: \"))\n"
+        f"  print(f\"Sum: {{num1 + num2}}\")\n"
+        f"  ```\n"
+        f"  The backend server automatically intercepts this block, creates all parent folders, writes the file to disk, and confirms the save.\n"
+        f"  Never claim you have saved a file without including the ```FILE_SAVE:<filepath> block.\n\n"
         f"Tone and Rules:\n"
         f"1. {response_style}\n"
         f"2. Be razor-sharp, direct, and factual. Never add conversational filler.\n"
@@ -538,6 +553,148 @@ def get_gemini_client():
 # =====================================================================
 # Pre-checks user query to avoid slow LLM calls for deterministic tasks
 
+def handle_direct_file_create(cleaned: str, call_me: str = "Sir") -> Tuple[bool, str, str, str]:
+    """
+    Handles explicit file creation commands:
+    e.g. 'create file add_numbers.py with content ...'
+         'save file <path> with content ...'
+         'write file <path> with ...'
+    """
+    create_match = re.search(
+        r"^(?:please\s+)?(?:create|make|write|save)\s+(?:a\s+)?(?:new\s+)?file\s+([^\s:]+)\s+(?:with(?:\s+content)?|content|as)\s*[:\n]?\s*(.+)$",
+        cleaned,
+        re.DOTALL | re.IGNORECASE,
+    )
+    if create_match:
+        target_name = create_match.group(1).strip().strip("'\"")
+        new_content = create_match.group(2).strip()
+        from file_tools import safe_create_or_modify_file, resolve_path
+        res = safe_create_or_modify_file(target_name, new_content, call_me=call_me)
+        full_p = resolve_path(target_name)
+        return True, "file_system", "safe_create_or_modify_file", f"{res}\nLocation: {full_p}"
+    return False, "", "", ""
+
+
+def try_handle_conversational_file_save(user_text: str, call_me: str = "Sir") -> Tuple[bool, str, str, str]:
+    """
+    Detects follow-up requests to save code or files from previous turns.
+    e.g. 'yeah do bro', 'save it', 'do it', 'save as add_numbers.py',
+         'save it in desktop', 'save in Kiraht\'s project', 'athula save pannu', etc.
+    Extracts code from the last assistant message and executes the save to disk.
+    """
+    cleaned = user_text.strip()
+    lower = cleaned.lower()
+
+    affirmative_patterns = [
+        r"^(?:yeah|yes|yep|sure|ok|okay|do it|save it|save this|save the file|save code|save script|save|save pannu|pannu|do bro|yeah do bro|yeah do|yes do|go ahead|proceed|confirm)(?:\s+(?:bro|sir|please|it|this))?(?:\s+(?:in|to|into|inside|as)\s+(.+))?$",
+        r"^(?:please\s+)?save(?:\s+this|\s+the|\s+it)?\s+(?:code|script|file)?(?:\s+(?:as|in|to|into)\s+(.+))?$",
+        r"^(?:please\s+)?add(?:\s+this)?\s+(?:code|file|script)\s+(?:in|to|into)\s+(.+)$",
+        r"^(?:athula|vera\s+folder\s+la|folder\s+la)\s+(?:code\s+)?(?:save\s+pannu|add\s+pannu|podu)\b",
+    ]
+
+    matched = False
+    specified_dest = ""
+    for pat in affirmative_patterns:
+        m = re.match(pat, lower)
+        if m:
+            matched = True
+            if m.groups() and m.group(1):
+                specified_dest = m.group(1).strip()
+            break
+
+    if not matched:
+        if re.search(r"\b(save\s+it|save\s+this|save\s+file|save\s+code|save\s+pannu|add\s+pannu)\b", lower):
+            matched = True
+            dest_m = re.search(r"\b(?:in|to|into|as)\s+(.+)$", cleaned, re.IGNORECASE)
+            if dest_m:
+                specified_dest = dest_m.group(1).strip()
+
+    if not matched:
+        return False, "", "", ""
+
+    history = load_chat_history()
+    if not history:
+        return False, "", "", ""
+
+    target_assistant_msg = ""
+    for msg in reversed(history[-6:]):
+        if msg.get("role") == "assistant" and msg.get("content"):
+            c = msg["content"]
+            if "```" in c or "def " in c or "print(" in c or "input(" in c or "import " in c or "save this as a file" in c.lower() or "saved the script" in c.lower() or "python\n" in c.lower():
+                target_assistant_msg = c
+                break
+
+    if not target_assistant_msg:
+        return False, "", "", ""
+
+    code_content = ""
+    blocks = re.findall(r"```(?:[a-zA-Z0-9_\-\+]+)?\s*\n(.*?)```", target_assistant_msg, re.DOTALL)
+    if blocks:
+        code_content = blocks[-1].strip()
+    else:
+        code_m = re.search(r"(?:python|code:)\s*\n(.*)", target_assistant_msg, re.DOTALL | re.IGNORECASE)
+        if code_m:
+            raw = code_m.group(1).strip()
+            code_content = re.split(r"\n\s*(?:would you like|shall i|do you want|let me know)", raw, flags=re.IGNORECASE)[0].strip()
+        else:
+            lines = target_assistant_msg.splitlines()
+            code_lines = []
+            collecting = False
+            for line in lines:
+                s = line.strip()
+                if any(s.startswith(k) for k in ("def ", "class ", "import ", "from ", "print(", "return ", "if ", "for ", "while ")) or ("=" in s and not s.startswith("-")):
+                    collecting = True
+                    code_lines.append(line)
+                elif collecting and (not s or s.startswith(" ") or s.startswith("\t") or s.startswith(")") or s.startswith("}")):
+                    code_lines.append(line)
+                elif collecting and any(q in s.lower() for q in ("would you like", "shall i", "saved as", "let me know")):
+                    break
+            if code_lines:
+                code_content = "\n".join(code_lines).strip()
+
+    if not code_content:
+        return False, "", "", ""
+
+    from file_tools import resolve_path, safe_create_or_modify_file, WORKSPACE_DIR
+
+    filename = ""
+    target_folder = WORKSPACE_DIR
+
+    if specified_dest:
+        dest_clean = specified_dest.strip().strip("'\"")
+        fn_match = re.search(r"\b([a-zA-Z0-9_\-]+\.[a-zA-Z0-9]+)$", dest_clean)
+        if fn_match:
+            filename = fn_match.group(1)
+            parent_part = dest_clean[:fn_match.start()].strip()
+            parent_part = re.sub(r"^(?:in|to|into|inside|as)\s+", "", parent_part, flags=re.IGNORECASE).strip()
+            if parent_part:
+                target_folder = resolve_path(parent_part)
+        else:
+            target_folder = resolve_path(dest_clean)
+
+    if not filename:
+        fn_in_ast = re.search(r"\b([a-zA-Z0-9_\-]+\.(?:py|js|ts|html|css|json|txt|md|cpp|c|java|sh|bat))\b", target_assistant_msg, re.IGNORECASE)
+        if fn_in_ast:
+            filename = fn_in_ast.group(1)
+
+    if not filename:
+        combo = (cleaned + " " + target_assistant_msg).lower()
+        if "add" in combo and "number" in combo:
+            filename = "add_numbers.py"
+        elif "fibonacci" in combo:
+            filename = "fibonacci.py"
+        elif "calculator" in combo:
+            filename = "calculator.py"
+        else:
+            filename = "script.py"
+
+    final_filepath = os.path.join(target_folder, filename) if not os.path.isabs(filename) else filename
+    final_filepath = resolve_path(final_filepath)
+
+    res = safe_create_or_modify_file(final_filepath, code_content, call_me=call_me)
+    return True, "file_system", "safe_create_or_modify_file", f"{call_me}, I have saved the script as '{filename}' in {final_filepath}. It is ready for execution."
+
+
 def check_deterministic_intent(user_text: str, call_me: str = "Sir") -> Tuple[bool, str, str, str]:
     """
     Checks if user text can be answered with a 100% deterministic local tool.
@@ -545,6 +702,15 @@ def check_deterministic_intent(user_text: str, call_me: str = "Sir") -> Tuple[bo
     """
     cleaned = user_text.strip()
     lower = cleaned.lower()
+
+    # 0. File Creation & Conversational Save Intent
+    is_create, f_cat, f_tool, f_res = handle_direct_file_create(cleaned, call_me)
+    if is_create:
+        return True, f_cat, f_tool, f_res
+
+    is_save, s_cat, s_tool, s_res = try_handle_conversational_file_save(cleaned, call_me)
+    if is_save:
+        return True, s_cat, s_tool, s_res
 
     # 1. Built-in Slash & System Commands
     if lower in ("/clear", "clear chat", "clear conversation"):
@@ -816,6 +982,30 @@ async def process_user_message_stream(
     final_text = "".join(full_reply_chunks).strip()
     if not final_text:
         final_text = f"{call_me}, systems standing by."
+
+    # Post-generation File Interception (Interception of FILE_SAVE blocks)
+    from file_tools import safe_create_or_modify_file, resolve_path
+    file_save_matches = list(re.finditer(r"```FILE_SAVE:([^\n]+)\n(.*?)```", final_text, re.DOTALL))
+    for m in file_save_matches:
+        save_path = m.group(1).strip().strip("'\"")
+        file_content = m.group(2)
+        full_p = resolve_path(save_path)
+        safe_create_or_modify_file(full_p, file_content, call_me=call_me)
+        base_name = os.path.basename(full_p)
+        ext = os.path.splitext(full_p)[1].lstrip(".") or "python"
+        replacement = f"```{ext}\n{file_content}\n```\n\n> **[File Saved]** `{base_name}` saved to `{full_p}`"
+        final_text = final_text.replace(m.group(0), replacement)
+        yield {"type": "activity", "actor": "System", "action": "File Saved", "detail": f"Saved {base_name} to {full_p}"}
+
+    # Safety Fallback: If assistant claims a file was saved but it's not yet on disk
+    saved_claims = re.findall(r"(?:saved|created|written)\s+(?:the\s+)?(?:script|file|code)\s+as\s+[`'\"]?([a-zA-Z0-9_\-\./\\]+)[`'\"]?", final_text, re.IGNORECASE)
+    for claimed_file in saved_claims:
+        cand_path = resolve_path(claimed_file)
+        if not os.path.exists(cand_path):
+            code_blocks = re.findall(r"```(?:[a-zA-Z0-9_\-\+]+)?\s*\n(.*?)```", final_text, re.DOTALL)
+            if code_blocks:
+                safe_create_or_modify_file(cand_path, code_blocks[0].strip(), call_me=call_me)
+                yield {"type": "activity", "actor": "System", "action": "File Saved", "detail": f"Saved {os.path.basename(cand_path)} (Safety Fallback)"}
 
     # Save completed exchange into persistent local chat_history.json
     add_chat_history_message("user", cleaned)

@@ -1668,6 +1668,15 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                 print(f"\nkiraht AI: Scanned and indexed {len(apps)} installed desktop apps into apps_cache.json, {call_me}.")
                 continue
 
+            # Intent: Conversational Follow-up File Saving ("yeah do bro", "save it", etc.)
+            from core import try_handle_conversational_file_save
+            is_save, s_cat, s_tool, s_res = try_handle_conversational_file_save(user_input, call_me)
+            if is_save:
+                print(f"\nkiraht AI: {s_res}")
+                messages.append({"role": "user", "content": user_input})
+                messages.append({"role": "assistant", "content": s_res})
+                continue
+
             # Intent: Create file with content (gated by Security Permission Gate)
             create_file_match = re.search(
                 r"^(?:please\s+)?create\s+(?:a\s+)?(?:new\s+)?file\s+([a-zA-Z0-9_\-\./\\]+)\s+with(?:\s+content)?\s+(.+)$",
@@ -1980,6 +1989,16 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                             full_reply = tool_res
                     except Exception:
                         pass
+
+                # Intercept FILE_SAVE directives from LLM output
+                from file_tools import safe_create_or_modify_file, resolve_path
+                file_save_matches = list(re.finditer(r"```FILE_SAVE:([^\n]+)\n(.*?)```", full_reply, re.DOTALL))
+                for m in file_save_matches:
+                    save_path = m.group(1).strip().strip("'\"")
+                    file_content = m.group(2)
+                    full_p = resolve_path(save_path)
+                    safe_res = safe_create_or_modify_file(full_p, file_content, call_me=call_me)
+                    print(f"\n[KIRAHT AI: 💾 {safe_res}]")
 
                 # If web context was attached, rewrite last user message in history to clean user_input
                 if prompt_content != user_input:

@@ -124,8 +124,9 @@ def resolve_path(target_path: str) -> str:
         if last and os.path.exists(last):
             return last
 
-    if os.path.isabs(clean_path) and os.path.exists(clean_path):
-        set_last_path(clean_path)
+    if os.path.isabs(clean_path):
+        if os.path.exists(clean_path):
+            set_last_path(clean_path)
         return clean_path
 
     known = get_user_known_folders()
@@ -396,19 +397,28 @@ def read_file_content(filepath: str, max_lines: int = 50, call_me: str = "Sir") 
 def safe_create_or_modify_file(filepath: str, new_content: str, call_me: str = "Sir") -> str:
     """
     Creates or modifies a file with automatic backup creation if it already exists.
+    Ensures parent directories are created automatically so saving into any folder works.
     """
     full_path = resolve_path(filepath)
     base_name = os.path.basename(full_path)
 
     try:
+        parent_dir = os.path.dirname(full_path)
+        if parent_dir:
+            os.makedirs(parent_dir, exist_ok=True)
+
         if os.path.exists(full_path):
             backup_path = f"{full_path}.bak"
-            shutil.copy2(full_path, backup_path)
+            try:
+                shutil.copy2(full_path, backup_path)
+            except Exception:
+                pass
 
         with open(full_path, "w", encoding="utf-8") as f:
             f.write(new_content)
 
-        return f"{call_me}, successfully saved '{base_name}'. (Backup created at {base_name}.bak)"
+        set_last_path(full_path)
+        return f"{call_me}, successfully saved '{base_name}' to {full_path}."
     except Exception as err:
         return f"{call_me}, failed to save '{base_name}': {err}"
 
