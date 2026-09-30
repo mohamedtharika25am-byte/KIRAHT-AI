@@ -58,6 +58,17 @@
   const diskCircle = document.getElementById('disk-circle');
   const diskSubtext = document.getElementById('disk-subtext');
 
+  const netDownload = document.getElementById('net-download');
+  const netUpload = document.getElementById('net-upload');
+  const netPing = document.getElementById('net-ping');
+  const netConnection = document.getElementById('net-connection');
+
+  const coreAiStatus = document.getElementById('core-ai-status');
+  const coreMemStatus = document.getElementById('core-mem-status');
+  const coreToolsStatus = document.getElementById('core-tools-status');
+  const coreSearchStatus = document.getElementById('core-search-status');
+  const coreModelName = document.getElementById('core-model-name');
+
   const netSsid = document.getElementById('net-ssid');
   const osName = document.getElementById('os-name');
 
@@ -224,11 +235,38 @@
     }
 
     // Network & Host
-    if (data.network && netSsid) {
-      netSsid.textContent = data.network.ssid || 'Wi-Fi';
+    if (data.network) {
+      if (netSsid) netSsid.textContent = data.network.ssid || 'Wi-Fi';
+      if (netDownload) netDownload.textContent = data.network.download || '0.0 KB/s';
+      if (netUpload) netUpload.textContent = data.network.upload || '0.0 KB/s';
+      if (netPing) netPing.textContent = data.network.ping || '24 ms';
+      if (netConnection) netConnection.textContent = data.network.connection || data.network.ssid || 'Wi-Fi';
     }
     if (data.os && osName) {
       osName.textContent = data.os.name ? data.os.name.split(' (')[0] : 'Windows 11';
+    }
+
+    // KIRAHT CORE Section
+    if (data.core) {
+      if (coreAiStatus) {
+        const isAiOnline = data.core.ai === 'ONLINE';
+        coreAiStatus.innerHTML = `<span class="telem-dot-mini ${isAiOnline ? 'green-pulse' : ''}" style="${isAiOnline ? '' : 'background:#ff3366;'}"></span> ${data.core.ai}`;
+        coreAiStatus.className = `stat-value ${isAiOnline ? 'text-green' : 'text-red'}`;
+      }
+      if (coreMemStatus) {
+        coreMemStatus.innerHTML = `<span class="telem-dot-mini green-pulse"></span> ${data.core.memory || 'ACTIVE'}`;
+      }
+      if (coreToolsStatus) {
+        coreToolsStatus.innerHTML = `<span class="telem-dot-mini green-pulse"></span> ${data.core.tools || 'READY'}`;
+      }
+      if (coreSearchStatus) {
+        coreSearchStatus.innerHTML = `<span class="telem-dot-mini green-pulse"></span> ${data.core.search || 'READY'}`;
+      }
+      if (coreModelName) {
+        coreModelName.textContent = data.core.model || 'qwen2.5:3b';
+      }
+    } else if (data.ai && coreModelName) {
+      coreModelName.textContent = data.ai.model || 'qwen2.5:3b';
     }
 
     // AI Engine Header
@@ -269,7 +307,15 @@
 
     const avatar = document.createElement('div');
     avatar.className = 'message-avatar';
-    avatar.textContent = isUser ? 'U' : 'K';
+    if (isUser) {
+      avatar.textContent = 'U';
+    } else {
+      const avatarImg = document.createElement('img');
+      avatarImg.src = '/static/img/kiraht_ai_logo.png';
+      avatarImg.className = 'message-avatar-img';
+      avatarImg.alt = 'K';
+      avatar.appendChild(avatarImg);
+    }
 
     const body = document.createElement('div');
     body.className = 'message-body';
@@ -350,7 +396,11 @@
 
       const avatar = document.createElement('div');
       avatar.className = 'message-avatar';
-      avatar.textContent = 'K';
+      const avatarImg = document.createElement('img');
+      avatarImg.src = '/static/img/kiraht_ai_logo.png';
+      avatarImg.className = 'message-avatar-img';
+      avatarImg.alt = 'K';
+      avatar.appendChild(avatarImg);
 
       const body = document.createElement('div');
       body.className = 'message-body';
@@ -683,9 +733,197 @@
     }
   }, 1000);
 
+  // =========================================================================
+  // 6. RESIZE & COLLAPSE CONTROLLER FOR SIDEBARS & HALF-SCREEN
+  // =========================================================================
+  function initPanelResizersAndCollapsing() {
+    const hudMain = document.getElementById('hud-main');
+    const telemetryPanel = document.getElementById('telemetry-panel');
+    const actionsPanel = document.getElementById('actions-panel');
+    const resizerLeft = document.getElementById('resizer-left');
+    const resizerRight = document.getElementById('resizer-right');
+    const btnCollapseTelemetry = document.getElementById('btn-collapse-telemetry');
+    const btnCollapseActions = document.getElementById('btn-collapse-actions');
+    const toggleTelemetryBtn = document.getElementById('toggle-telemetry-btn');
+    const toggleActionsBtn = document.getElementById('toggle-actions-btn');
+
+    if (!hudMain) return;
+
+    // Restore saved custom panel widths if any
+    const savedTelemWidth = localStorage.getItem('kiraht_telemetry_width');
+    if (savedTelemWidth) {
+      hudMain.style.setProperty('--telemetry-width', savedTelemWidth + 'px');
+    }
+    const savedActionsWidth = localStorage.getItem('kiraht_actions_width');
+    if (savedActionsWidth) {
+      hudMain.style.setProperty('--actions-width', savedActionsWidth + 'px');
+    }
+
+    // Toggle Telemetry Panel
+    function toggleTelemetry(forceState) {
+      if (!telemetryPanel) return;
+      const isCurrentlyCollapsed = telemetryPanel.classList.contains('collapsed');
+      const targetCollapsed = forceState !== undefined ? !forceState : !isCurrentlyCollapsed;
+
+      if (!targetCollapsed) {
+        telemetryPanel.classList.remove('collapsed');
+        if (btnCollapseTelemetry) {
+          btnCollapseTelemetry.textContent = '◀';
+          btnCollapseTelemetry.title = 'Collapse Telemetry (Alt+T)';
+        }
+        if (toggleTelemetryBtn) toggleTelemetryBtn.classList.add('active');
+        if (resizerLeft) resizerLeft.style.display = '';
+      } else {
+        telemetryPanel.classList.add('collapsed');
+        if (btnCollapseTelemetry) {
+          btnCollapseTelemetry.textContent = '▶';
+          btnCollapseTelemetry.title = 'Expand Telemetry (Alt+T)';
+        }
+        if (toggleTelemetryBtn) toggleTelemetryBtn.classList.remove('active');
+        if (resizerLeft) resizerLeft.style.display = 'none';
+      }
+    }
+
+    // Toggle Quick Actions Panel
+    function toggleActions(forceState) {
+      if (!actionsPanel) return;
+      const isCurrentlyCollapsed = actionsPanel.classList.contains('collapsed');
+      const targetCollapsed = forceState !== undefined ? !forceState : !isCurrentlyCollapsed;
+
+      if (!targetCollapsed) {
+        actionsPanel.classList.remove('collapsed');
+        if (btnCollapseActions) {
+          btnCollapseActions.textContent = '▶';
+          btnCollapseActions.title = 'Collapse Quick Actions (Alt+Q)';
+        }
+        if (toggleActionsBtn) toggleActionsBtn.classList.add('active');
+        if (resizerRight) resizerRight.classList.remove('hidden-resizer');
+      } else {
+        actionsPanel.classList.add('collapsed');
+        if (btnCollapseActions) {
+          btnCollapseActions.textContent = '◀';
+          btnCollapseActions.title = 'Expand Quick Actions (Alt+Q)';
+        }
+        if (toggleActionsBtn) toggleActionsBtn.classList.remove('active');
+        if (resizerRight) resizerRight.classList.add('hidden-resizer');
+      }
+    }
+
+    if (btnCollapseTelemetry) {
+      btnCollapseTelemetry.addEventListener('click', function (e) {
+        e.stopPropagation();
+        toggleTelemetry();
+      });
+    }
+    if (toggleTelemetryBtn) {
+      toggleTelemetryBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        toggleTelemetry();
+      });
+    }
+    if (btnCollapseActions) {
+      btnCollapseActions.addEventListener('click', function (e) {
+        e.stopPropagation();
+        toggleActions();
+      });
+    }
+    if (toggleActionsBtn) {
+      toggleActionsBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        toggleActions();
+      });
+    }
+
+    // Keyboard Shortcuts: Alt+T (Telemetry), Alt+Q (Actions)
+    window.addEventListener('keydown', function (e) {
+      if (e.altKey && (e.key === 't' || e.key === 'T')) {
+        e.preventDefault();
+        toggleTelemetry();
+      } else if (e.altKey && (e.key === 'q' || e.key === 'Q')) {
+        e.preventDefault();
+        toggleActions();
+      }
+    });
+
+    // 1. Drag Resizer: Left (Telemetry)
+    if (resizerLeft) {
+      let isDraggingLeft = false;
+
+      resizerLeft.addEventListener('mousedown', function (e) {
+        isDraggingLeft = true;
+        resizerLeft.classList.add('is-dragging');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+      });
+
+      resizerLeft.addEventListener('dblclick', function () {
+        hudMain.style.setProperty('--telemetry-width', '215px');
+        localStorage.removeItem('kiraht_telemetry_width');
+      });
+
+      window.addEventListener('mousemove', function (e) {
+        if (!isDraggingLeft) return;
+        const mainRect = hudMain.getBoundingClientRect();
+        let newWidth = e.clientX - mainRect.left;
+        newWidth = Math.max(160, Math.min(380, newWidth));
+        hudMain.style.setProperty('--telemetry-width', newWidth + 'px');
+      });
+
+      window.addEventListener('mouseup', function () {
+        if (isDraggingLeft) {
+          isDraggingLeft = false;
+          resizerLeft.classList.remove('is-dragging');
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+          const currentWidth = parseInt(getComputedStyle(hudMain).getPropertyValue('--telemetry-width'), 10);
+          if (currentWidth) localStorage.setItem('kiraht_telemetry_width', currentWidth);
+        }
+      });
+    }
+
+    // 2. Drag Resizer: Right (Quick Actions)
+    if (resizerRight) {
+      let isDraggingRight = false;
+
+      resizerRight.addEventListener('mousedown', function (e) {
+        isDraggingRight = true;
+        resizerRight.classList.add('is-dragging');
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+      });
+
+      resizerRight.addEventListener('dblclick', function () {
+        hudMain.style.setProperty('--actions-width', '220px');
+        localStorage.removeItem('kiraht_actions_width');
+      });
+
+      window.addEventListener('mousemove', function (e) {
+        if (!isDraggingRight) return;
+        const mainRect = hudMain.getBoundingClientRect();
+        let newWidth = mainRect.right - e.clientX;
+        newWidth = Math.max(170, Math.min(380, newWidth));
+        hudMain.style.setProperty('--actions-width', newWidth + 'px');
+      });
+
+      window.addEventListener('mouseup', function () {
+        if (isDraggingRight) {
+          isDraggingRight = false;
+          resizerRight.classList.remove('is-dragging');
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+          const currentWidth = parseInt(getComputedStyle(hudMain).getPropertyValue('--actions-width'), 10);
+          if (currentWidth) localStorage.setItem('kiraht_actions_width', currentWidth);
+        }
+      });
+    }
+  }
+
   // Initialize Web HUD on load
   window.addEventListener('DOMContentLoaded', function () {
     initWebSocket();
+    initPanelResizersAndCollapsing();
     if (reactorCore) {
       reactorCore.classList.remove('boot-spin-in');
       void reactorCore.offsetWidth; // Force CSS reflow

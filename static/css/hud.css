@@ -154,24 +154,31 @@ body.cyber-hud {
   gap: 12px;
 }
 
-.logo-hexagon {
-  width: 34px;
-  height: 34px;
-  background: linear-gradient(135deg, rgba(0, 243, 255, 0.25), rgba(0, 119, 254, 0.5));
-  border: 1px solid var(--accent-cyan);
+.logo-image-wrap {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1.5px solid var(--accent-cyan);
+  box-shadow: 0 0 12px rgba(0, 243, 255, 0.45);
   display: flex;
   align-items: center;
   justify-content: center;
-  clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
-  box-shadow: var(--glow-cyan);
+  background: rgba(0, 243, 255, 0.08);
+  overflow: hidden;
+  flex-shrink: 0;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
 }
 
-.logo-symbol {
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: 16px;
-  color: var(--accent-cyan);
-  text-shadow: 0 0 10px var(--accent-cyan);
+.logo-image-wrap:hover {
+  transform: scale(1.05);
+  box-shadow: 0 0 18px rgba(0, 243, 255, 0.7);
+}
+
+.brand-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .logo-text {
@@ -195,7 +202,7 @@ body.cyber-hud {
 
 .logo-subtitle {
   font-family: var(--font-header);
-  font-size: 10.5px;
+  font-size: 10px;
   letter-spacing: 1.5px;
   color: var(--text-muted);
   font-weight: 600;
@@ -204,19 +211,21 @@ body.cyber-hud {
 .header-center {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
 .status-pill {
   display: flex;
   align-items: center;
   gap: 7px;
-  padding: 4px 10px;
+  padding: 4px 9px;
   background: rgba(18, 28, 50, 0.8);
   border: 1px solid rgba(0, 243, 255, 0.25);
   border-radius: 14px;
   font-family: var(--font-header);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   letter-spacing: 0.5px;
 }
@@ -237,6 +246,56 @@ body.cyber-hud {
   0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7); }
   70% { transform: scale(1.15); box-shadow: 0 0 0 6px rgba(0, 255, 136, 0); }
   100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 136, 0); }
+}
+
+/* Sidebar Header Quick Toggles */
+.hud-sidebar-toggles {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: 4px;
+}
+
+.hud-nav-toggle-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  background: rgba(18, 28, 50, 0.85);
+  border: 1px solid rgba(0, 243, 255, 0.25);
+  border-radius: 14px;
+  color: var(--text-secondary);
+  font-family: var(--font-header);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.hud-nav-toggle-btn:hover {
+  background: rgba(0, 243, 255, 0.15);
+  color: var(--text-cyan);
+  border-color: var(--accent-cyan);
+}
+
+.hud-nav-toggle-btn.active {
+  background: rgba(0, 243, 255, 0.16);
+  color: var(--accent-cyan);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.3);
+}
+
+.toggle-dot {
+  font-size: 8px;
+  color: var(--accent-green);
+  text-shadow: 0 0 6px var(--accent-green);
+  transition: color 0.2s ease;
+}
+
+.hud-nav-toggle-btn:not(.active) .toggle-dot {
+  color: var(--text-muted);
+  text-shadow: none;
 }
 
 .header-right {
@@ -263,33 +322,48 @@ body.cyber-hud {
   font-weight: 600;
 }
 
-/* ==================== 2. MAIN 3-COLUMN HUD ==================== */
+/* ==================== 2. MAIN HUD VIEW (3 RESIZABLE PANELS) ==================== */
 .hud-main {
-  display: grid;
-  grid-template-columns: 190px 1fr 220px;
-  gap: 10px;
+  --telemetry-width: 215px;
+  --actions-width: 220px;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
   flex: 1;
   min-height: 0;
+  position: relative;
+  overflow: hidden;
 }
 
 .compact-header {
-  padding: 10px 14px;
+  padding: 8px 12px;
   border-bottom: 1px solid var(--border-cyan);
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
+  min-height: 40px;
+  flex-shrink: 0;
+}
+
+.panel-header-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
 }
 
 .panel-title {
   font-family: var(--font-display);
-  font-size: 12px;
+  font-size: 11.5px;
   letter-spacing: 1.5px;
   color: var(--accent-cyan);
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .live-pulse-badge, .tools-active-badge {
-  margin-left: auto;
   font-family: var(--font-header);
   font-size: 9px;
   padding: 1px 5px;
@@ -298,29 +372,114 @@ body.cyber-hud {
   color: var(--accent-green);
   border: 1px solid rgba(0, 255, 136, 0.3);
   font-weight: 700;
+  white-space: nowrap;
 }
 
-/* ==================== LEFT: COMPACT CIRCULAR TELEMETRY ==================== */
+/* Collapse/Expand Buttons inside panel headers */
+.panel-collapse-btn {
+  background: rgba(0, 243, 255, 0.08);
+  border: 1px solid rgba(0, 243, 255, 0.25);
+  color: var(--accent-cyan);
+  font-size: 10px;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.panel-collapse-btn:hover {
+  background: var(--accent-cyan);
+  color: #040711;
+  box-shadow: 0 0 10px var(--accent-cyan);
+}
+
+/* ==================== RESIZABLE DRAG SPLITTERS ==================== */
+.panel-resizer {
+  width: 10px;
+  cursor: col-resize;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  z-index: 25;
+  flex-shrink: 0;
+  user-select: none;
+  background: transparent;
+  transition: background 0.15s ease;
+}
+
+.panel-resizer:hover, .panel-resizer.is-dragging {
+  background: rgba(0, 243, 255, 0.12);
+}
+
+.resizer-bar {
+  width: 3px;
+  height: 38px;
+  background: rgba(0, 243, 255, 0.28);
+  border-radius: 2px;
+  transition: all 0.2s ease;
+}
+
+.panel-resizer:hover .resizer-bar, .panel-resizer.is-dragging .resizer-bar {
+  height: 65px;
+  background: var(--accent-cyan);
+  box-shadow: 0 0 10px var(--accent-cyan);
+}
+
+/* Hide resizer when attached panel is collapsed */
+.left-panel.collapsed + .resizer-left,
+.resizer-right.hidden-resizer {
+  display: none !important;
+}
+
+/* ==================== LEFT: TELEMETRY PANEL ==================== */
 .left-panel {
+  width: var(--telemetry-width);
+  min-width: 160px;
+  max-width: 380px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: width 0.2s ease, opacity 0.2s ease, min-width 0.2s ease;
+}
+
+.left-panel.collapsed {
+  width: 0 !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+.telemetry-scroll-body {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .telemetry-dials-grid {
-  padding: 12px;
+  padding: 10px 8px;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-  flex: 1;
-  align-content: start;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .circular-gauge-card {
   background: var(--bg-card);
   border: 1px solid var(--border-dim);
   border-radius: 8px;
-  padding: 8px 6px;
+  padding: 7px 4px;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -335,8 +494,8 @@ body.cyber-hud {
 
 .gauge-svg-wrap {
   position: relative;
-  width: 66px;
-  height: 66px;
+  width: 58px;
+  height: 58px;
 }
 
 .circular-meter {
@@ -390,14 +549,14 @@ body.cyber-hud {
 
 .gauge-val {
   font-family: var(--font-display);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
   color: var(--text-primary);
 }
 
 .gauge-label {
   font-family: var(--font-header);
-  font-size: 8.5px;
+  font-size: 8px;
   font-weight: 700;
   color: var(--text-muted);
   margin-top: 2px;
@@ -406,39 +565,124 @@ body.cyber-hud {
 
 .gauge-sub {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 9.5px;
   color: var(--text-secondary);
-  margin-top: 4px;
+  margin-top: 3px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  max-width: 75px;
+  max-width: 78px;
 }
 
-.telemetry-footer-info {
-  border-top: 1px solid var(--border-cyan);
-  padding: 8px 12px;
+/* ==================== TELEMETRY SECTION DIVIDERS ==================== */
+.hud-telem-divider {
+  display: flex;
+  align-items: center;
+  margin: 8px 10px 6px 10px;
+}
+
+.hud-telem-divider::before, .hud-telem-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(0, 243, 255, 0.22);
+}
+
+.hud-telem-divider .divider-text {
+  padding: 0 8px;
+  font-family: var(--font-header);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--accent-cyan);
+}
+
+/* ==================== STAT ROWS (NETWORK & CORE) ==================== */
+.telem-stats-section {
+  padding: 4px 12px 8px 12px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  background: rgba(0, 0, 0, 0.25);
-}
-
-.mini-info-row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 10.5px;
+  gap: 5px;
   font-family: var(--font-header);
 }
 
-.mini-label {
-  color: var(--text-muted);
-  font-weight: 700;
+.telem-stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11.5px;
+  line-height: 1.3;
 }
 
-.mini-val {
+.stat-name {
+  color: var(--text-secondary);
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.stat-arrow {
+  font-weight: 900;
+  font-size: 11px;
+}
+
+.stat-arrow.arrow-down {
   color: var(--accent-cyan);
+}
+
+.stat-arrow.arrow-up {
+  color: var(--accent-green);
+}
+
+.stat-value {
   font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+}
+
+.stat-value.text-cyan {
+  color: var(--accent-cyan);
+}
+
+.stat-value.text-green {
+  color: var(--accent-green);
+}
+
+.telem-dot-mini {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  margin-right: 5px;
+}
+
+.model-badge-tag {
+  background: rgba(0, 243, 255, 0.15);
+  border: 1px solid rgba(0, 243, 255, 0.35);
+  color: var(--accent-cyan);
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.model-stat-row {
+  margin-top: 2px;
+  padding-top: 4px;
+  border-top: 1px dashed rgba(255, 255, 255, 0.08);
+}
+
+.message-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 5px;
+  display: block;
 }
 
 /* ==================== CENTER: PRIMARY CHAT HERO ==================== */
@@ -930,13 +1174,14 @@ body.cyber-hud {
   background: rgba(8, 16, 32, 0.95);
   border: 1.5px solid var(--accent-cyan);
   border-radius: 8px;
-  padding: 14px;
+  padding: 10px 14px;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  box-shadow: 0 0 25px rgba(0, 243, 255, 0.35);
-  clip-path: polygon(0 8px, 8px 0, calc(100% - 8px) 0, 100% 8px, 100% calc(100% - 8px), calc(100% - 8px) 100%, 8px 100%, 0 calc(100% - 8px));
+  gap: 8px;
+  max-width: 220px;
+  box-shadow: 0 0 20px rgba(0, 243, 255, 0.35);
+  clip-path: polygon(0 6px, 6px 0, calc(100% - 6px) 0, 100% 6px, 100% calc(100% - 6px), calc(100% - 6px) 100%, 6px 100%, 0 calc(100% - 6px));
 }
 
 .qr-title {
@@ -952,23 +1197,24 @@ body.cyber-hud {
 
 .qr-img-wrap {
   background: #ffffff;
-  padding: 8px;
+  padding: 6px;
   border-radius: 6px;
-  box-shadow: 0 0 16px rgba(0, 243, 255, 0.4);
+  box-shadow: 0 0 14px rgba(0, 243, 255, 0.4);
   display: flex;
   justify-content: center;
   align-items: center;
 }
 
 .qr-img {
-  width: 160px;
-  height: 160px;
+  width: 120px;
+  height: 120px;
+  max-width: 100%;
   display: block;
 }
 
 .qr-action-row {
   display: flex;
-  gap: 8px;
+  gap: 6px;
   width: 100%;
 }
 
@@ -977,14 +1223,15 @@ body.cyber-hud {
   background: rgba(0, 243, 255, 0.15);
   border: 1px solid var(--accent-cyan);
   color: var(--accent-cyan);
-  padding: 5px 12px;
+  padding: 4px 6px;
   border-radius: 4px;
   font-family: var(--font-header);
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 700;
   cursor: pointer;
   text-decoration: none;
   text-align: center;
+  white-space: nowrap;
   transition: all 0.2s ease;
 }
 
@@ -1098,9 +1345,24 @@ body.cyber-hud {
 
 /* ==================== RIGHT: LARGE TACTICAL ACTION TILES ==================== */
 .right-panel {
+  width: var(--actions-width, 220px);
+  min-width: 170px;
+  max-width: 380px;
+  flex-shrink: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  transition: width 0.2s ease, opacity 0.2s ease, min-width 0.2s ease;
+}
+
+.right-panel.collapsed {
+  width: 0 !important;
+  min-width: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 .action-tiles-grid {
@@ -1348,3 +1610,153 @@ body.cyber-hud {
 ::-webkit-scrollbar-track { background: rgba(0, 0, 0, 0.2); }
 ::-webkit-scrollbar-thumb { background: rgba(0, 243, 255, 0.3); border-radius: 2px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--accent-cyan); }
+
+/* ==================== 4. RESPONSIVE HALF-SCREEN ADAPTATION ==================== */
+/* For laptop screens or medium displays */
+@media (max-width: 1150px) {
+  .hud-main {
+    --telemetry-width: 190px;
+    --actions-width: 200px;
+  }
+  .status-pill {
+    padding: 3px 7px;
+    font-size: 11px;
+    gap: 5px;
+  }
+  .hud-nav-toggle-btn {
+    padding: 3px 8px;
+    font-size: 10px;
+  }
+  .logo-subtitle {
+    font-size: 9px;
+    letter-spacing: 1px;
+  }
+}
+
+/* HALF-SCREEN MODE (Windows Split Snap ~960px or less) */
+@media (max-width: 960px) {
+  .hud-container {
+    padding: 6px 8px;
+    gap: 6px;
+  }
+  .hud-header {
+    padding: 6px 12px;
+    min-height: 44px;
+  }
+  .hud-main {
+    --telemetry-width: 165px;
+    --actions-width: 175px;
+  }
+  #engine-pill, #security-pill {
+    display: none; /* Hide less critical status pills in half-screen */
+  }
+  .logo-subtitle {
+    display: none;
+  }
+  .logo-title {
+    font-size: 15px;
+  }
+  .gauge-svg-wrap {
+    width: 50px;
+    height: 50px;
+  }
+  .gauge-val {
+    font-size: 9.5px;
+  }
+  .gauge-sub {
+    font-size: 8.5px;
+    max-width: 65px;
+  }
+  .circular-gauge-card {
+    padding: 5px 2px;
+  }
+  .telem-stats-section {
+    padding: 3px 8px 6px 8px;
+    gap: 4px;
+  }
+  .telem-stat-row {
+    font-size: 10.5px;
+  }
+  .stat-value {
+    font-size: 9.5px;
+  }
+  .tactical-action-tile {
+    padding: 6px 8px;
+    gap: 8px;
+  }
+  .tile-icon-wrap {
+    width: 26px;
+    height: 26px;
+  }
+  .tile-icon {
+    font-size: 13px;
+  }
+  .tile-title {
+    font-size: 10.5px;
+  }
+  .tile-desc {
+    font-size: 8.5px;
+  }
+  .chat-viewport {
+    padding: 10px;
+    gap: 10px;
+  }
+  .message-card {
+    max-width: 96%;
+  }
+  .chat-input-bar {
+    padding: 8px 12px;
+  }
+  .btn-send {
+    padding: 0 12px;
+    height: 38px;
+  }
+  .send-text {
+    display: none; /* In half-screen, show just the arrow ➔ to save space */
+  }
+  .hud-footer {
+    grid-template-columns: 200px 1fr;
+    min-height: 60px;
+  }
+}
+
+/* COMPACT / MOBILE / NARROW SPLIT (Under 740px) */
+@media (max-width: 740px) {
+  #network-pill {
+    display: none;
+  }
+  .hud-footer {
+    display: none; /* Hide bottom spectrum on very narrow screens to give maximum chat area */
+  }
+  .left-panel.collapsed, .right-panel.collapsed {
+    display: none !important;
+  }
+  /* Floating overlay drawer mode for sidebars on small screens */
+  .left-panel:not(.collapsed) {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 50;
+    background: rgba(6, 12, 26, 0.98);
+    box-shadow: 0 0 35px rgba(0, 0, 0, 0.9);
+    width: 220px !important;
+  }
+  .right-panel:not(.collapsed) {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    right: 0;
+    z-index: 50;
+    background: rgba(6, 12, 26, 0.98);
+    box-shadow: 0 0 35px rgba(0, 0, 0, 0.9);
+    width: 220px !important;
+  }
+  .panel-resizer {
+    display: none !important;
+  }
+  .center-panel {
+    margin: 0 !important;
+  }
+}
+

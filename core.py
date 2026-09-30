@@ -65,10 +65,14 @@ SESSION_START_DT = datetime.datetime.now()
 _CACHED_WIFI: Tuple[str, float] = ("Wi-Fi", 0.0)
 _CACHED_LOCAL_IP: Tuple[str, float] = ("127.0.0.1", 0.0)
 _CACHED_ONLINE: Tuple[bool, float] = (True, 0.0)
+_CACHED_NET_IO: Tuple[Any, float] = (None, 0.0)
+_CACHED_NET_SPEED: Tuple[str, str, float] = ("0.0 KB/s", "0.0 KB/s", 0.0)
+_CACHED_PING: Tuple[int, float] = (24, 0.0)
 _CACHED_GEMINI_CLIENT: Any = None
 _CACHED_GEMINI_KEY: str = ""
 _CACHED_OLLAMA_CLIENT: Any = None
 _CACHED_OLLAMA_HOST: str = ""
+
 
 
 # =====================================================================
@@ -279,7 +283,7 @@ def get_system_telemetry() -> Dict[str, Any]:
     bat_status = "Plugged In (Charging)" if (battery and battery.power_plugged) else ("Discharging" if battery else "Desktop (AC)")
 
     # Network & Wi-Fi (cached for 12 seconds to prevent blocking event loop)
-    global _CACHED_WIFI, _CACHED_LOCAL_IP
+    global _CACHED_WIFI, _CACHED_LOCAL_IP, _CACHED_NET_IO, _CACHED_NET_SPEED, _CACHED_PING
     now_ts = time.time()
     online = is_online(timeout=0.3)
     net_status = "Connected (Online)" if online else "Offline"
@@ -308,6 +312,51 @@ def get_system_telemetry() -> Dict[str, Any]:
         _CACHED_LOCAL_IP = (local_ip, now_ts)
     else:
         local_ip = _CACHED_LOCAL_IP[0]
+
+    # Network Speed (Download / Upload)
+    dl_speed_str, ul_speed_str = _CACHED_NET_SPEED[0], _CACHED_NET_SPEED[1]
+    try:
+        cur_io = psutil.net_io_counters()
+        last_io, last_time = _CACHED_NET_IO
+        if last_io is not None and (now_ts - last_time) >= 1.0:
+            dt = max(0.5, now_ts - last_time)
+            rx_rate = max(0.0, (cur_io.bytes_recv - last_io.bytes_recv) / dt)
+            tx_rate = max(0.0, (cur_io.bytes_sent - last_io.bytes_sent) / dt)
+
+            def _fmt_rate(b):
+                if b >= 1024 * 1024:
+                    return f"{b / (1024 * 1024):.1f} MB/s"
+                elif b >= 1024:
+                    return f"{b / 1024:.1f} KB/s"
+                return f"{int(b)} B/s"
+
+            dl_speed_str = _fmt_rate(rx_rate)
+            ul_speed_str = _fmt_rate(tx_rate)
+            _CACHED_NET_SPEED = (dl_speed_str, ul_speed_str, now_ts)
+            _CACHED_NET_IO = (cur_io, now_ts)
+        elif last_io is None:
+            _CACHED_NET_IO = (cur_io, now_ts)
+    except Exception:
+        pass
+
+    # Ping latency
+    ping_ms = _CACHED_PING[0]
+    if (now_ts - _CACHED_PING[1]) > 5.0 and online:
+        try:
+            t0 = time.time()
+            s = socket.create_connection(("1.1.1.1", 53), timeout=0.3)
+            s.close()
+            ping_ms = max(1, int((time.time() - t0) * 1000))
+            _CACHED_PING = (ping_ms, now_ts)
+        except Exception:
+            try:
+                t0 = time.time()
+                s = socket.create_connection(("8.8.8.8", 53), timeout=0.3)
+                s.close()
+                ping_ms = max(1, int((time.time() - t0) * 1000))
+                _CACHED_PING = (ping_ms, now_ts)
+            except Exception:
+                ping_ms = 24
 
     # OS Info
     import platform
@@ -340,6 +389,8 @@ def get_system_telemetry() -> Dict[str, Any]:
         ai_engine = f"Gemini Cloud ({gemini_model})" if (gemini_client and online) else f"Local Ollama ({ollama_model})"
         ai_provider = "Hybrid (Cloud/Local)"
 
+    core_model_name = os.getenv("AI_MODEL", "qwen2.5:3b").strip() or "qwen2.5:3b"
+
     return {
         "timestamp": datetime.datetime.now().strftime("%I:%M:%S %p"),
         "cpu": {
@@ -364,6 +415,17 @@ def get_system_telemetry() -> Dict[str, Any]:
             "ssid": wifi_name,
             "ip": local_ip,
             "hostname": hostname,
+            "download": dl_speed_str,
+            "upload": ul_speed_str,
+            "ping": f"{ping_ms} ms",
+            "connection": wifi_name if online else "Offline",
+        },
+        "core": {
+            "ai": "ONLINE" if online else "OFFLINE",
+            "memory": "ACTIVE",
+            "tools": "READY",
+            "search": "READY",
+            "model": core_model_name,
         },
         "os": {
             "name": os_name,

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Inter:wght@300;400;500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/static/css/hud.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+  <link rel="icon" type="image/png" href="/static/img/kiraht_ai_logo.png">
 </head>
 <body class="cyber-hud">
   <!-- Futuristic Tactical Background -->
@@ -23,8 +23,8 @@
     <header class="hud-header tactical-frame">
       <div class="header-left">
         <div class="core-logo">
-          <div class="logo-hexagon">
-            <span class="logo-symbol">K</span>
+          <div class="logo-image-wrap">
+            <img src="/static/img/kiraht_ai_logo.png" alt="KIRAHT AI Logo" class="brand-logo-img">
           </div>
           <div class="logo-text">
             <h1 class="logo-title">KIRAHT <span class="accent-text">AI</span></h1>
@@ -34,7 +34,7 @@
       </div>
 
       <div class="header-center">
-        <!-- AI Core Status Pill (Moved from chat box to header) -->
+        <!-- AI Core Status Pill -->
         <div class="status-pill" id="ai-status-pill">
           <span class="status-dot green-pulse" id="ai-status-dot"></span>
           <span class="status-state-text" id="status-state">READY</span>
@@ -52,6 +52,16 @@
           <span class="status-icon">🛡️</span>
           <span class="status-label">SAFE MODE</span>
         </div>
+
+        <!-- Sidebar Quick Toggles for Half-Screen / Responsive Flexibility -->
+        <div class="hud-sidebar-toggles">
+          <button id="toggle-telemetry-btn" class="hud-nav-toggle-btn active" title="Toggle Telemetry Sidebar (Alt+T)">
+            <span class="toggle-dot">●</span> TELEMETRY
+          </button>
+          <button id="toggle-actions-btn" class="hud-nav-toggle-btn active" title="Toggle Quick Actions Sidebar (Alt+Q)">
+            <span class="toggle-dot">●</span> ACTIONS
+          </button>
+        </div>
       </div>
 
       <div class="header-right">
@@ -62,93 +72,146 @@
       </div>
     </header>
 
-    <!-- ==================== 2. MAIN HUD VIEW (3 COLUMNS) ==================== -->
-    <main class="hud-main">
-      <!-- LEFT: COMPACT CIRCULAR TELEMETRY -->
-      <aside class="panel left-panel tactical-frame">
+    <!-- ==================== 2. MAIN HUD VIEW (3 RESIZABLE COLUMNS) ==================== -->
+    <main class="hud-main" id="hud-main">
+      <!-- LEFT: RESIZABLE & COLLAPSIBLE TELEMETRY PANEL -->
+      <aside class="panel left-panel tactical-frame" id="telemetry-panel">
         <div class="panel-header compact-header">
-          <span class="panel-icon">⚡</span>
-          <h2 class="panel-title">TELEMETRY</h2>
-          <span class="live-pulse-badge">LIVE</span>
+          <div class="panel-header-title-wrap">
+            <span class="panel-icon">⚡</span>
+            <h2 class="panel-title">TELEMETRY</h2>
+            <span class="live-pulse-badge">LIVE</span>
+          </div>
+          <button class="panel-collapse-btn" id="btn-collapse-telemetry" title="Collapse Telemetry (Alt+T)">◀</button>
         </div>
 
-        <div class="telemetry-dials-grid">
-          <!-- CPU Circular Dial -->
-          <div class="circular-gauge-card" title="CPU Load">
-            <div class="gauge-svg-wrap">
-              <svg class="circular-meter" viewBox="0 0 100 100">
-                <circle class="meter-bg" cx="50" cy="50" r="40"></circle>
-                <circle class="meter-fill meter-cyan" id="cpu-circle" cx="50" cy="50" r="40" stroke-dasharray="251.2" stroke-dashoffset="251.2"></circle>
-              </svg>
-              <div class="gauge-inner">
-                <span class="gauge-val" id="cpu-percent">--%</span>
-                <span class="gauge-label">CPU</span>
+        <div class="telemetry-scroll-body">
+          <!-- 1. GAUGES: [ CPU ] [ RAM ] / [ POWER ] [ DISK ] -->
+          <div class="telemetry-dials-grid">
+            <!-- CPU Circular Dial -->
+            <div class="circular-gauge-card" title="CPU Load">
+              <div class="gauge-svg-wrap">
+                <svg class="circular-meter" viewBox="0 0 100 100">
+                  <circle class="meter-bg" cx="50" cy="50" r="40"></circle>
+                  <circle class="meter-fill meter-cyan" id="cpu-circle" cx="50" cy="50" r="40" stroke-dasharray="251.2" stroke-dashoffset="251.2"></circle>
+                </svg>
+                <div class="gauge-inner">
+                  <span class="gauge-val" id="cpu-percent">--%</span>
+                  <span class="gauge-label">CPU</span>
+                </div>
               </div>
+              <div class="gauge-sub" id="cpu-subtext">-- Cores</div>
             </div>
-            <div class="gauge-sub" id="cpu-subtext">-- Cores</div>
+
+            <!-- RAM Circular Dial -->
+            <div class="circular-gauge-card" title="RAM Utilization">
+              <div class="gauge-svg-wrap">
+                <svg class="circular-meter" viewBox="0 0 100 100">
+                  <circle class="meter-bg" cx="50" cy="50" r="40"></circle>
+                  <circle class="meter-fill meter-purple" id="ram-circle" cx="50" cy="50" r="40" stroke-dasharray="251.2" stroke-dashoffset="251.2"></circle>
+                </svg>
+                <div class="gauge-inner">
+                  <span class="gauge-val" id="ram-percent">--%</span>
+                  <span class="gauge-label">RAM</span>
+                </div>
+              </div>
+              <div class="gauge-sub" id="ram-subtext">-- GB</div>
+            </div>
+
+            <!-- POWER Circular Dial -->
+            <div class="circular-gauge-card" title="Power & Battery Status">
+              <div class="gauge-svg-wrap">
+                <svg class="circular-meter" viewBox="0 0 100 100">
+                  <circle class="meter-bg" cx="50" cy="50" r="40"></circle>
+                  <circle class="meter-fill meter-green" id="bat-circle" cx="50" cy="50" r="40" stroke-dasharray="251.2" stroke-dashoffset="251.2"></circle>
+                </svg>
+                <div class="gauge-inner">
+                  <span class="gauge-val" id="battery-percent">--%</span>
+                  <span class="gauge-label">POWER</span>
+                </div>
+              </div>
+              <div class="gauge-sub" id="battery-subtext">Charging</div>
+            </div>
+
+            <!-- DISK Storage Dial -->
+            <div class="circular-gauge-card" title="Drive Storage">
+              <div class="gauge-svg-wrap">
+                <svg class="circular-meter" viewBox="0 0 100 100">
+                  <circle class="meter-bg" cx="50" cy="50" r="40"></circle>
+                  <circle class="meter-fill meter-amber" id="disk-circle" cx="50" cy="50" r="40" stroke-dasharray="251.2" stroke-dashoffset="251.2"></circle>
+                </svg>
+                <div class="gauge-inner">
+                  <span class="gauge-val" id="disk-percent">--%</span>
+                  <span class="gauge-label">DISK</span>
+                </div>
+              </div>
+              <div class="gauge-sub" id="disk-subtext">C: Free</div>
+            </div>
           </div>
 
-          <!-- RAM Circular Dial -->
-          <div class="circular-gauge-card" title="RAM Utilization">
-            <div class="gauge-svg-wrap">
-              <svg class="circular-meter" viewBox="0 0 100 100">
-                <circle class="meter-bg" cx="50" cy="50" r="40"></circle>
-                <circle class="meter-fill meter-purple" id="ram-circle" cx="50" cy="50" r="40" stroke-dasharray="251.2" stroke-dashoffset="251.2"></circle>
-              </svg>
-              <div class="gauge-inner">
-                <span class="gauge-val" id="ram-percent">--%</span>
-                <span class="gauge-label">RAM</span>
-              </div>
-            </div>
-            <div class="gauge-sub" id="ram-subtext">-- GB</div>
+          <!-- DIVIDER: NETWORK -->
+          <div class="hud-telem-divider">
+            <span class="divider-text">NETWORK</span>
           </div>
 
-          <!-- Battery Circular Dial -->
-          <div class="circular-gauge-card" title="Battery Power">
-            <div class="gauge-svg-wrap">
-              <svg class="circular-meter" viewBox="0 0 100 100">
-                <circle class="meter-bg" cx="50" cy="50" r="40"></circle>
-                <circle class="meter-fill meter-green" id="bat-circle" cx="50" cy="50" r="40" stroke-dasharray="251.2" stroke-dashoffset="251.2"></circle>
-              </svg>
-              <div class="gauge-inner">
-                <span class="gauge-val" id="battery-percent">--%</span>
-                <span class="gauge-label">PWR</span>
-              </div>
+          <!-- 2. NETWORK SECTION -->
+          <div class="telem-stats-section">
+            <div class="telem-stat-row">
+              <span class="stat-name"><span class="stat-arrow arrow-down">↓</span> Download</span>
+              <span class="stat-value" id="net-download">0.0 KB/s</span>
             </div>
-            <div class="gauge-sub" id="battery-subtext">Battery</div>
+            <div class="telem-stat-row">
+              <span class="stat-name"><span class="stat-arrow arrow-up">↑</span> Upload</span>
+              <span class="stat-value" id="net-upload">0.0 KB/s</span>
+            </div>
+            <div class="telem-stat-row">
+              <span class="stat-name">Ping</span>
+              <span class="stat-value text-cyan" id="net-ping">24 ms</span>
+            </div>
+            <div class="telem-stat-row">
+              <span class="stat-name">Connection</span>
+              <span class="stat-value text-green" id="net-connection">Wi-Fi</span>
+            </div>
           </div>
 
-          <!-- Disk Storage Dial -->
-          <div class="circular-gauge-card" title="Drive Storage">
-            <div class="gauge-svg-wrap">
-              <svg class="circular-meter" viewBox="0 0 100 100">
-                <circle class="meter-bg" cx="50" cy="50" r="40"></circle>
-                <circle class="meter-fill meter-amber" id="disk-circle" cx="50" cy="50" r="40" stroke-dasharray="251.2" stroke-dashoffset="251.2"></circle>
-              </svg>
-              <div class="gauge-inner">
-                <span class="gauge-val" id="disk-percent">--%</span>
-                <span class="gauge-label">DISK</span>
-              </div>
-            </div>
-            <div class="gauge-sub" id="disk-subtext">C: Free</div>
+          <!-- DIVIDER: KIRAHT CORE -->
+          <div class="hud-telem-divider">
+            <span class="divider-text">KIRAHT CORE</span>
           </div>
-        </div>
 
-        <!-- Compact Host & Wi-Fi Info -->
-        <div class="telemetry-footer-info">
-          <div class="mini-info-row">
-            <span class="mini-label">WI-FI</span>
-            <span class="mini-val" id="net-ssid">Wi-Fi</span>
-          </div>
-          <div class="mini-info-row">
-            <span class="mini-label">HOST</span>
-            <span class="mini-val" id="os-name">Windows 11</span>
+          <!-- 3. KIRAHT CORE SECTION -->
+          <div class="telem-stats-section core-stats-section">
+            <div class="telem-stat-row">
+              <span class="stat-name">AI</span>
+              <span class="stat-value text-green" id="core-ai-status"><span class="telem-dot-mini green-pulse"></span> ONLINE</span>
+            </div>
+            <div class="telem-stat-row">
+              <span class="stat-name">Memory</span>
+              <span class="stat-value text-green" id="core-mem-status"><span class="telem-dot-mini green-pulse"></span> ACTIVE</span>
+            </div>
+            <div class="telem-stat-row">
+              <span class="stat-name">Tools</span>
+              <span class="stat-value text-green" id="core-tools-status"><span class="telem-dot-mini green-pulse"></span> READY</span>
+            </div>
+            <div class="telem-stat-row">
+              <span class="stat-name">Search</span>
+              <span class="stat-value text-green" id="core-search-status"><span class="telem-dot-mini green-pulse"></span> READY</span>
+            </div>
+            <div class="telem-stat-row model-stat-row">
+              <span class="stat-name">Model</span>
+              <span class="stat-value model-badge-tag" id="core-model-name">qwen2.5:3b</span>
+            </div>
           </div>
         </div>
       </aside>
 
-      <!-- CENTER: PRIMARY CHAT HERO (FULL HEIGHT, HEADER REMOVED) -->
-      <section class="panel center-panel tactical-frame">
+      <!-- RESIZER: LEFT SPLITTER -->
+      <div class="panel-resizer resizer-left" id="resizer-left" title="Drag to resize Telemetry panel (Double-click to reset)">
+        <div class="resizer-bar"></div>
+      </div>
+
+      <!-- CENTER: PRIMARY CHAT HERO (FULL HEIGHT, CLEANED) -->
+      <section class="panel center-panel tactical-frame" id="center-panel">
         <!-- Chat Viewport Wrapper -->
         <div class="chat-viewport-wrapper">
           <!-- ==================== 3D RUNNING / ROLLING KIRAHT ARC REACTOR ==================== -->
@@ -223,7 +286,9 @@
           <div class="chat-viewport" id="chat-viewport">
             <!-- Initial Welcome Message from KIRAHT AI -->
             <div class="message-card assistant-card">
-              <div class="message-avatar">K</div>
+              <div class="message-avatar">
+                <img src="/static/img/kiraht_ai_logo.png" class="message-avatar-img" alt="KIRAHT">
+              </div>
               <div class="message-body">
                 <div class="message-header">
                   <span class="sender-name">KIRAHT AI</span>
@@ -263,12 +328,20 @@
         </div>
       </section>
 
-      <!-- RIGHT: LARGE TACTICAL QUICK ACTION TILES (UPDATED WITH WHATSAPP, BRAVE, TASKMGR) -->
-      <aside class="panel right-panel tactical-frame">
+      <!-- RESIZER: RIGHT SPLITTER -->
+      <div class="panel-resizer resizer-right" id="resizer-right" title="Drag to resize Quick Actions panel (Double-click to reset)">
+        <div class="resizer-bar"></div>
+      </div>
+
+      <!-- RIGHT: RESIZABLE & COLLAPSIBLE QUICK ACTION TILES -->
+      <aside class="panel right-panel tactical-frame" id="actions-panel">
         <div class="panel-header compact-header">
-          <span class="panel-icon">⚡</span>
-          <h2 class="panel-title">QUICK ACTIONS</h2>
-          <span class="tools-active-badge">ACTIVE</span>
+          <div class="panel-header-title-wrap">
+            <span class="panel-icon">⚡</span>
+            <h2 class="panel-title">QUICK ACTIONS</h2>
+            <span class="tools-active-badge">ACTIVE</span>
+          </div>
+          <button class="panel-collapse-btn" id="btn-collapse-actions" title="Collapse Quick Actions (Alt+Q)">▶</button>
         </div>
 
         <div class="action-tiles-grid">
