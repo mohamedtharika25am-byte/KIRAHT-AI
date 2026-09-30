@@ -686,5 +686,10 @@
   // Initialize Web HUD on load
   window.addEventListener('DOMContentLoaded', function () {
     initWebSocket();
+    if (reactorCore) {
+      reactorCore.classList.remove('boot-spin-in');
+      void reactorCore.offsetWidth; // Force CSS reflow
+      reactorCore.classList.add('boot-spin-in');
+    }
   });
 })();

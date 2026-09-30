@@ -34,6 +34,12 @@
       </div>
 
       <div class="header-center">
+        <!-- AI Core Status Pill (Moved from chat box to header) -->
+        <div class="status-pill" id="ai-status-pill">
+          <span class="status-dot green-pulse" id="ai-status-dot"></span>
+          <span class="status-state-text" id="status-state">READY</span>
+          <span class="status-detail-text" id="status-detail">— Online</span>
+        </div>
         <div class="status-pill" id="network-pill">
           <span class="status-dot green-pulse" id="network-dot"></span>
           <span class="status-label" id="network-status-text">ONLINE</span>
@@ -141,49 +147,74 @@
         </div>
       </aside>
 
-      <!-- CENTER: PRIMARY CHAT HERO WITH 3D RUNNING ARC REACTOR CORE -->
+      <!-- CENTER: PRIMARY CHAT HERO (FULL HEIGHT, HEADER REMOVED) -->
       <section class="panel center-panel tactical-frame">
-        <div class="chat-header">
-          <div class="chat-status-indicator">
-            <div class="pulse-ring"></div>
-            <span class="status-state-text" id="status-state">READY</span>
-            <span class="status-detail-text" id="status-detail">— Online and listening</span>
-          </div>
-          <div class="chat-header-actions">
-            <button class="tactical-btn-sm" id="btn-clear-chat" title="Clear Chat History">
-              <span class="icon">🧹</span> Clear
-            </button>
-          </div>
-        </div>
-
         <!-- Chat Viewport Wrapper -->
         <div class="chat-viewport-wrapper">
-          <!-- ==================== 3D RUNNING KIRAHT ARC REACTOR CORE ==================== -->
-          <div class="kiraht-reactor-core" id="reactor-core">
-            <!-- 3D Perspective Gyroscope Stage -->
-            <div class="core-gyro-stage">
-              <!-- Outer Segmented Static Reticle -->
-              <div class="core-ring outer-brackets"></div>
+          <!-- ==================== 3D RUNNING / ROLLING KIRAHT ARC REACTOR ==================== -->
+          <div class="kiraht-reactor-core boot-spin-in" id="reactor-core">
+            <!-- Outer HUD Reticle Coordinates & Brackets -->
+            <div class="reactor-hud-brackets">
+              <span class="hud-tag top-left">[SYS.MK-VII]</span>
+              <span class="hud-tag top-right">[360° RETICLE]</span>
+              <span class="hud-tag btm-left">[FLUX: 100%]</span>
+              <span class="hud-tag btm-right">[AZIMUTH: 045]</span>
+            </div>
 
-              <!-- Ring 1: Outer Rotating Shield Ring (Clockwise) -->
-              <div class="core-ring ring-clockwise-slow"></div>
+            <!-- Authentic SVG Holographic Concentric Rings -->
+            <svg class="reactor-svg-rings" viewBox="0 0 500 500">
+              <defs>
+                <radialGradient id="reactor-core-glow" cx="50%" cy="50%" r="50%">
+                  <stop offset="0%" stop-color="#00f3ff" stop-opacity="0.9" />
+                  <stop offset="35%" stop-color="#0088ff" stop-opacity="0.4" />
+                  <stop offset="70%" stop-color="#0044aa" stop-opacity="0.15" />
+                  <stop offset="100%" stop-color="#000000" stop-opacity="0" />
+                </radialGradient>
+                <filter id="glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
+                  <feGaussianBlur stdDeviation="4" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              </defs>
 
-              <!-- Ring 2: Radar Ticks & Angles (Counter-Clockwise) -->
-              <div class="core-ring ring-counter-fast"></div>
+              <!-- Layer 1: Outermost Concentric Tech Circle -->
+              <circle cx="250" cy="250" r="236" class="svg-ring ring-outer-dashed" />
+              <circle cx="250" cy="250" r="226" class="svg-ring ring-outer-thin" />
 
-              <!-- Ring 3: 3D Tilted Gyro Gimbal Ring -->
-              <div class="core-ring ring-3d-tilted"></div>
+              <!-- Layer 2: 12-Segmented Heavy Power Arcs (Clockwise) -->
+              <circle cx="250" cy="250" r="210" class="svg-ring ring-power-segments" />
 
-              <!-- Ring 4: Inner Turbine Notches -->
-              <div class="core-ring ring-turbine"></div>
+              <!-- Layer 3: Radar Azimuth 72-Tick Dial (Counter-Clockwise) -->
+              <circle cx="250" cy="250" r="185" class="svg-ring ring-radar-ticks" />
+              <circle cx="250" cy="250" r="172" class="svg-ring ring-hash-marks" />
 
-              <!-- Center Holographic Energy Core -->
-              <div class="reactor-epicenter">
-                <div class="epicenter-pulse"></div>
-                <div class="epicenter-text">
-                  <span class="core-name">KIRAHT</span>
-                  <span class="core-sub">ARC REACTOR</span>
-                </div>
+              <!-- Layer 4: Geometric Hexagonal Circuit Ring -->
+              <polygon points="250,90 388,170 388,330 250,410 112,330 112,170" class="svg-poly ring-hex-circuit" />
+
+              <!-- Layer 5: High-Speed Inner Turbine Teeth -->
+              <circle cx="250" cy="250" r="125" class="svg-ring ring-turbine-teeth" />
+
+              <!-- Sweeping Radar Scanner Beam -->
+              <line x1="250" y1="250" x2="250" y2="24" class="radar-scan-line" />
+            </svg>
+
+            <!-- 3D Perspective Gyro Gimbal Stage (Tilted Rolling Rings) -->
+            <div class="reactor-3d-gyro-stage">
+              <div class="gyro-ring gyro-ring-outer"></div>
+              <div class="gyro-ring gyro-ring-inner"></div>
+            </div>
+
+            <!-- Central Arc Reactor Epicenter -->
+            <div class="reactor-epicenter">
+              <div class="epicenter-plasma-core"></div>
+              <div class="epicenter-pulse-ring"></div>
+              <div class="epicenter-text-badge">
+                <span class="core-symbol">⚡</span>
+                <span class="core-title">KIRAHT</span>
+                <span class="core-subtitle">ARC REACTOR</span>
+                <span class="core-status">SYS: ONLINE</span>
               </div>
             </div>
           </div>
@@ -232,7 +263,7 @@
         </div>
       </section>
 
-      <!-- RIGHT: LARGE TACTICAL QUICK ACTION TILES -->
+      <!-- RIGHT: LARGE TACTICAL QUICK ACTION TILES (UPDATED WITH WHATSAPP, BRAVE, TASKMGR) -->
       <aside class="panel right-panel tactical-frame">
         <div class="panel-header compact-header">
           <span class="panel-icon">⚡</span>
@@ -259,11 +290,22 @@
             </div>
             <div class="tile-content">
               <span class="tile-title">OPEN CHROME</span>
-              <span class="tile-desc">Launch browser</span>
+              <span class="tile-desc">Google browser</span>
             </div>
           </button>
 
-          <!-- Tile 3: Open VS Code -->
+          <!-- Tile 3: Open Brave (Added per request) -->
+          <button class="tactical-action-tile" data-action="open_brave">
+            <div class="tile-icon-wrap">
+              <span class="tile-icon">🦁</span>
+            </div>
+            <div class="tile-content">
+              <span class="tile-title">BRAVE BROWSER</span>
+              <span class="tile-desc">Shielded web</span>
+            </div>
+          </button>
+
+          <!-- Tile 4: Open VS Code -->
           <button class="tactical-action-tile" data-action="open_vscode">
             <div class="tile-icon-wrap">
               <span class="tile-icon">💻</span>
@@ -274,7 +316,29 @@
             </div>
           </button>
 
-          <!-- Tile 4: Screenshot -->
+          <!-- Tile 5: WhatsApp (Added per request) -->
+          <button class="tactical-action-tile" data-action="open_whatsapp">
+            <div class="tile-icon-wrap">
+              <span class="tile-icon">💬</span>
+            </div>
+            <div class="tile-content">
+              <span class="tile-title">WHATSAPP</span>
+              <span class="tile-desc">Messaging hub</span>
+            </div>
+          </button>
+
+          <!-- Tile 6: Task Manager (Added per request) -->
+          <button class="tactical-action-tile" data-action="open_task_manager">
+            <div class="tile-icon-wrap">
+              <span class="tile-icon">📈</span>
+            </div>
+            <div class="tile-content">
+              <span class="tile-title">TASK MANAGER</span>
+              <span class="tile-desc">Process monitor</span>
+            </div>
+          </button>
+
+          <!-- Tile 7: Screenshot -->
           <button class="tactical-action-tile" data-action="screenshot">
             <div class="tile-icon-wrap">
               <span class="tile-icon">📸</span>
@@ -285,7 +349,7 @@
             </div>
           </button>
 
-          <!-- Tile 5: Workspace Files -->
+          <!-- Tile 8: Workspace Files -->
           <button class="tactical-action-tile" data-action="file_manager">
             <div class="tile-icon-wrap">
               <span class="tile-icon">📁</span>
@@ -296,18 +360,7 @@
             </div>
           </button>
 
-          <!-- Tile 6: YouTube -->
-          <button class="tactical-action-tile" data-action="youtube">
-            <div class="tile-icon-wrap">
-              <span class="tile-icon">🎬</span>
-            </div>
-            <div class="tile-content">
-              <span class="tile-title">YOUTUBE</span>
-              <span class="tile-desc">Media hub</span>
-            </div>
-          </button>
-
-          <!-- Tile 7: Clear Chat -->
+          <!-- Tile 9: Clear Chat -->
           <button class="tactical-action-tile tile-danger" data-action="clear_chat">
             <div class="tile-icon-wrap">
               <span class="tile-icon">🧹</span>
@@ -323,7 +376,7 @@
 
     <!-- ==================== 3. BOTTOM HUD: AUDIO EQUALIZER & TOOL LOG ==================== -->
     <footer class="hud-footer tactical-frame">
-      <!-- Animated Equalizer Spectrum (Pure CSS / Canvas Spectrum) -->
+      <!-- Animated Equalizer Spectrum -->
       <div class="hud-equalizer-wrap">
         <div class="equalizer-header">
           <span class="eq-icon">📡</span>

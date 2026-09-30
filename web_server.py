@@ -138,9 +138,17 @@ async def handle_quick_action(req: QuickActionRequest):
         res_text = open_folder("d:\\KIRAHT AI", call_me=call_me)
         activity_action = "Open File Manager"
 
-    elif action == "youtube":
-        _, res_text = execute_system_command("open youtube", call_me=call_me)
-        activity_action = "Open YouTube"
+    elif action == "open_whatsapp":
+        _, res_text = execute_system_command("open whatsapp", call_me=call_me)
+        activity_action = "Open WhatsApp"
+
+    elif action == "open_brave":
+        _, res_text = execute_system_command("open brave", call_me=call_me)
+        activity_action = "Open Brave"
+
+    elif action == "open_task_manager":
+        _, res_text = execute_system_command("open task manager", call_me=call_me)
+        activity_action = "Open Task Manager"
 
     elif action == "clear_chat":
         clear_chat_history()
