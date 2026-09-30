@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>KIRAHT AI — Tactical Web HUD</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Inter:wght@300;400;500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/css/hud.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⚡</text></svg>">
+</head>
+<body class="cyber-hud">
+  <!-- Futuristic Tactical Background -->
+  <div class="hud-background">
+    <div class="ambient-glow cyan-glow"></div>
+    <div class="ambient-glow purple-glow"></div>
+    <div class="cyber-grid"></div>
+  </div>
+
+  <div class="hud-container">
+    <!-- ==================== 1. TACTICAL HEADER ==================== -->
+    <header class="hud-header tactical-frame">
+      <div class="header-left">
+        <div class="core-logo">
+          <div class="logo-hexagon">
+            <span class="logo-symbol">K</span>
+          </div>
+          <div class="logo-text">
+            <h1 class="logo-title">KIRAHT <span class="accent-text">AI</span></h1>
+            <span class="logo-subtitle">JARVIS TACTICAL COMMAND • V2.1</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="header-center">
+        <div class="status-pill" id="network-pill">
+          <span class="status-dot green-pulse" id="network-dot"></span>
+          <span class="status-label" id="network-status-text">ONLINE</span>
+        </div>
+        <div class="status-pill" id="engine-pill">
+          <span class="status-icon">🤖</span>
+          <span class="status-label" id="header-engine-text">AI: GEMINI CLOUD</span>
+        </div>
+        <div class="status-pill" id="security-pill">
+          <span class="status-icon">🛡️</span>
+          <span class="status-label">SAFE MODE</span>
+        </div>
+      </div>
+
+      <div class="header-right">
+        <div class="clock-uptime">
+          <div class="hud-clock" id="hud-clock">--:--:-- --</div>
+          <div class="hud-uptime" id="hud-uptime">UPTIME: 0m 0s</div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ==================== 2. MAIN HUD VIEW (3 COLUMNS) ==================== -->
+    <main class="hud-main">
+      <!-- LEFT: COMPACT CIRCULAR TELEMETRY -->
+      <aside class="panel left-panel tactical-frame">
+        <div class="panel-header compact-header">
+          <span class="panel-icon">⚡</span>
+          <h2 class="panel-title">TELEMETRY</h2>
+          <span class="live-pulse-badge">LIVE</span>
+        </div>
+
+        <div class="telemetry-dials-grid">
+          <!-- CPU Circular Dial -->
+          <div class="circular-gauge-card" title="CPU Load">
+            <div class="gauge-svg-wrap">
+              <svg class="circular-meter" viewBox="0 0 100 100">
+                <circle class="meter-bg" cx="50" cy="50" r="40"></circle>
+                <circle class="meter-fill meter-cyan" id="cpu-circle" cx="50" cy="50" r="40" stroke-dasharray="251.2" stroke-dashoffset="251.2"></circle>
+              </svg>
+              <div class="gauge-inner">
+                <span class="gauge-val" id="cpu-percent">--%</span>
+                <span class="gauge-label">CPU</span>
+              </div>
+            </div>
+            <div class="gauge-sub" id="cpu-subtext">-- Cores</div>
+          </div>
+
+          <!-- RAM Circular Dial -->
+          <div class="circular-gauge-card" title="RAM Utilization">
+            <div class="gauge-svg-wrap">
+              <svg class="circular-meter" viewBox="0 0 100 100">
+                <circle class="meter-bg" cx="50" cy="50" r="40"></circle>
+                <circle class="meter-fill meter-purple" id="ram-circle" cx="50" cy="50" r="40" stroke-dasharray="251.2" stroke-dashoffset="251.2"></circle>
+              </svg>
+              <div class="gauge-inner">
+                <span class="gauge-val" id="ram-percent">--%</span>
+                <span class="gauge-label">RAM</span>
+              </div>
+            </div>
+            <div class="gauge-sub" id="ram-subtext">-- GB</div>
+          </div>
+
+          <!-- Battery Circular Dial -->
+          <div class="circular-gauge-card" title="Battery Power">
+            <div class="gauge-svg-wrap">
+              <svg class="circular-meter" viewBox="0 0 100 100">
+                <circle class="meter-bg" cx="50" cy="50" r="40"></circle>
+                <circle class="meter-fill meter-green" id="bat-circle" cx="50" cy="50" r="40" stroke-dasharray="251.2" stroke-dashoffset="251.2"></circle>
+              </svg>
+              <div class="gauge-inner">
+                <span class="gauge-val" id="battery-percent">--%</span>
+                <span class="gauge-label">PWR</span>
+              </div>
+            </div>
+            <div class="gauge-sub" id="battery-subtext">Battery</div>
+          </div>
+
+          <!-- Disk Storage Dial -->
+          <div class="circular-gauge-card" title="Drive Storage">
+            <div class="gauge-svg-wrap">
+              <svg class="circular-meter" viewBox="0 0 100 100">
+                <circle class="meter-bg" cx="50" cy="50" r="40"></circle>
+                <circle class="meter-fill meter-amber" id="disk-circle" cx="50" cy="50" r="40" stroke-dasharray="251.2" stroke-dashoffset="251.2"></circle>
+              </svg>
+              <div class="gauge-inner">
+                <span class="gauge-val" id="disk-percent">--%</span>
+                <span class="gauge-label">DISK</span>
+              </div>
+            </div>
+            <div class="gauge-sub" id="disk-subtext">C: Free</div>
+          </div>
+        </div>
+
+        <!-- Compact Host & Wi-Fi Info -->
+        <div class="telemetry-footer-info">
+          <div class="mini-info-row">
+            <span class="mini-label">WI-FI</span>
+            <span class="mini-val" id="net-ssid">Wi-Fi</span>
+          </div>
+          <div class="mini-info-row">
+            <span class="mini-label">HOST</span>
+            <span class="mini-val" id="os-name">Windows 11</span>
+          </div>
+        </div>
+      </aside>
+
+      <!-- CENTER: PRIMARY CHAT HERO WITH 3D RUNNING ARC REACTOR CORE -->
+      <section class="panel center-panel tactical-frame">
+        <div class="chat-header">
+          <div class="chat-status-indicator">
+            <div class="pulse-ring"></div>
+            <span class="status-state-text" id="status-state">READY</span>
+            <span class="status-detail-text" id="status-detail">— Online and listening</span>
+          </div>
+          <div class="chat-header-actions">
+            <button class="tactical-btn-sm" id="btn-clear-chat" title="Clear Chat History">
+              <span class="icon">🧹</span> Clear
+            </button>
+          </div>
+        </div>
+
+        <!-- Chat Viewport Wrapper -->
+        <div class="chat-viewport-wrapper">
+          <!-- ==================== 3D RUNNING KIRAHT ARC REACTOR CORE ==================== -->
+          <div class="kiraht-reactor-core" id="reactor-core">
+            <!-- 3D Perspective Gyroscope Stage -->
+            <div class="core-gyro-stage">
+              <!-- Outer Segmented Static Reticle -->
+              <div class="core-ring outer-brackets"></div>
+
+              <!-- Ring 1: Outer Rotating Shield Ring (Clockwise) -->
+              <div class="core-ring ring-clockwise-slow"></div>
+
+              <!-- Ring 2: Radar Ticks & Angles (Counter-Clockwise) -->
+              <div class="core-ring ring-counter-fast"></div>
+
+              <!-- Ring 3: 3D Tilted Gyro Gimbal Ring -->
+              <div class="core-ring ring-3d-tilted"></div>
+
+              <!-- Ring 4: Inner Turbine Notches -->
+              <div class="core-ring ring-turbine"></div>
+
+              <!-- Center Holographic Energy Core -->
+              <div class="reactor-epicenter">
+                <div class="epicenter-pulse"></div>
+                <div class="epicenter-text">
+                  <span class="core-name">KIRAHT</span>
+                  <span class="core-sub">ARC REACTOR</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Foreground Chat Messages (Floats over the Core with Glass Backing) -->
+          <div class="chat-viewport" id="chat-viewport">
+            <!-- Initial Welcome Message from KIRAHT AI -->
+            <div class="message-card assistant-card">
+              <div class="message-avatar">K</div>
+              <div class="message-body">
+                <div class="message-header">
+                  <span class="sender-name">KIRAHT AI</span>
+                  <span class="message-timestamp" id="welcome-time">Just now</span>
+                </div>
+                <div class="message-content">
+                  Online and ready, Sir. Tactical Web HUD operational. Ask a question, request a laptop automation, or run calculations.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Suggestion Chips Bar -->
+        <div class="suggestion-chips">
+          <button class="chip" data-cmd="system status">📊 System Status</button>
+          <button class="chip" data-cmd="weather in Coimbatore">🌤️ Coimbatore Weather</button>
+          <button class="chip" data-cmd="calculate 25 * 40 + 150">🔢 Quick Math</button>
+          <button class="chip" data-cmd="convert 50 kg to lbs">⚖️ Unit Converter</button>
+          <button class="chip" data-cmd="qr https://github.com">📱 QR Code</button>
+          <button class="chip" data-cmd="take screenshot">📸 Screenshot</button>
+          <button class="chip" data-cmd="list files">📁 List Files</button>
+        </div>
+
+        <!-- Chat Input Form -->
+        <div class="chat-input-bar">
+          <textarea
+            id="chat-input"
+            class="chat-textarea"
+            placeholder="Type a message, system command, QR link, calculation, or question..."
+            rows="1"
+          ></textarea>
+          <button id="btn-send" class="btn-send" title="Send (Enter)">
+            <span class="send-text">TRANSMIT</span>
+            <span class="send-arrow">➔</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- RIGHT: LARGE TACTICAL QUICK ACTION TILES -->
+      <aside class="panel right-panel tactical-frame">
+        <div class="panel-header compact-header">
+          <span class="panel-icon">⚡</span>
+          <h2 class="panel-title">QUICK ACTIONS</h2>
+          <span class="tools-active-badge">ACTIVE</span>
+        </div>
+
+        <div class="action-tiles-grid">
+          <!-- Tile 1: System Status -->
+          <button class="tactical-action-tile" data-action="system_status">
+            <div class="tile-icon-wrap">
+              <span class="tile-icon">📊</span>
+            </div>
+            <div class="tile-content">
+              <span class="tile-title">SYSTEM STATUS</span>
+              <span class="tile-desc">Full PC diagnostic</span>
+            </div>
+          </button>
+
+          <!-- Tile 2: Open Chrome -->
+          <button class="tactical-action-tile" data-action="open_chrome">
+            <div class="tile-icon-wrap">
+              <span class="tile-icon">🌐</span>
+            </div>
+            <div class="tile-content">
+              <span class="tile-title">OPEN CHROME</span>
+              <span class="tile-desc">Launch browser</span>
+            </div>
+          </button>
+
+          <!-- Tile 3: Open VS Code -->
+          <button class="tactical-action-tile" data-action="open_vscode">
+            <div class="tile-icon-wrap">
+              <span class="tile-icon">💻</span>
+            </div>
+            <div class="tile-content">
+              <span class="tile-title">VS CODE</span>
+              <span class="tile-desc">Code editor</span>
+            </div>
+          </button>
+
+          <!-- Tile 4: Screenshot -->
+          <button class="tactical-action-tile" data-action="screenshot">
+            <div class="tile-icon-wrap">
+              <span class="tile-icon">📸</span>
+            </div>
+            <div class="tile-content">
+              <span class="tile-title">SCREENSHOT</span>
+              <span class="tile-desc">Capture display</span>
+            </div>
+          </button>
+
+          <!-- Tile 5: Workspace Files -->
+          <button class="tactical-action-tile" data-action="file_manager">
+            <div class="tile-icon-wrap">
+              <span class="tile-icon">📁</span>
+            </div>
+            <div class="tile-content">
+              <span class="tile-title">WORKSPACE</span>
+              <span class="tile-desc">Open directory</span>
+            </div>
+          </button>
+
+          <!-- Tile 6: YouTube -->
+          <button class="tactical-action-tile" data-action="youtube">
+            <div class="tile-icon-wrap">
+              <span class="tile-icon">🎬</span>
+            </div>
+            <div class="tile-content">
+              <span class="tile-title">YOUTUBE</span>
+              <span class="tile-desc">Media hub</span>
+            </div>
+          </button>
+
+          <!-- Tile 7: Clear Chat -->
+          <button class="tactical-action-tile tile-danger" data-action="clear_chat">
+            <div class="tile-icon-wrap">
+              <span class="tile-icon">🧹</span>
+            </div>
+            <div class="tile-content">
+              <span class="tile-title">CLEAR CHAT</span>
+              <span class="tile-desc">Reset history</span>
+            </div>
+          </button>
+        </div>
+      </aside>
+    </main>
+
+    <!-- ==================== 3. BOTTOM HUD: AUDIO EQUALIZER & TOOL LOG ==================== -->
+    <footer class="hud-footer tactical-frame">
+      <!-- Animated Equalizer Spectrum (Pure CSS / Canvas Spectrum) -->
+      <div class="hud-equalizer-wrap">
+        <div class="equalizer-header">
+          <span class="eq-icon">📡</span>
+          <span class="eq-title">AUDIO & REACTOR FREQUENCY SPECTRUM</span>
+        </div>
+        <div class="equalizer-bars" id="equalizer-bars">
+          <!-- 32 animated equalizer bars -->
+          <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
+          <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
+          <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
+          <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
+          <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
+          <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
+          <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
+          <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
+        </div>
+      </div>
+
+      <!-- Real-Time Activity & Tool Log -->
+      <div class="activity-log-bar">
+        <div class="activity-log-header">
+          <span class="activity-icon">⚡</span>
+          <span class="activity-title">ACTIVITY TELEMETRY STREAM</span>
+          <span class="log-indicator">STREAMING</span>
+        </div>
+        <div class="activity-log-stream" id="activity-log-stream">
+          <div class="activity-entry">
+            <span class="log-time">[Init]</span>
+            <span class="log-actor actor-system">System</span>
+            <span class="log-arrow">➔</span>
+            <span class="log-action">Tactical HUD Online</span>
+            <span class="log-detail">(KIRAHT 3D Arc Reactor Synchronized)</span>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/static/js/hud.js"></script>
+</body>
+</html>

@@ -2028,7 +2028,15 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
 def main() -> None:
     """
     Main entry point for KIRAHT AI.
+    Supports:
+      python main.py         -> Interactive Terminal Interface (default)
+      python main.py --web   -> Futuristic Web HUD (http://127.0.0.1:8000)
     """
+    if "--web" in sys.argv or "-w" in sys.argv:
+        from web_server import run_server
+        run_server()
+        return
+
     load_dotenv()
     initial_host = os.getenv("OLLAMA_HOST", "http://localhost:11434").strip() or "http://localhost:11434"
     model = os.getenv("AI_MODEL", "qwen2.5:3b").strip() or "qwen2.5:3b"
@@ -2038,3 +2046,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

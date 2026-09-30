@@ -37,3 +37,7 @@ googlecontacts.csv
 # KIRAHT AI Security Trash / Safety Backups
 .kiraht_trash/
 
+# Local chat session history & generated media
+chat_history.json
+static/generated/*.png
+

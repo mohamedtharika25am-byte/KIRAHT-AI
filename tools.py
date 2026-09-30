@@ -18,14 +18,18 @@ Capabilities:
 - Security Controls (Lock Workstation)
 """
 
+import ast
 import ctypes
 import datetime
 import difflib
 import json
+import math
+import operator
 import os
 import re
 import subprocess
 import urllib.parse
+import urllib.request
 import webbrowser
 import psutil
 import time
@@ -92,6 +96,10 @@ from system_tools import (
 VK_VOLUME_MUTE = 0xAD
 VK_VOLUME_DOWN = 0xAE
 VK_VOLUME_UP = 0xAF
+VK_MEDIA_NEXT_TRACK = 0xB0
+VK_MEDIA_PREV_TRACK = 0xB1
+VK_MEDIA_STOP = 0xB2
+VK_MEDIA_PLAY_PAUSE = 0xB3
 
 WORKSPACE_DIR = r"d:\KIRAHT AI"
 APPS_CACHE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "apps_cache.json")
@@ -925,6 +933,414 @@ def is_file_target(target: str) -> bool:
     return os.path.isfile(resolved)
 
 
+# ============================================================
+# DETERMINISTIC TOOLS (MATH, UNITS, WEATHER, MEDIA, QR, DOCS, TRANSLATION)
+# ============================================================
+SAFE_MATH_OPERATORS = {
+    ast.Add: operator.add,
+    ast.Sub: operator.sub,
+    ast.Mult: operator.mul,
+    ast.Div: operator.truediv,
+    ast.FloorDiv: operator.floordiv,
+    ast.Mod: operator.mod,
+    ast.Pow: operator.pow,
+    ast.USub: operator.neg,
+    ast.UAdd: operator.pos,
+}
+SAFE_MATH_FUNCS = {
+    "sqrt": math.sqrt,
+    "sin": lambda x: round(math.sin(math.radians(x)), 6),
+    "cos": lambda x: round(math.cos(math.radians(x)), 6),
+    "tan": lambda x: round(math.tan(math.radians(x)), 6),
+    "log": math.log10,
+    "ln": math.log,
+    "abs": abs,
+    "round": round,
+    "ceil": math.ceil,
+    "floor": math.floor,
+    "factorial": math.factorial,
+    "pi": math.pi,
+    "e": math.e,
+}
+
+
+def _eval_math_ast(node):
+    if isinstance(node, ast.Constant):
+        return node.value
+    elif isinstance(node, ast.BinOp):
+        op = SAFE_MATH_OPERATORS.get(type(node.op))
+        if not op:
+            raise ValueError("Unsupported operation")
+        return op(_eval_math_ast(node.left), _eval_math_ast(node.right))
+    elif isinstance(node, ast.UnaryOp):
+        op = SAFE_MATH_OPERATORS.get(type(node.op))
+        if not op:
+            raise ValueError("Unsupported unary operation")
+        return op(_eval_math_ast(node.operand))
+    elif isinstance(node, ast.Call):
+        func_name = node.func.id if isinstance(node.func, ast.Name) else ""
+        if func_name not in SAFE_MATH_FUNCS:
+            raise ValueError(f"Unsupported function '{func_name}'")
+        args = [_eval_math_ast(a) for a in node.args]
+        return SAFE_MATH_FUNCS[func_name](*args)
+    elif isinstance(node, ast.Name):
+        if node.id in SAFE_MATH_FUNCS:
+            return SAFE_MATH_FUNCS[node.id]
+        raise ValueError(f"Unknown symbol '{node.id}'")
+    raise ValueError("Invalid mathematical expression")
+
+
+def evaluate_math(query: str, call_me: str = "Sir") -> tuple[bool, str]:
+    """
+    Evaluates math expressions deterministically without calling LLM.
+    Supports basic arithmetic, powers, percentages, roots, trigonometry, and factorial.
+    """
+    cleaned = query.strip()
+    lower = cleaned.lower()
+
+    # Percentage calculation: "15% of 250" or "calculate 20% of 1500"
+    pct_match = re.search(r"^(?:(?:what(?:'s|\s+is)?|calculate|calc)?\s+)?(\d+(?:\.\d+)?)\s*%\s+of\s+(\d+(?:\.\d+)?)$", lower)
+    if pct_match:
+        pct = float(pct_match.group(1))
+        base = float(pct_match.group(2))
+        res = (pct / 100.0) * base
+        val_str = f"{res:.2f}".rstrip("0").rstrip(".")
+        return True, f"{call_me}, {pct}% of {base} is {val_str}."
+
+    # Direct math command trigger: "calculate 25 * 4", "calc 144 / 12", "solve 2^8"
+    calc_match = re.search(r"^(?:calculate|calc|evaluate|solve|compute)\s+(.+)$", lower)
+    expr = calc_match.group(1).strip() if calc_match else cleaned
+
+    # Sanitize symbols
+    sanitized = expr.replace("^", "**").replace("×", "*").replace("÷", "/")
+
+    has_operator = any(op in sanitized for op in ("+", "-", "*", "/", "**", "%", "sqrt", "sin", "cos", "tan", "log", "factorial"))
+    if not has_operator and not calc_match:
+        return False, ""
+
+    # Reject non-math characters and letters except allowed functions
+    allowed_names = set(SAFE_MATH_FUNCS.keys())
+    found_words = set(re.findall(r"[a-zA-Z_]+", sanitized))
+    if found_words and not found_words.issubset(allowed_names):
+        return False, ""
+
+    try:
+        tree = ast.parse(sanitized, mode="eval")
+        ans = _eval_math_ast(tree.body)
+        if isinstance(ans, float):
+            ans_str = f"{ans:.6f}".rstrip("0").rstrip(".")
+        else:
+            ans_str = str(ans)
+        return True, f"{call_me}, {expr} = {ans_str}."
+    except Exception:
+        return False, ""
+
+
+UNIT_CONVERSIONS = {
+    # Length (base: meters)
+    "m": 1.0, "meter": 1.0, "meters": 1.0,
+    "km": 1000.0, "kilometer": 1000.0, "kilometers": 1000.0,
+    "cm": 0.01, "centimeter": 0.01, "centimeters": 0.01,
+    "mm": 0.001, "millimeter": 0.001, "millimeters": 0.001,
+    "mile": 1609.344, "miles": 1609.344, "mi": 1609.344,
+    "yard": 0.9144, "yards": 0.9144, "yd": 0.9144,
+    "foot": 0.3048, "feet": 0.3048, "ft": 0.3048,
+    "inch": 0.0254, "inches": 0.0254, "in": 0.0254,
+
+    # Weight / Mass (base: grams)
+    "g": 1.0, "gram": 1.0, "grams": 1.0,
+    "kg": 1000.0, "kilogram": 1000.0, "kilograms": 1000.0,
+    "mg": 0.001, "milligram": 0.001, "milligrams": 0.001,
+    "lb": 453.59237, "lbs": 453.59237, "pound": 453.59237, "pounds": 453.59237,
+    "oz": 28.3495, "ounce": 28.3495, "ounces": 28.3495,
+    "ton": 1000000.0, "tons": 1000000.0,
+
+    # Data Storage (base: bytes)
+    "b": 1, "byte": 1, "bytes": 1,
+    "kb": 1024, "kilobyte": 1024, "kilobytes": 1024,
+    "mb": 1024**2, "megabyte": 1024**2, "megabytes": 1024**2,
+    "gb": 1024**3, "gigabyte": 1024**3, "gigabytes": 1024**3,
+    "tb": 1024**4, "terabyte": 1024**4, "terabytes": 1024**4,
+
+    # Speed (base: km/h)
+    "km/h": 1.0, "kmph": 1.0, "kph": 1.0,
+    "mph": 1.60934,
+    "m/s": 3.6,
+    "knot": 1.852, "knots": 1.852,
+}
+
+
+def convert_units(query: str, call_me: str = "Sir") -> tuple[bool, str]:
+    """
+    Converts units deterministically across length, weight, data, temperature, and speed.
+    """
+    cleaned = query.strip().lower()
+
+    # Temperature conversion: "100 C to F", "convert 98.6 f to c", "0 c in k"
+    temp_match = re.search(r"^(?:convert\s+)?(-?\d+(?:\.\d+)?)\s*(?:°|deg|degrees)?\s*([cfk])\s+(?:to|in|into)\s*(?:°|deg|degrees)?\s*([cfk])$", cleaned)
+    if temp_match:
+        val = float(temp_match.group(1))
+        from_u = temp_match.group(2).upper()
+        to_u = temp_match.group(3).upper()
+
+        if from_u == "C":
+            c_val = val
+        elif from_u == "F":
+            c_val = (val - 32) * 5 / 9
+        elif from_u == "K":
+            c_val = val - 273.15
+
+        if to_u == "C":
+            res = c_val
+        elif to_u == "F":
+            res = (c_val * 9 / 5) + 32
+        elif to_u == "K":
+            res = c_val + 273.15
+
+        return True, f"{call_me}, {val}°{from_u} = {res:.2f}°{to_u}."
+
+    # General conversion: "convert 100 km to miles", "50 kg in lbs", "10 gb to mb"
+    conv_match = re.search(r"^(?:convert\s+)?(\d+(?:\.\d+)?)\s*([a-zA-Z/]+)\s+(?:to|in|into)\s+([a-zA-Z/]+)$", cleaned)
+    if not conv_match:
+        return False, ""
+
+    val = float(conv_match.group(1))
+    from_u = conv_match.group(2).lower()
+    to_u = conv_match.group(3).lower()
+
+    if from_u in UNIT_CONVERSIONS and to_u in UNIT_CONVERSIONS:
+        length_units = {"m", "meter", "meters", "km", "kilometer", "kilometers", "cm", "centimeter", "centimeters", "mm", "millimeter", "millimeters", "mile", "miles", "mi", "yard", "yards", "yd", "foot", "feet", "ft", "inch", "inches", "in"}
+        weight_units = {"g", "gram", "grams", "kg", "kilogram", "kilograms", "mg", "milligram", "milligrams", "lb", "lbs", "pound", "pounds", "oz", "ounce", "ounces", "ton", "tons"}
+        data_units = {"b", "byte", "bytes", "kb", "kilobyte", "kilobytes", "mb", "megabyte", "megabytes", "gb", "gigabyte", "gigabytes", "tb", "terabyte", "terabytes"}
+        speed_units = {"km/h", "kmph", "kph", "mph", "m/s", "knot", "knots"}
+
+        for unit_group in (length_units, weight_units, data_units, speed_units):
+            if from_u in unit_group and to_u in unit_group:
+                base_val = val * UNIT_CONVERSIONS[from_u]
+                converted = base_val / UNIT_CONVERSIONS[to_u]
+                conv_str = f"{converted:.4f}".rstrip("0").rstrip(".")
+                return True, f"{call_me}, {val} {from_u} = {conv_str} {to_u}."
+
+    return False, ""
+
+
+def get_weather(query: str, call_me: str = "Sir") -> tuple[bool, str]:
+    """
+    Checks real-time weather deterministically using wttr.in JSON API.
+    Supports queries like: 'weather', 'weather in Coimbatore', 'how is the weather in Chennai', etc.
+    """
+    cleaned = query.strip().lower()
+    weather_match = re.search(r"^(?:(?:what(?:'s|\s+is)?\s+(?:the\s+)?(?:current\s+)?weather(?:\s+(?:like|today|in|for|at))?)|(?:how(?:\s+is)?\s+(?:the\s+)?weather(?:\s+in)?)|weather(?:\s+in|\s+for|\s+at)?)\s*(.*)$", cleaned)
+    if not weather_match and "weather" not in cleaned:
+        return False, ""
+
+    city = weather_match.group(1).strip() if weather_match else ""
+    city = re.sub(r"[?!.,]+$", "", city).strip()
+    if not city:
+        city = "Coimbatore"
+
+    try:
+        url = f"https://wttr.in/{urllib.parse.quote(city)}?format=j1"
+        req = urllib.request.Request(url, headers={"User-Agent": "curl/7.68.0"})
+        with urllib.request.urlopen(req, timeout=3.5) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            cur = data["current_condition"][0]
+            temp_c = cur.get("temp_C", "N/A")
+            feels_c = cur.get("FeelsLikeC", temp_c)
+            desc = cur.get("weatherDesc", [{}])[0].get("value", "Clear")
+            humidity = cur.get("humidity", "N/A")
+            wind_kmph = cur.get("windspeedKmph", "N/A")
+            return True, f"{call_me}, the weather in {city.title()} is {temp_c}°C ({desc}), feels like {feels_c}°C. Humidity: {humidity}%, Wind: {wind_kmph} km/h."
+    except Exception as err:
+        return True, f"{call_me}, could not fetch live weather for {city.title()}: {err}"
+
+
+def control_media(action_text: str, call_me: str = "Sir") -> tuple[bool, str]:
+    """
+    Controls media playback natively in Windows (Spotify, YouTube, Media Player).
+    """
+    cleaned = action_text.strip().lower()
+    actions = {
+        "play pause": (VK_MEDIA_PLAY_PAUSE, "toggled media playback"),
+        "play/pause": (VK_MEDIA_PLAY_PAUSE, "toggled media playback"),
+        "play": (VK_MEDIA_PLAY_PAUSE, "resumed / played media"),
+        "pause": (VK_MEDIA_PLAY_PAUSE, "paused media"),
+        "resume": (VK_MEDIA_PLAY_PAUSE, "resumed media"),
+        "next song": (VK_MEDIA_NEXT_TRACK, "skipped to next track"),
+        "next track": (VK_MEDIA_NEXT_TRACK, "skipped to next track"),
+        "next": (VK_MEDIA_NEXT_TRACK, "skipped to next track"),
+        "skip": (VK_MEDIA_NEXT_TRACK, "skipped to next track"),
+        "prev song": (VK_MEDIA_PREV_TRACK, "went to previous track"),
+        "prev track": (VK_MEDIA_PREV_TRACK, "went to previous track"),
+        "previous song": (VK_MEDIA_PREV_TRACK, "went to previous track"),
+        "previous track": (VK_MEDIA_PREV_TRACK, "went to previous track"),
+        "previous": (VK_MEDIA_PREV_TRACK, "went to previous track"),
+        "prev": (VK_MEDIA_PREV_TRACK, "went to previous track"),
+        "stop music": (VK_MEDIA_STOP, "stopped media playback"),
+        "stop song": (VK_MEDIA_STOP, "stopped media playback"),
+        "stop media": (VK_MEDIA_STOP, "stopped media playback"),
+        "stop": (VK_MEDIA_STOP, "stopped media playback"),
+    }
+
+    matched_vk = None
+    matched_desc = None
+    for pattern, (vk, desc) in actions.items():
+        if re.search(rf"\b{pattern}\b", cleaned):
+            matched_vk = vk
+            matched_desc = desc
+            break
+
+    if matched_vk:
+        try:
+            user32 = ctypes.windll.user32
+            KEYEVENTF_EXTENDEDKEY = 0x0001
+            KEYEVENTF_KEYUP = 0x0002
+            user32.keybd_event(matched_vk, 0, KEYEVENTF_EXTENDEDKEY, 0)
+            user32.keybd_event(matched_vk, 0, KEYEVENTF_EXTENDEDKEY | KEYEVENTF_KEYUP, 0)
+            return True, f"{call_me}, {matched_desc}."
+        except Exception as err:
+            return True, f"{call_me}, failed to execute media control: {err}"
+
+    return False, ""
+
+
+def generate_qr_code(query: str, call_me: str = "Sir") -> tuple[bool, str]:
+    """
+    Generates a high-resolution QR code image for a text, link, or Wi-Fi string.
+    Saves to static/generated/qr_<timestamp>.png.
+    """
+    cleaned = query.strip()
+    lower = cleaned.lower()
+
+    # Fast detection: must contain qr or qrcode as a word/prefix
+    if not re.search(r"\bqr\b|\bqrcode\b", lower):
+        return False, ""
+
+    # Look for explicit URL anywhere in query first
+    url_match = re.search(r"https?://\S+|www\.\S+", cleaned)
+    data = ""
+    if url_match:
+        data = url_match.group(0).strip(".,!?;:\"'")
+    else:
+        # Check standard phrasing patterns
+        qr_match = re.search(
+            r"(?:please\s+)?(?:generate|create|make|get|show)?\s*(?:a\s+)?qr(?:\s*code)?(?:\s+(?:for|of|with|to))?\s*[:\-]?\s*(.+)$",
+            cleaned,
+            re.IGNORECASE,
+        )
+        if qr_match:
+            data = qr_match.group(1).strip()
+        elif lower.startswith("qr:") or lower.startswith("qr "):
+            data = cleaned[3:].strip()
+        elif lower.startswith("qrcode"):
+            data = cleaned[6:].strip()
+
+    # Clean data of trailing punctuation or filler words
+    data = re.sub(r"^(?:for|to|of|generate|create|make|code|pannu|podu|\:|\-|\s)+", "", data, flags=re.IGNORECASE).strip()
+    data = re.sub(r"[?!.,;]+$", "", data).strip()
+
+    # If user provided bare command or Tanglish troubleshooting phrase, default to KIRAHT AI repository
+    if not data or data.lower() in ("code", "generate", "pannu", "image", "create", "link", "url", "agala", "aagala", "varala", "pannunga", "solunga"):
+        data = "https://github.com/mohamedtharika25am-byte/KIRAHT-AI"
+
+    try:
+        import qrcode
+        gen_dir = os.path.join(WORKSPACE_DIR, "static", "generated")
+        os.makedirs(gen_dir, exist_ok=True)
+        ts = int(time.time())
+        filename = f"qr_{ts}.png"
+        filepath = os.path.join(gen_dir, filename)
+
+        qr = qrcode.QRCode(
+            version=1,
+            error_correction=qrcode.constants.ERROR_CORRECT_M,
+            box_size=10,
+            border=4,
+        )
+        qr.add_data(data)
+        qr.make(fit=True)
+        img = qr.make_image(fill_color="black", back_color="white")
+        img.save(filepath)
+
+        rel_url = f"/static/generated/{filename}"
+        return True, f"{call_me}, generated tactical QR code for '{data[:60]}'. Saved to: {rel_url}\n![QR Code]({rel_url})"
+    except Exception as err:
+        return True, f"{call_me}, failed to generate QR code: {err}"
+
+
+def inspect_document(query: str, call_me: str = "Sir") -> tuple[bool, str]:
+    """
+    Reads and summarizes documents (PDF, DOCX, TXT, MD, CSV, JSON).
+    """
+    cleaned = query.strip()
+    doc_match = re.search(r"^(?:(?:please\s+)?(?:read|inspect|analyze|parse|summarize|extract text from)\s+(?:pdf|document|doc|file)?\s*)(.+)$", cleaned, re.IGNORECASE)
+    if not doc_match and not cleaned.lower().startswith(("pdf:", "doc:")):
+        return False, ""
+
+    target = doc_match.group(1).strip() if doc_match else cleaned[4:].strip()
+    if not target or target.lower() in ("you", "screen", "wifi", "battery", "my screen"):
+        return False, ""
+
+    from file_tools import resolve_path
+    full_path = resolve_path(target)
+    if not os.path.exists(full_path):
+        return False, ""
+
+    ext = os.path.splitext(full_path)[1].lower()
+    base_name = os.path.basename(full_path)
+
+    if ext == ".pdf":
+        try:
+            import pypdf
+            reader = pypdf.PdfReader(full_path)
+            num_pages = len(reader.pages)
+            sample_text = ""
+            for i in range(min(3, num_pages)):
+                sample_text += f"--- Page {i+1} ---\n" + reader.pages[i].extract_text()[:600] + "\n"
+            return True, f"{call_me}, PDF '{base_name}' has {num_pages} pages.\nPreview:\n{sample_text.strip()}"
+        except Exception as err:
+            return True, f"{call_me}, error reading PDF '{base_name}': {err}"
+
+    elif ext in (".txt", ".md", ".json", ".csv", ".log", ".py"):
+        from file_tools import read_file_content
+        return True, read_file_content(target, max_lines=40, call_me=call_me)
+
+    return False, ""
+
+
+def translate_text(query: str, call_me: str = "Sir") -> tuple[bool, str]:
+    """
+    Translates text deterministically using MyMemory API.
+    Supports: "translate hello to tamil", "translate good morning in french", etc.
+    """
+    cleaned = query.strip()
+    trans_match = re.search(r"^(?:please\s+)?translate\s+(?:['\"]?(.+?)['\"]?)\s+(?:to|in|into)\s+([a-zA-Z]+)$", cleaned, re.IGNORECASE)
+    if not trans_match:
+        return False, ""
+
+    text = trans_match.group(1).strip()
+    target_lang_str = trans_match.group(2).strip().lower()
+
+    lang_map = {
+        "tamil": "ta", "english": "en", "french": "fr", "german": "de",
+        "spanish": "es", "hindi": "hi", "arabic": "ar", "japanese": "ja",
+        "chinese": "zh", "russian": "ru", "italian": "it", "portuguese": "pt",
+    }
+    target_code = lang_map.get(target_lang_str, target_lang_str[:2])
+
+    try:
+        url = f"https://api.mymemory.translated.net/get?q={urllib.parse.quote(text)}&langpair=autodetect|{target_code}"
+        req = urllib.request.Request(url, headers={"User-Agent": "KIRAHT-AI/1.0"})
+        with urllib.request.urlopen(req, timeout=4.0) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            translated = data.get("responseData", {}).get("translatedText", "")
+            if translated:
+                return True, f"{call_me}, Translation ({target_lang_str.title()}): \"{translated}\""
+            return False, ""
+    except Exception as err:
+        return True, f"{call_me}, translation service error: {err}"
+
+
 def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, str]:
     """
     Matches user intent against desktop apps, file operations, audio, screen capture,
@@ -949,6 +1365,41 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     )
     if cleaned in contextual_pronoun_phrases or cleaned.startswith(("open that ", "open it ", "launch that ", "start that ")):
         return False, ""
+
+    # Media Playback Controls
+    is_media, media_res = control_media(cleaned, call_me)
+    if is_media:
+        return True, media_res
+
+    # Deterministic Math & Calculator
+    is_math, math_res = evaluate_math(cleaned, call_me)
+    if is_math:
+        return True, math_res
+
+    # Deterministic Unit Conversion
+    is_conv, conv_res = convert_units(cleaned, call_me)
+    if is_conv:
+        return True, conv_res
+
+    # Live Weather Check
+    is_weather, weather_res = get_weather(cleaned, call_me)
+    if is_weather:
+        return True, weather_res
+
+    # QR Code Generation
+    is_qr, qr_res = generate_qr_code(cleaned, call_me)
+    if is_qr:
+        return True, qr_res
+
+    # Document & PDF Inspection
+    is_doc, doc_res = inspect_document(cleaned, call_me)
+    if is_doc:
+        return True, doc_res
+
+    # Deterministic Translation
+    is_trans, trans_res = translate_text(cleaned, call_me)
+    if is_trans:
+        return True, trans_res
 
     # 1. Rescan Installed Applications Cache
     if cleaned in ("/scan_apps", "scan apps", "rescan apps", "refresh apps"):
