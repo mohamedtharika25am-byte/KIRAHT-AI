@@ -1257,36 +1257,6 @@ body.cyber-hud {
   box-shadow: 0 0 20px rgba(0, 243, 255, 0.5);
 }
 
-/* Suggestion Chips */
-.suggestion-chips {
-  display: flex;
-  gap: 6px;
-  padding: 6px 16px;
-  overflow-x: auto;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-  background: rgba(6, 12, 22, 0.6);
-  z-index: 5;
-}
-
-.chip {
-  background: rgba(18, 28, 50, 0.85);
-  border: 1px solid rgba(0, 243, 255, 0.2);
-  color: var(--text-secondary);
-  font-family: var(--font-header);
-  font-size: 11.5px;
-  font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 12px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.2s ease;
-}
-
-.chip:hover {
-  background: rgba(0, 243, 255, 0.2);
-  color: var(--text-cyan);
-  border-color: var(--accent-cyan);
-}
 
 /* Chat Input Bar */
 .chat-input-bar {
