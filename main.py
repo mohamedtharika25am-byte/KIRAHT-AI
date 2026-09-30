@@ -559,13 +559,21 @@ def get_client_and_model():
 def get_gemini_client():
     """
     Initializes Google GenAI client if GEMINI_API_KEY is present in .env.
+    Auto-migrates deprecated model names to current active 2026 models.
     """
     load_dotenv()
     key = os.getenv("GEMINI_API_KEY", "").strip()
-    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip() or "gemini-2.5-flash"
+    raw_model = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite").strip() or "gemini-3.1-flash-lite"
+    if raw_model in ("gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash", "gemini-2.5-flash-lite"):
+        model = "gemini-3.1-flash-lite"
+    else:
+        model = raw_model
+
     if not key:
         return None, model
     try:
+        import logging
+        logging.getLogger("google_genai").setLevel(logging.ERROR)
         from google import genai
         client = genai.Client(api_key=key)
         return client, model
@@ -588,6 +596,10 @@ def inspect_screen_with_gemini(gemini_client, gemini_model: str, user_prompt: st
     if not shot_path or not os.path.exists(shot_path):
         return False, f"{call_me}, failed to capture screen for vision inspection."
 
+    target_model = gemini_model
+    if target_model in ("gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"):
+        target_model = "gemini-3.1-flash-lite"
+
     try:
         img = Image.open(shot_path)
         prompt = (
@@ -595,10 +607,21 @@ def inspect_screen_with_gemini(gemini_client, gemini_model: str, user_prompt: st
             f"User request: '{user_prompt}'\n"
             f"Task: Inspect the attached screen capture of the user's laptop. Provide a direct, crystal-clear, step-by-step diagnosis or explanation. If there is code, terminal errors, or UI issues visible, pinpoint the exact root cause and solution."
         )
-        response_stream = gemini_client.models.generate_content_stream(
-            model=gemini_model,
-            contents=[img, prompt]
-        )
+        try:
+            response_stream = gemini_client.models.generate_content_stream(
+                model=target_model,
+                contents=[img, prompt]
+            )
+        except Exception as e:
+            if "404" in str(e) or "503" in str(e):
+                target_model = "gemini-3.1-flash-lite"
+                response_stream = gemini_client.models.generate_content_stream(
+                    model=target_model,
+                    contents=[img, prompt]
+                )
+            else:
+                raise e
+
         print(f"\nkiraht AI: ", end="", flush=True)
         chunks = []
         for chunk in response_stream:
@@ -1210,6 +1233,18 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
         try:
             user_input = get_user_input_multiline("\nYou: ").strip()
 
+            # Handle Ctrl+T (0x14) keypress if entered at prompt
+            if "\x14" in user_input:
+                user_input = user_input.replace("\x14", "").strip()
+                show_thoughts = not show_thoughts
+                t_stat = "ON (Visible)" if show_thoughts else "OFF (Hidden)"
+                note = ""
+                if "r1" not in model.lower() and "qwq" not in model.lower() and "think" not in model.lower():
+                    note = f" (Note: Active model '{model}' does not emit reasoning steps; use 'deepseek-r1' for full CoT thinking)"
+                print(f"[KIRAHT AI: 🧠 Thoughts visibility toggled {t_stat}{note}]")
+                if not user_input:
+                    continue
+
             if not user_input:
                 continue
 
@@ -1520,7 +1555,7 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                 continue
 
             # Command: /think [on|off] or Ctrl+T toggle
-            if user_input.lower().strip() in ("/think", "think", "/think on", "/think off", "/think toggle", "\x14"):
+            if user_input.lower().strip() in ("/think", "think", "/think on", "/think off", "/think toggle", "\x14") or user_input.lower().strip().startswith(("/think ", "think ")):
                 cmd_parts = user_input.lower().strip().split()
                 if len(cmd_parts) > 1 and cmd_parts[1] in ("on", "true", "1"):
                     show_thoughts = True
@@ -1529,7 +1564,10 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                 else:
                     show_thoughts = not show_thoughts
                 status = "ON (Reasoning stream visible)" if show_thoughts else "OFF (Compact mode - press Ctrl+T to view)"
-                print(f"\nkiraht AI: 🧠 Thought Process Visibility: {status}, {call_me}.")
+                note = ""
+                if "r1" not in model.lower() and "qwq" not in model.lower() and "think" not in model.lower():
+                    note = f"\n  💡 Note: Active model '{model}' is a direct-response model. Step-by-step thinking streams are emitted by reasoning models (e.g. 'deepseek-r1')."
+                print(f"\nkiraht AI: 🧠 Thought Process Visibility: {status}, {call_me}.{note}")
                 continue
 
             # Command: /thoughts or /why
@@ -1815,10 +1853,25 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                     if active_engine == "gemini" and gemini_client and is_online():
                         try:
                             print(f"\nkiraht AI: ", end="", flush=True)
-                            g_stream = gemini_client.models.generate_content_stream(
-                                model=gemini_model,
-                                contents=prompt_content
-                            )
+                            target_gem_model = gemini_model
+                            if target_gem_model in ("gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash"):
+                                target_gem_model = "gemini-3.1-flash-lite"
+                            try:
+                                g_stream = gemini_client.models.generate_content_stream(
+                                    model=target_gem_model,
+                                    contents=prompt_content
+                                )
+                            except Exception as g_init_err:
+                                if ("404" in str(g_init_err) or "503" in str(g_init_err)) and target_gem_model != "gemini-3.1-flash-lite":
+                                    target_gem_model = "gemini-3.1-flash-lite"
+                                    gemini_model = "gemini-3.1-flash-lite"
+                                    g_stream = gemini_client.models.generate_content_stream(
+                                        model=target_gem_model,
+                                        contents=prompt_content
+                                    )
+                                else:
+                                    raise g_init_err
+
                             reply_chunks = []
                             for g_chunk in g_stream:
                                 txt = g_chunk.text or ""
@@ -1851,6 +1904,7 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                 thought_chunks = []
                 is_thinking = False
                 in_tool_tag = False
+                last_toggle_time = 0.0
 
                 for chunk in response_stream:
                     # Live Ctrl+T or Tab keystroke intercept during generation on Windows
@@ -1860,12 +1914,21 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                             if msvcrt.kbhit():
                                 ch = msvcrt.getch()
                                 if ch in (b'\x14', b'\t'):  # Ctrl+T (0x14) or Tab (0x09)
-                                    show_thoughts = not show_thoughts
-                                    t_stat = "EXPANDED" if show_thoughts else "COLLAPSED"
-                                    print(f"\n\033[93m[KIRAHT AI: 🧠 Thoughts {t_stat}]\033[0m", flush=True)
-                                    if not show_thoughts and is_thinking:
-                                        print("\r\033[K[Thinking... (Press Ctrl+T to expand)] ", end="", flush=True)
-                                        is_thinking = False
+                                    now = time.time()
+                                    # Drain all autorepeat bytes from console buffer
+                                    while msvcrt.kbhit():
+                                        msvcrt.getch()
+                                    # Debounce: at least 400ms between toggles
+                                    if now - last_toggle_time > 0.4:
+                                        last_toggle_time = now
+                                        show_thoughts = not show_thoughts
+                                        # Only display status banner if the model is currently thinking or has thought tokens
+                                        if is_thinking or thought_chunks:
+                                            t_stat = "EXPANDED" if show_thoughts else "COLLAPSED"
+                                            print(f"\n\033[93m[KIRAHT AI: 🧠 Thoughts {t_stat}]\033[0m", flush=True)
+                                            if not show_thoughts and is_thinking:
+                                                print("\r\033[K[Thinking... (Press Ctrl+T to expand)] ", end="", flush=True)
+                                                is_thinking = False
                         except Exception:
                             pass
 

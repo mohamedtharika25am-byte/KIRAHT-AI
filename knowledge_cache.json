@@ -8,5 +8,20 @@
     "topic": "Windows current version",
     "summary": "The latest version of Windows is Windows 11 Version 24H2.",
     "updated_at": "2026-09-21"
+  },
+  "who is narendra modi": {
+    "topic": "Narendra Modi - Prime Minister of India",
+    "summary": "Narendra Modi is the 14th and current Prime Minister of India. He assumed office on May 26, 2014. A leader of the Bharatiya Janata Party (BJP), he previously served as the Chief Minister of Gujarat from 2001 to 2014. Modi is known for his Hindu nationalist ideology and emphasis on economic development and digital transformation. He won consecutive re-elections in 2019 and 2024, securing third term.",
+    "updated_at": "2026-09-30"
+  },
+  "who is emmanuel macron": {
+    "topic": "Emmanuel Macron - President of France",
+    "summary": "Emmanuel Macron is the 25th and current President of France, in office since May 14, 2017. He is the youngest president in French history. A former investment banker, he founded the La République En Marche! political movement in 2016. Macron has pursued centrist and liberal economic policies while advocating for deeper European integration. He was re-elected for a second term in 2022.",
+    "updated_at": "2026-09-30"
+  },
+  "who is kamala harris": {
+    "topic": "Kamala Harris - Vice President of the United States",
+    "summary": "Kamala Harris is the 49th and current Vice President of the United States, serving since January 20, 2021. As Vice President, she chairs the National Space Council and is the first woman, first African American, and first South Asian American to hold this office. Previously, she served as a U.S. Senator from California (2017-2021) and as Attorney General of California (2011-2017).",
+    "updated_at": "2026-09-30"
   }
 }
