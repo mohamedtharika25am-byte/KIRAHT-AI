@@ -913,6 +913,23 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     cleaned = user_text.strip().lower()
     cleaned = re.sub(r"[?!.,;]+$", "", cleaned).strip()
 
+    # Contextual Pronoun & Referential Intent Passthrough:
+    # If user says "open that", "open it", "launch that", "close that", etc.,
+    # DO NOT perform a naive hardcoded action. Let Ollama / Gemini resolve the
+    # reference from conversation history and dispatch the appropriate tool.
+    contextual_pronoun_phrases = (
+        "open that", "open it", "open this", "open that folder", "open that file", "open that app", "open the app",
+        "launch that", "launch it", "launch this",
+        "start that", "start it", "start this",
+        "run that", "run it", "run this",
+        "close that", "close it", "close this",
+        "kill that", "kill it", "kill this",
+        "check that", "check it", "check this",
+        "open that directory", "open the directory", "open the folder"
+    )
+    if cleaned in contextual_pronoun_phrases or cleaned.startswith(("open that ", "open it ", "launch that ", "start that ")):
+        return False, ""
+
     # 1. Rescan Installed Applications Cache
     if cleaned in ("/scan_apps", "scan apps", "rescan apps", "refresh apps"):
         apps = scan_installed_apps()
@@ -1179,10 +1196,6 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     if kf_match:
         f_target = kf_match.group(1).strip()
         return True, open_folder(f_target, call_me=call_me)
-
-    if cleaned in ("open that", "open it", "open that folder", "open that directory", "open the folder"):
-        from file_tools import get_last_path
-        return True, open_folder(get_last_path(), call_me=call_me)
 
     # 20. Contacts & WhatsApp Messaging Engine
     contact_add_match = re.search(

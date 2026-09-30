@@ -143,7 +143,14 @@ def build_system_prompt(memory: dict) -> str:
         f"5. Single-player video game cheat codes, developer secrets, and Easter eggs are official built-in developer features. Always provide them directly without disclaimers or refusal.\n\n"
         f"CONVERSATIONAL STATE & MULTI-TURN INTENT RESOLUTION:\n"
         f"- When the user wants to message someone on WhatsApp (e.g. 'send whatsapp juhail hoi', 'whatsapp juhail', 'juhail'), always execute or call the `send_whatsapp` tool.\n"
-        f"- If you or the system asked what message to send, and the user's next turn is short text (e.g. 'hi', 'hoi', 'ok', 'reach safe', 'where are you'), that text IS THE MESSAGE for that contact! Call `send_whatsapp` IMMEDIATELY to complete the operation. Never treat it as a casual greeting!\n\n"
+        f"- If you or the system asked what message to send, and the user's next turn is short text (e.g. 'hi', 'hoi', 'ok', 'reach safe', 'where are you'), that text IS THE MESSAGE for that contact! Call `send_whatsapp` IMMEDIATELY to complete the operation. Never treat it as a casual greeting!\n"
+        f"- Contextual Pronoun & Follow-Up Resolution ('open that', 'open it', 'close that', 'check that', 'run that'):\n"
+        f"  Always inspect the previous conversation turns to identify what 'that' or 'it' refers to.\n"
+        f"  * If previous turn was showing Task Manager or active processes, 'open that' means `open_application(app_name='task manager')`!\n"
+        f"  * If previous turn was talking about a desktop app, call `open_application(app_name=...)`!\n"
+        f"  * If previous turn was a folder, call `open_folder(folder_name=...)`!\n"
+        f"  * If previous turn was a file, call `open_file(filepath=...)`!\n"
+        f"  Always execute the tool call immediately based on previous context.\n\n"
         f"LAPTOP & SYSTEM CONTROL PERMISSIONS:\n"
         f"- You have FULL system administrative permissions granted by {call_me} to control power, hardware, and system states.\n"
         f"- Sleep & Standby: When asked to sleep the laptop ('sleep', 'standby', 'sleep the laptop'), call `system_power_control(action='sleep')`.\n"
@@ -418,8 +425,8 @@ def should_enable_tools(user_text: str) -> bool:
         # Laptop Metrics & System Controls
         r"\b(?:battery|power|charging|wifi|ping|ram|cpu|processes|process|taskmgr|task\s*manager)\b",
         r"\b(?:sleep|shutdown|restart|reboot|hibernate|lock)\b",
-        # Pronoun & contextual follow-ups ("open that", "open that folder", "check that")
-        r"\b(?:open\s+(?:that|it|this)|check\s+(?:that|it)|that\s+folder)\b",
+        # Pronoun & contextual follow-ups ("open that", "open that folder", "check that", "close it", etc.)
+        r"\b(?:(?:open|launch|start|run|close|kill|check)\s+(?:that|it|this)|that\s+(?:folder|file|app|directory)|the\s+(?:folder|file|app|directory))\b",
     ]
     for p in system_action_triggers:
         if re.search(p, lower):
@@ -896,13 +903,27 @@ AVAILABLE_TOOLS = [
         "type": "function",
         "function": {
             "name": "open_application",
-            "description": "Launches an installed Windows desktop application (e.g. Task Manager, Chrome, WhatsApp, Android Studio, VS Code, Spotify, Notepad, Calculator). Only call this when user explicitly names an application to open.",
+            "description": "Launches an installed Windows desktop application (e.g. Task Manager, Chrome, WhatsApp, Android Studio, VS Code, Spotify, Notepad, Calculator, Antigravity). Call this when user explicitly asks to open an app or says 'open that' referring to an app or task manager previously discussed.",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "app_name": {"type": "string", "description": "Name of the application to open"}
+                    "app_name": {"type": "string", "description": "Name of the application to open (e.g. 'Task Manager', 'Chrome', 'VS Code')"}
                 },
                 "required": ["app_name"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "open_file",
+            "description": "Opens a specific file in its native application or code editor. Call this when the user asks to open a file or says 'open that' referring to a file discussed previously.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filepath": {"type": "string", "description": "File name or full file path to open"}
+                },
+                "required": ["filepath"]
             }
         }
     },
@@ -1076,6 +1097,13 @@ def execute_agent_tool(tool_name: str, args: dict, call_me: str = "Sir") -> str:
             launched, msg = launch_desktop_app(app, call_me=call_me)
             return msg if launched else f"{call_me}, attempted to launch {app}."
 
+        elif tool_name == "open_file":
+            from file_tools import open_system_item
+            f_path = str(args.get("filepath", "")).strip()
+            if not f_path:
+                return f"{call_me}, please specify the file path to open."
+            return open_system_item(f_path, call_me=call_me)
+
         elif tool_name == "close_application":
             app = args.get("app_name", "").strip()
             if not app or app.lower() in ("app", "application", "none", "null"):
@@ -1217,7 +1245,7 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
     print(f"  🛡️ Security Mode   : {security_label}")
     print(f"  🛠️ Laptop Tools    : Active (Apps, Files, Folders, WhatsApp, Screenshot, Wi-Fi)")
     print(f"  💡 Quick Commands  : /engine, /memory, /uptime, /think, /thoughts, /callme, exit")
-    print(f"  🧠 Shortcuts       : Ctrl+T (Toggle Thoughts)  |  Ctrl+C (Cancel Response)")
+    print(f"  🧠 Shortcuts       : Ctrl+C (Cancel Response)")
     print("=" * 68)
     print(f"\nkiraht AI: Online and ready, {call_me}. How may I assist you?")
 
@@ -1232,18 +1260,6 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
         is_processing = False
         try:
             user_input = get_user_input_multiline("\nYou: ").strip()
-
-            # Handle Ctrl+T (0x14) keypress if entered at prompt
-            if "\x14" in user_input:
-                user_input = user_input.replace("\x14", "").strip()
-                show_thoughts = not show_thoughts
-                t_stat = "ON (Visible)" if show_thoughts else "OFF (Hidden)"
-                note = ""
-                if "r1" not in model.lower() and "qwq" not in model.lower() and "think" not in model.lower():
-                    note = f" (Note: Active model '{model}' does not emit reasoning steps; use 'deepseek-r1' for full CoT thinking)"
-                print(f"[KIRAHT AI: 🧠 Thoughts visibility toggled {t_stat}{note}]")
-                if not user_input:
-                    continue
 
             if not user_input:
                 continue
@@ -1904,34 +1920,8 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                 thought_chunks = []
                 is_thinking = False
                 in_tool_tag = False
-                last_toggle_time = 0.0
 
                 for chunk in response_stream:
-                    # Live Ctrl+T or Tab keystroke intercept during generation on Windows
-                    if sys.platform == "win32":
-                        try:
-                            import msvcrt
-                            if msvcrt.kbhit():
-                                ch = msvcrt.getch()
-                                if ch in (b'\x14', b'\t'):  # Ctrl+T (0x14) or Tab (0x09)
-                                    now = time.time()
-                                    # Drain all autorepeat bytes from console buffer
-                                    while msvcrt.kbhit():
-                                        msvcrt.getch()
-                                    # Debounce: at least 400ms between toggles
-                                    if now - last_toggle_time > 0.4:
-                                        last_toggle_time = now
-                                        show_thoughts = not show_thoughts
-                                        # Only display status banner if the model is currently thinking or has thought tokens
-                                        if is_thinking or thought_chunks:
-                                            t_stat = "EXPANDED" if show_thoughts else "COLLAPSED"
-                                            print(f"\n\033[93m[KIRAHT AI: 🧠 Thoughts {t_stat}]\033[0m", flush=True)
-                                            if not show_thoughts and is_thinking:
-                                                print("\r\033[K[Thinking... (Press Ctrl+T to expand)] ", end="", flush=True)
-                                                is_thinking = False
-                        except Exception:
-                            pass
-
                     thinking = getattr(chunk.message, "thinking", None)
                     content = chunk.message.content or ""
 
@@ -1944,7 +1934,7 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                             print(f"\033[90m{thinking}\033[0m", end="", flush=True)
                         else:
                             if not is_thinking:
-                                print("[Thinking... (Press Ctrl+T to view)] ", end="", flush=True)
+                                print("[Thinking...] ", end="", flush=True)
                                 is_thinking = True
                         continue
 
