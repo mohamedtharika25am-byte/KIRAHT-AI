@@ -41,3 +41,6 @@ googlecontacts.csv
 chat_history.json
 static/generated/*.png
 
+# Log files
+*.log
+

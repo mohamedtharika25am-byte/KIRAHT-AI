@@ -372,15 +372,29 @@ def free_port(port: int = 8000) -> None:
         pass
 
 
+def _auto_open_browser(url: str, delay: float = 1.0) -> None:
+    """Opens the Web HUD in default browser after server initializes."""
+    import time
+    import webbrowser
+    time.sleep(delay)
+    try:
+        webbrowser.open(url)
+    except Exception:
+        pass
+
+
 def run_server(host: str = "127.0.0.1", port: int = 8000):
     """Starts the FastAPI Web HUD local server with auto-port conflict resolution."""
     free_port(port)
+    url = f"http://{host}:{port}"
     print("=" * 64)
     print("  ⚡ KIRAHT AI - Web HUD Server")
-    print(f"  🌐 Running locally on: http://{host}:{port}")
+    print(f"  🌐 Running locally on: {url}")
     print(f"  🔌 WebSocket Stream   : ws://{host}:{port}/ws")
     print(f"  🛡️ Security Mode      : Localhost-Only")
     print("=" * 64)
+    import threading
+    threading.Thread(target=_auto_open_browser, args=(url,), daemon=True).start()
     try:
         uvicorn.run(app, host=host, port=port, log_level="warning")
     except OSError as err:
