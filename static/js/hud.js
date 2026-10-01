@@ -25,6 +25,7 @@
   let wordStreamInterval = null;
   let isStreamingActive = false;
   let pendingStreamEnd = null;
+  let thinkingCard = null;
 
   // DOM Elements - Core & Navigation
   const chatViewport = document.getElementById('chat-viewport');
@@ -171,6 +172,9 @@
 
       case 'chat_message':
         renderSingleMessage(packet.role, packet.content, packet.timestamp, packet.meta);
+        if (packet.role === 'user') {
+          showThinkingIndicator();
+        }
         break;
 
       case 'activity':
@@ -190,6 +194,14 @@
         break;
 
       case 'error':
+        if (thinkingCard) {
+          if (thinkingCard.parentNode) {
+            thinkingCard.parentNode.removeChild(thinkingCard);
+          }
+          thinkingCard = null;
+          currentStreamingCard = null;
+          currentStreamingContentEl = null;
+        }
         logActivity('System', 'Error', packet.error);
         break;
     }
@@ -342,6 +354,14 @@
   }
 
   function renderSingleMessage(role, content, timestamp, meta) {
+    if (role === 'assistant' && thinkingCard) {
+      if (thinkingCard.parentNode) {
+        thinkingCard.parentNode.removeChild(thinkingCard);
+      }
+      thinkingCard = null;
+      currentStreamingCard = null;
+      currentStreamingContentEl = null;
+    }
     appendMessageCard(role, content, timestamp, meta);
     scrollToBottom();
   }
@@ -405,8 +425,65 @@
   }
 
   // =========================================================================
-  // 5. WORD-BY-WORD STREAMING TYPING QUEUE ("word by word varanum")
+  // 5. WORD-BY-WORD STREAMING & GEMINI-STYLE THINKING INDICATOR
   // =========================================================================
+  function showThinkingIndicator() {
+    if (thinkingCard || currentStreamingCard) return;
+
+    const card = document.createElement('div');
+    card.className = 'message-card assistant-card thinking-card';
+
+    const avatar = document.createElement('div');
+    avatar.className = 'message-avatar';
+    const avatarImg = document.createElement('img');
+    avatarImg.src = '/static/img/kiraht_ai_logo.png';
+    avatarImg.className = 'message-avatar-img';
+    avatarImg.alt = 'K';
+    avatar.appendChild(avatarImg);
+
+    const body = document.createElement('div');
+    body.className = 'message-body';
+
+    const header = document.createElement('div');
+    header.className = 'message-header';
+
+    const sender = document.createElement('span');
+    sender.className = 'sender-name';
+    sender.textContent = 'KIRAHT AI';
+
+    const time = document.createElement('span');
+    time.className = 'message-timestamp';
+    time.textContent = getCurrentTime();
+
+    header.appendChild(sender);
+    header.appendChild(time);
+
+    const contentEl = document.createElement('div');
+    contentEl.className = 'message-content thinking-content';
+    contentEl.innerHTML = `
+      <div class="thinking-bubble">
+        <span class="thinking-dot dot-cyan"></span>
+        <span class="thinking-dot dot-purple"></span>
+        <span class="thinking-dot dot-blue"></span>
+        <span class="thinking-text">Thinking...</span>
+      </div>
+    `;
+
+    body.appendChild(header);
+    body.appendChild(contentEl);
+
+    card.appendChild(avatar);
+    card.appendChild(body);
+
+    chatViewport.appendChild(card);
+    scrollToBottom();
+
+    thinkingCard = card;
+    currentStreamingCard = card;
+    currentStreamingContentEl = contentEl;
+    logActivity('KIRAHT', 'Processing', 'Analyzing prompt & context...');
+  }
+
   function startWordStreamWorker() {
     if (wordStreamInterval) return;
 
@@ -431,6 +508,19 @@
 
   function handleStreamChunk(chunk) {
     if (!chunk) return;
+
+    // Seamlessly transition from Gemini-style thinking dots to real streamed tokens
+    if (thinkingCard) {
+      if (currentStreamingContentEl) {
+        currentStreamingContentEl.innerHTML = '';
+        currentStreamingContentEl.classList.remove('thinking-content');
+      }
+      thinkingCard.classList.remove('thinking-card');
+      thinkingCard = null;
+      accumulatedStreamText = '';
+      wordStreamQueue = [];
+      isStreamingActive = true;
+    }
 
     if (!currentStreamingCard) {
       accumulatedStreamText = '';
@@ -522,14 +612,23 @@
       }
     }
 
+    const engineTag = (meta && meta.engine) ? meta.engine.toUpperCase() : 'AI';
+    logActivity('KIRAHT', 'Response Done', `Delivered via ${engineTag}`);
+
     currentStreamingCard = null;
     currentStreamingContentEl = null;
     accumulatedStreamText = '';
     wordStreamQueue = [];
+    thinkingCard = null;
     scrollToBottom();
   }
 
   function handleChatCleared() {
+    thinkingCard = null;
+    currentStreamingCard = null;
+    currentStreamingContentEl = null;
+    wordStreamQueue = [];
+    accumulatedStreamText = '';
     chatViewport.innerHTML = `
       <div class="message-card assistant-card">
         <div class="message-avatar">K</div>
@@ -606,6 +705,7 @@
       return;
     }
 
+    logActivity('User', 'Transmit', text.length > 50 ? text.substring(0, 47) + '...' : text);
     sendWebSocket({ type: 'chat', message: text });
     chatInput.value = '';
     chatInput.style.height = '42px';
@@ -633,6 +733,7 @@
   if (btnClearChat) {
     btnClearChat.addEventListener('click', function () {
       if (confirm('Clear current conversation history, Sir?')) {
+        logActivity('User', 'Reset Request', 'Wiping conversation context');
         sendWebSocket({ type: 'clear_chat' });
       }
     });
@@ -646,11 +747,13 @@
 
       if (action === 'clear_chat') {
         if (confirm('Clear chat history, Sir?')) {
+          logActivity('User', 'Reset Request', 'Wiping conversation context');
           sendWebSocket({ type: 'clear_chat' });
         }
         return;
       }
 
+      logActivity('User', 'Action Trigger', action.replace(/_/g, ' ').toUpperCase());
       sendWebSocket({ type: 'quick_action', action: action });
     });
   });
@@ -660,6 +763,7 @@
     chip.addEventListener('click', function () {
       const cmd = this.getAttribute('data-cmd');
       if (cmd && chatInput) {
+        logActivity('User', 'Suggestion', cmd);
         chatInput.value = cmd;
         sendMessage();
       }
@@ -961,6 +1065,110 @@
           document.body.style.userSelect = '';
           const currentWidth = parseInt(getComputedStyle(hudMain).getPropertyValue('--actions-width'), 10);
           if (currentWidth) localStorage.setItem('kiraht_actions_width', currentWidth);
+        }
+      });
+    }
+
+    // 3. Drag Resizer: Bottom (Activity Telemetry Footer Console)
+    const resizerBottom = document.getElementById('resizer-bottom');
+    const hudContainer = document.querySelector('.hud-container');
+    const btnLogClear = document.getElementById('btn-log-clear');
+    const btnLogMin = document.getElementById('btn-log-min');
+    const btnLogMid = document.getElementById('btn-log-mid');
+    const btnLogMax = document.getElementById('btn-log-max');
+
+    function updateFooterPresetButtons(height) {
+      if (!btnLogMin || !btnLogMid || !btnLogMax) return;
+      btnLogMin.classList.remove('active');
+      btnLogMid.classList.remove('active');
+      btnLogMax.classList.remove('active');
+      if (height <= 85) {
+        btnLogMin.classList.add('active');
+      } else if (height <= 180) {
+        btnLogMid.classList.add('active');
+      } else {
+        btnLogMax.classList.add('active');
+      }
+    }
+
+    function setFooterHeight(heightPx, saveToStorage = true) {
+      const clamped = Math.max(55, Math.min(420, heightPx));
+      if (hudContainer) {
+        hudContainer.style.setProperty('--footer-height', clamped + 'px');
+      }
+      if (saveToStorage) {
+        localStorage.setItem('kiraht_footer_height', clamped);
+      }
+      updateFooterPresetButtons(clamped);
+    }
+
+    // Restore saved custom footer height if any
+    const savedFooterHeight = localStorage.getItem('kiraht_footer_height');
+    if (savedFooterHeight && hudContainer) {
+      setFooterHeight(parseInt(savedFooterHeight, 10), false);
+    } else {
+      setFooterHeight(130, false);
+    }
+
+    if (btnLogClear) {
+      btnLogClear.addEventListener('click', function () {
+        if (activityLogStream) {
+          activityLogStream.innerHTML = '';
+          logActivity('System', 'Log Cleared', 'Console reset by user');
+        }
+      });
+    }
+
+    if (btnLogMin) {
+      btnLogMin.addEventListener('click', function () {
+        setFooterHeight(65);
+      });
+    }
+
+    if (btnLogMid) {
+      btnLogMid.addEventListener('click', function () {
+        setFooterHeight(130);
+      });
+    }
+
+    if (btnLogMax) {
+      btnLogMax.addEventListener('click', function () {
+        setFooterHeight(240);
+      });
+    }
+
+    if (resizerBottom) {
+      let isDraggingBottom = false;
+
+      resizerBottom.addEventListener('mousedown', function (e) {
+        isDraggingBottom = true;
+        resizerBottom.classList.add('is-dragging');
+        document.body.style.cursor = 'row-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+      });
+
+      resizerBottom.addEventListener('dblclick', function () {
+        setFooterHeight(130);
+        localStorage.removeItem('kiraht_footer_height');
+      });
+
+      window.addEventListener('mousemove', function (e) {
+        if (!isDraggingBottom) return;
+        const containerRect = hudContainer ? hudContainer.getBoundingClientRect() : document.body.getBoundingClientRect();
+        const newHeight = containerRect.bottom - e.clientY;
+        setFooterHeight(newHeight, false);
+      });
+
+      window.addEventListener('mouseup', function () {
+        if (isDraggingBottom) {
+          isDraggingBottom = false;
+          resizerBottom.classList.remove('is-dragging');
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+          const currentHeight = parseInt(getComputedStyle(hudContainer).getPropertyValue('--footer-height'), 10) || 130;
+          localStorage.setItem('kiraht_footer_height', currentHeight);
+          updateFooterPresetButtons(currentHeight);
         }
       });
     }

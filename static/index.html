@@ -436,8 +436,13 @@
       </aside>
     </main>
 
+    <!-- RESIZER: HORIZONTAL BOTTOM SPLITTER (DRAG UP/DOWN TO RESIZE FOOTER CONSOLE) -->
+    <div class="panel-resizer resizer-bottom" id="resizer-bottom" title="Drag to resize Activity Telemetry Console (Double-click to reset)">
+      <div class="resizer-bar-horizontal"></div>
+    </div>
+
     <!-- ==================== 3. BOTTOM HUD: AUDIO EQUALIZER & TOOL LOG ==================== -->
-    <footer class="hud-footer tactical-frame">
+    <footer class="hud-footer tactical-frame" id="hud-footer">
       <!-- Animated Equalizer Spectrum -->
       <div class="hud-equalizer-wrap">
         <div class="equalizer-header">
@@ -460,9 +465,17 @@
       <!-- Real-Time Activity & Tool Log -->
       <div class="activity-log-bar">
         <div class="activity-log-header">
-          <span class="activity-icon">⚡</span>
-          <span class="activity-title">ACTIVITY TELEMETRY STREAM</span>
-          <span class="log-indicator">STREAMING</span>
+          <div class="activity-log-header-left">
+            <span class="activity-icon">⚡</span>
+            <span class="activity-title">ACTIVITY TELEMETRY STREAM</span>
+            <span class="log-indicator live-pulse">STREAMING</span>
+          </div>
+          <div class="activity-log-controls">
+            <button id="btn-log-clear" class="log-ctrl-btn" title="Clear Event Log">CLEAR</button>
+            <button id="btn-log-min" class="log-ctrl-btn" title="Compact View (65px)">MIN</button>
+            <button id="btn-log-mid" class="log-ctrl-btn active" title="Standard View (130px)">MID</button>
+            <button id="btn-log-max" class="log-ctrl-btn" title="Expanded Terminal (240px)">MAX</button>
+          </div>
         </div>
         <div class="activity-log-stream" id="activity-log-stream">
           <div class="activity-entry">
