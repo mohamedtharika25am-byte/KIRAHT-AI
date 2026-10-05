@@ -431,6 +431,13 @@ body.cyber-hud {
   box-shadow: 0 0 10px var(--accent-cyan);
 }
 
+/* Disable panel transition during drag resizing for instant smooth response */
+.hud-main.is-resizing,
+.hud-main.is-resizing .left-panel,
+.hud-main.is-resizing .right-panel {
+  transition: none !important;
+}
+
 /* Hide resizer when attached panel is collapsed */
 .left-panel.collapsed + .resizer-left,
 .resizer-right.hidden-resizer {
@@ -687,6 +694,8 @@ body.cyber-hud {
 
 /* ==================== CENTER: PRIMARY CHAT HERO ==================== */
 .center-panel {
+  flex: 1 1 0%;
+  min-width: 280px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1090,16 +1099,36 @@ body.cyber-hud {
 }
 
 .assistant-card .message-avatar {
-  background: linear-gradient(135deg, rgba(0, 243, 255, 0.2), rgba(0, 119, 254, 0.4));
+  background: rgba(0, 243, 255, 0.1);
   border: 1px solid var(--accent-cyan);
   color: var(--accent-cyan);
   box-shadow: 0 0 10px rgba(0, 243, 255, 0.35);
+  overflow: hidden;
+  padding: 1px;
 }
 
 .user-card .message-avatar {
-  background: linear-gradient(135deg, rgba(168, 85, 247, 0.3), rgba(99, 102, 241, 0.4));
-  border: 1px solid var(--accent-purple);
+  background: transparent;
+  border: 1.5px solid var(--accent-purple);
   color: var(--text-primary);
+  border-radius: 50%;
+  overflow: hidden;
+  box-shadow: 0 0 10px rgba(168, 85, 247, 0.45);
+}
+
+.user-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+  display: block;
+}
+
+.assistant-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
 }
 
 .message-body {
@@ -2082,4 +2111,30 @@ body.cyber-hud {
   color: var(--text-primary);
   text-align: right;
   font-family: var(--font-body);
+}
+
+.shortcuts-category-title {
+  font-family: var(--font-header);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  color: var(--accent-cyan);
+  padding: 6px 0 4px 0;
+  margin-top: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid rgba(0, 243, 255, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.shortcuts-category-title.cat-global {
+  color: var(--accent-green);
+  border-bottom-color: rgba(0, 255, 136, 0.25);
+  margin-top: 14px;
+}
+
+.shortcuts-category-title.cat-global kbd {
+  color: var(--accent-green);
+  border-color: rgba(0, 255, 136, 0.4);
 }

@@ -309,14 +309,14 @@
       hudUptime.textContent = `UPTIME: ${data.uptime.session || '0m 0s'}`;
     }
 
-    // Stream active telemetry status into the Activity Telemetry Stream
-    if (telemetryTickCount % 3 === 0) {
-      const cpuVal = data.cpu ? `${data.cpu.percent}%` : '--%';
-      const ramVal = data.ram ? `${data.ram.percent}%` : '--%';
+    // Stream active telemetry heartbeat periodically without spamming raw dashes
+    if (telemetryTickCount % 20 === 0 && data.cpu && typeof data.cpu.percent === 'number' && data.ram) {
+      const cpuVal = `${data.cpu.percent}%`;
+      const ramVal = `${data.ram.percent}%`;
       const pingVal = data.network ? (data.network.ping || '24ms') : '24ms';
       const dlVal = data.network ? (data.network.download || '0.0 KB/s') : '0.0 KB/s';
       const ulVal = data.network ? (data.network.upload || '0.0 KB/s') : '0.0 KB/s';
-      logActivity('Telemetry', 'Sync', `CPU: ${cpuVal} • RAM: ${ramVal} • Ping: ${pingVal} • [↓${dlVal} ↑${ulVal}]`);
+      logActivity('Telemetry', 'Heartbeat', `CPU ${cpuVal} • RAM ${ramVal} • Ping ${pingVal} • [↓${dlVal} ↑${ulVal}]`);
     }
 
     // High compute spike detection
@@ -430,11 +430,19 @@
     const avatar = document.createElement('div');
     avatar.className = 'message-avatar';
     if (isUser) {
-      avatar.textContent = 'U';
+      const userImg = document.createElement('img');
+      userImg.src = '/static/img/user_avatar.jpg?v=' + Date.now();
+      userImg.className = 'message-avatar-img user-avatar-img';
+      userImg.alt = 'User';
+      userImg.onerror = function () {
+        this.remove();
+        avatar.textContent = 'U';
+      };
+      avatar.appendChild(userImg);
     } else {
       const avatarImg = document.createElement('img');
-      avatarImg.src = '/static/img/kiraht_ai_logo.png';
-      avatarImg.className = 'message-avatar-img';
+      avatarImg.src = '/static/img/kiraht_ai_logo.png?v=3.0';
+      avatarImg.className = 'message-avatar-img assistant-avatar-img';
       avatarImg.alt = 'K';
       avatar.appendChild(avatarImg);
     }
@@ -501,8 +509,8 @@
     const avatar = document.createElement('div');
     avatar.className = 'message-avatar';
     const avatarImg = document.createElement('img');
-    avatarImg.src = '/static/img/kiraht_ai_logo.png';
-    avatarImg.className = 'message-avatar-img';
+    avatarImg.src = '/static/img/kiraht_ai_logo.png?v=3.0';
+    avatarImg.className = 'message-avatar-img assistant-avatar-img';
     avatarImg.alt = 'K';
     avatar.appendChild(avatarImg);
 
@@ -607,8 +615,8 @@
       const avatar = document.createElement('div');
       avatar.className = 'message-avatar';
       const avatarImg = document.createElement('img');
-      avatarImg.src = '/static/img/kiraht_ai_logo.png';
-      avatarImg.className = 'message-avatar-img';
+      avatarImg.src = '/static/img/kiraht_ai_logo.png?v=3.0';
+      avatarImg.className = 'message-avatar-img assistant-avatar-img';
       avatarImg.alt = 'K';
       avatar.appendChild(avatarImg);
 
@@ -727,7 +735,9 @@
     accumulatedStreamText = '';
     chatViewport.innerHTML = `
       <div class="message-card assistant-card">
-        <div class="message-avatar">K</div>
+        <div class="message-avatar">
+          <img src="/static/img/kiraht_ai_logo.png?v=3.0" class="message-avatar-img assistant-avatar-img" alt="K">
+        </div>
         <div class="message-body">
           <div class="message-header">
             <span class="sender-name">KIRAHT AI</span>
@@ -779,6 +789,7 @@
     entry.appendChild(detailEl);
 
     activityLogStream.appendChild(entry);
+    activityLogStream.scrollTop = activityLogStream.scrollHeight;
 
     // Flash left Telemetry panel Tools status on tool or app execution
     if (coreToolsStatus && (actor === 'Tool' || (action && (action.includes('Tool') || action.includes('APP:') || action.includes('Execute'))))) {
@@ -1226,6 +1237,8 @@
       resizerLeft.addEventListener('mousedown', function (e) {
         isDraggingLeft = true;
         resizerLeft.classList.add('is-dragging');
+        if (hudMain) hudMain.classList.add('is-resizing');
+        if (telemetryPanel) telemetryPanel.style.transition = 'none';
         document.body.style.cursor = 'col-resize';
         document.body.style.userSelect = 'none';
         e.preventDefault();
@@ -1248,6 +1261,8 @@
         if (isDraggingLeft) {
           isDraggingLeft = false;
           resizerLeft.classList.remove('is-dragging');
+          if (hudMain) hudMain.classList.remove('is-resizing');
+          if (telemetryPanel) telemetryPanel.style.transition = '';
           document.body.style.cursor = '';
           document.body.style.userSelect = '';
           const currentWidth = parseInt(getComputedStyle(hudMain).getPropertyValue('--telemetry-width'), 10);
@@ -1263,6 +1278,8 @@
       resizerRight.addEventListener('mousedown', function (e) {
         isDraggingRight = true;
         resizerRight.classList.add('is-dragging');
+        if (hudMain) hudMain.classList.add('is-resizing');
+        if (actionsPanel) actionsPanel.style.transition = 'none';
         document.body.style.cursor = 'col-resize';
         document.body.style.userSelect = 'none';
         e.preventDefault();
@@ -1285,6 +1302,8 @@
         if (isDraggingRight) {
           isDraggingRight = false;
           resizerRight.classList.remove('is-dragging');
+          if (hudMain) hudMain.classList.remove('is-resizing');
+          if (actionsPanel) actionsPanel.style.transition = '';
           document.body.style.cursor = '';
           document.body.style.userSelect = '';
           const currentWidth = parseInt(getComputedStyle(hudMain).getPropertyValue('--actions-width'), 10);
@@ -1400,6 +1419,12 @@
 
   // Initialize Web HUD on load
   window.addEventListener('DOMContentLoaded', function () {
+    if (hudClock) hudClock.textContent = getCurrentTime(true);
+    fetch('/api/telemetry')
+      .then(function (r) { return r.json(); })
+      .then(function (data) { updateTelemetry(data); })
+      .catch(function () {});
+
     initWebSocket();
     initPanelResizersAndCollapsing();
     if (reactorCore) {

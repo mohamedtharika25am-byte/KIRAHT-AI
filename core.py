@@ -74,6 +74,44 @@ _CACHED_GEMINI_KEY: str = ""
 _CACHED_OLLAMA_CLIENT: Any = None
 _CACHED_OLLAMA_HOST: str = ""
 
+_IS_REFRESHING_WIFI = False
+_IS_REFRESHING_PING = False
+
+
+def _bg_refresh_wifi():
+    global _CACHED_WIFI, _IS_REFRESHING_WIFI
+    try:
+        from system_tools import get_wifi_status
+        raw_wifi = get_wifi_status(call_me="Sir")
+        match = re.search(r"SSID\s*:\s*([^\n,]+)", raw_wifi)
+        if match:
+            _CACHED_WIFI = (match.group(1).strip(), time.time())
+    except Exception:
+        pass
+    finally:
+        _IS_REFRESHING_WIFI = False
+
+
+def _bg_refresh_ping():
+    global _CACHED_PING, _IS_REFRESHING_PING
+    try:
+        t0 = time.time()
+        s = socket.create_connection(("1.1.1.1", 53), timeout=0.25)
+        s.close()
+        p = max(1, int((time.time() - t0) * 1000))
+        _CACHED_PING = (p, time.time())
+    except Exception:
+        try:
+            t0 = time.time()
+            s = socket.create_connection(("8.8.8.8", 53), timeout=0.25)
+            s.close()
+            p = max(1, int((time.time() - t0) * 1000))
+            _CACHED_PING = (p, time.time())
+        except Exception:
+            _CACHED_PING = (24, time.time())
+    finally:
+        _IS_REFRESHING_PING = False
+
 
 
 # =====================================================================
@@ -306,29 +344,21 @@ def get_system_telemetry() -> Dict[str, Any]:
     bat_charging = battery.power_plugged if battery else True
     bat_status = "Plugged In (Charging)" if (battery and battery.power_plugged) else ("Discharging" if battery else "Desktop (AC)")
 
-    # Network & Wi-Fi (cached for 12 seconds to prevent blocking event loop)
-    global _CACHED_WIFI, _CACHED_LOCAL_IP, _CACHED_NET_IO, _CACHED_NET_SPEED, _CACHED_PING
+    # Network & Wi-Fi (non-blocking background refresh)
+    global _CACHED_WIFI, _CACHED_LOCAL_IP, _CACHED_NET_IO, _CACHED_NET_SPEED, _CACHED_PING, _IS_REFRESHING_WIFI, _IS_REFRESHING_PING
     now_ts = time.time()
-    online = is_online(timeout=0.3)
+    online = is_online(timeout=0.15)
     net_status = "Connected (Online)" if online else "Offline"
 
-    if now_ts - _CACHED_WIFI[1] > 12.0:
-        wifi_name = "Wi-Fi"
-        try:
-            from system_tools import get_wifi_status
-            raw_wifi = get_wifi_status(call_me="Sir")
-            match = re.search(r"SSID\s*:\s*([^\n,]+)", raw_wifi)
-            if match:
-                wifi_name = match.group(1).strip()
-        except Exception:
-            pass
-        _CACHED_WIFI = (wifi_name, now_ts)
-    else:
-        wifi_name = _CACHED_WIFI[0]
+    if now_ts - _CACHED_WIFI[1] > 30.0 and not _IS_REFRESHING_WIFI:
+        _IS_REFRESHING_WIFI = True
+        import threading
+        threading.Thread(target=_bg_refresh_wifi, daemon=True).start()
+    wifi_name = _CACHED_WIFI[0]
 
     # Hostname & IP (cached)
     hostname = socket.gethostname()
-    if now_ts - _CACHED_LOCAL_IP[1] > 30.0:
+    if now_ts - _CACHED_LOCAL_IP[1] > 60.0:
         try:
             local_ip = socket.gethostbyname(hostname)
         except Exception:
@@ -363,24 +393,12 @@ def get_system_telemetry() -> Dict[str, Any]:
     except Exception:
         pass
 
-    # Ping latency
+    # Ping latency (non-blocking background refresh)
+    if (now_ts - _CACHED_PING[1]) > 10.0 and online and not _IS_REFRESHING_PING:
+        _IS_REFRESHING_PING = True
+        import threading
+        threading.Thread(target=_bg_refresh_ping, daemon=True).start()
     ping_ms = _CACHED_PING[0]
-    if (now_ts - _CACHED_PING[1]) > 5.0 and online:
-        try:
-            t0 = time.time()
-            s = socket.create_connection(("1.1.1.1", 53), timeout=0.3)
-            s.close()
-            ping_ms = max(1, int((time.time() - t0) * 1000))
-            _CACHED_PING = (ping_ms, now_ts)
-        except Exception:
-            try:
-                t0 = time.time()
-                s = socket.create_connection(("8.8.8.8", 53), timeout=0.3)
-                s.close()
-                ping_ms = max(1, int((time.time() - t0) * 1000))
-                _CACHED_PING = (ping_ms, now_ts)
-            except Exception:
-                ping_ms = 24
 
     # OS Info
     import platform

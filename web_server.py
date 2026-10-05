@@ -426,6 +426,11 @@ def run_server(host: str = "127.0.0.1", port: int = 8000):
     print(f"  🛡️ Security Mode      : Localhost-Only")
     print("=" * 64)
     import threading
+    try:
+        from global_hotkeys import start_global_hotkeys
+        start_global_hotkeys()
+    except Exception as hk_err:
+        print(f"[!] Global hotkeys warning: {hk_err}")
     threading.Thread(target=_auto_open_browser, args=(url,), daemon=True).start()
     try:
         uvicorn.run(app, host=host, port=port, log_level="warning")

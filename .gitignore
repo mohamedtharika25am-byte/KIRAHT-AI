@@ -44,3 +44,10 @@ static/generated/*.png
 # Log files
 *.log
 
+# Personal User Photos & Local Asset Scratches (Privacy Protected)
+THARIKpic*
+*tharik*
+*THARIK*
+static/img/user_avatar*
+static/img/tharik_avatar*
+k

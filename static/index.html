@@ -7,8 +7,8 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Inter:wght@300;400;500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/hud.css?v=2.8">
-  <link rel="icon" type="image/png" href="/static/img/kiraht_ai_logo.png">
+  <link rel="stylesheet" href="/static/css/hud.css?v=3.0">
+  <link rel="icon" type="image/png" href="/static/img/kiraht_ai_logo.png?v=3.0">
 </head>
 <body class="cyber-hud">
   <!-- Futuristic Tactical Background -->
@@ -24,7 +24,7 @@
       <div class="header-left">
         <div class="core-logo">
           <div class="logo-image-wrap">
-            <img src="/static/img/kiraht_ai_logo.png" alt="KIRAHT AI Logo" class="brand-logo-img">
+            <img src="/static/img/kiraht_ai_logo.png?v=3.0" alt="KIRAHT AI Logo" class="brand-logo-img">
           </div>
           <div class="logo-text">
             <h1 class="logo-title">KIRAHT <span class="accent-text">AI</span></h1>
@@ -290,7 +290,7 @@
             <!-- Initial Welcome Message from KIRAHT AI -->
             <div class="message-card assistant-card">
               <div class="message-avatar">
-                <img src="/static/img/kiraht_ai_logo.png" class="message-avatar-img" alt="KIRAHT">
+                <img src="/static/img/kiraht_ai_logo.png?v=3.0" class="message-avatar-img assistant-avatar-img" alt="KIRAHT">
               </div>
               <div class="message-body">
                 <div class="message-header">
@@ -504,48 +504,69 @@
         <button class="hud-modal-close" id="btn-close-shortcuts" title="Close (Esc or F1)">✖</button>
       </div>
       <div class="hud-modal-body">
+        <div class="shortcuts-category-title">
+          <span>🖥️ CATEGORY 1: WEB HUD SHORTCUTS (Inside Browser)</span>
+        </div>
         <div class="shortcuts-grid">
           <div class="shortcut-item">
+            <span class="shortcut-keys"><kbd>F1</kbd></span>
+            <span class="shortcut-desc">Toggle This Shortcuts Cheat-Sheet</span>
+          </div>
+          <div class="shortcut-item">
             <span class="shortcut-keys"><kbd>Ctrl</kbd> + <kbd>K</kbd></span>
-            <span class="shortcut-desc">Focus Chat Input</span>
+            <span class="shortcut-desc">Focus Chat Input Box</span>
           </div>
           <div class="shortcut-item">
             <span class="shortcut-keys"><kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd></span>
-            <span class="shortcut-desc">Instant Screenshot</span>
+            <span class="shortcut-desc">Instant Screenshot Capture</span>
           </div>
           <div class="shortcut-item">
             <span class="shortcut-keys"><kbd>Ctrl</kbd> + <kbd>L</kbd></span>
-            <span class="shortcut-desc">Fresh Screen (Safe)</span>
+            <span class="shortcut-desc">Fresh Screen Session (Safe, Never Deletes JSON)</span>
           </div>
           <div class="shortcut-item">
             <span class="shortcut-keys"><kbd>Esc</kbd></span>
-            <span class="shortcut-desc">Hide Keys / Blur Input</span>
+            <span class="shortcut-desc">Close Cheat-Sheet / Blur Chat Box</span>
           </div>
           <div class="shortcut-item">
             <span class="shortcut-keys"><kbd>Alt</kbd> + <kbd>1</kbd> .. <kbd>5</kbd></span>
-            <span class="shortcut-desc">Status, Chrome, VS Code, TaskMgr, Screen</span>
+            <span class="shortcut-desc">Status, Chrome, VS Code, TaskMgr, Screenshot</span>
           </div>
           <div class="shortcut-item">
             <span class="shortcut-keys"><kbd>Alt</kbd> + <kbd>M</kbd></span>
-            <span class="shortcut-desc">Cycle Log Console (MIN/MID/MAX)</span>
+            <span class="shortcut-desc">Cycle Bottom Console Height (MIN / MID / MAX)</span>
           </div>
           <div class="shortcut-item">
             <span class="shortcut-keys"><kbd>Alt</kbd> + <kbd>T</kbd></span>
-            <span class="shortcut-desc">Toggle Telemetry Sidebar</span>
+            <span class="shortcut-desc">Toggle Left Telemetry Sidebar</span>
           </div>
           <div class="shortcut-item">
             <span class="shortcut-keys"><kbd>Alt</kbd> + <kbd>Q</kbd></span>
-            <span class="shortcut-desc">Toggle Actions Sidebar</span>
+            <span class="shortcut-desc">Toggle Right Quick Actions Sidebar</span>
+          </div>
+        </div>
+
+        <div class="shortcuts-category-title cat-global">
+          <span>🌐 CATEGORY 2: GLOBAL SYSTEM HOTKEYS (Windows-la Endha App-la Irundhalum)</span>
+        </div>
+        <div class="shortcuts-grid">
+          <div class="shortcut-item">
+            <span class="shortcut-keys"><kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>K</kbd></span>
+            <span class="shortcut-desc">Bring KIRAHT AI HUD to Front (From Any Window)</span>
           </div>
           <div class="shortcut-item">
-            <span class="shortcut-keys"><kbd>F1</kbd></span>
-            <span class="shortcut-desc">Show / Hide This Cheat-Sheet</span>
+            <span class="shortcut-keys"><kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd></span>
+            <span class="shortcut-desc">Global Instant Screen Capture (From Any Window)</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="shortcut-keys"><kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd></span>
+            <span class="shortcut-desc">Global Hardware Diagnostic Trigger</span>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <script src="/static/js/hud.js?v=2.8"></script>
+  <script src="/static/js/hud.js?v=3.0"></script>
 </body>
 </html>

@@ -2057,6 +2057,11 @@ def main() -> None:
         return
 
     load_dotenv()
+    try:
+        from global_hotkeys import start_global_hotkeys
+        start_global_hotkeys()
+    except Exception:
+        pass
     initial_host = os.getenv("OLLAMA_HOST", "http://localhost:11434").strip() or "http://localhost:11434"
     model = os.getenv("AI_MODEL", "qwen2.5:3b").strip() or "qwen2.5:3b"
     client, host = verify_and_ensure_ollama(model, initial_host)
