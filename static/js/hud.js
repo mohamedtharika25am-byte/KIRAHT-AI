@@ -1382,10 +1382,12 @@
 
     if (resizerBottom) {
       let isDraggingBottom = false;
+      const hudFooter = document.querySelector('.hud-footer');
 
       resizerBottom.addEventListener('mousedown', function (e) {
         isDraggingBottom = true;
         resizerBottom.classList.add('is-dragging');
+        if (hudFooter) hudFooter.classList.add('is-resizing');
         document.body.style.cursor = 'row-resize';
         document.body.style.userSelect = 'none';
         e.preventDefault();
@@ -1407,6 +1409,7 @@
         if (isDraggingBottom) {
           isDraggingBottom = false;
           resizerBottom.classList.remove('is-dragging');
+          if (hudFooter) hudFooter.classList.remove('is-resizing');
           document.body.style.cursor = '';
           document.body.style.userSelect = '';
           const currentHeight = parseInt(getComputedStyle(hudContainer).getPropertyValue('--footer-height'), 10) || 130;

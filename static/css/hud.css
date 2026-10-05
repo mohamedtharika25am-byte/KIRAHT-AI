@@ -1636,6 +1636,10 @@ body.cyber-hud {
   transition: height 0.15s ease;
 }
 
+.hud-footer.is-resizing {
+  transition: none !important;
+}
+
 .hud-equalizer-wrap {
   display: flex;
   flex-direction: column;
@@ -1723,6 +1727,7 @@ body.cyber-hud {
   gap: 4px;
   overflow: hidden;
   height: 100%;
+  min-height: 0;
 }
 
 .activity-log-header {
@@ -1731,6 +1736,7 @@ body.cyber-hud {
   justify-content: space-between;
   gap: 8px;
   flex-shrink: 0;
+  min-height: 20px;
 }
 
 .activity-log-header-left {
@@ -1798,13 +1804,16 @@ body.cyber-hud {
 }
 
 .activity-log-stream {
-  flex: 1;
+  flex: 1 1 0%;
+  min-height: 0;
   overflow-y: auto;
+  overflow-x: auto;
   display: flex;
   flex-direction: column;
   gap: 3px;
   font-family: var(--font-mono);
   font-size: 11px;
+  line-height: 1.4;
   background: rgba(0, 0, 0, 0.45);
   padding: 5px 8px;
   border-radius: 4px;
@@ -1812,13 +1821,33 @@ body.cyber-hud {
   box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.5);
 }
 
+.activity-log-stream::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+.activity-log-stream::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.35);
+  border-radius: 3px;
+}
+
+.activity-log-stream::-webkit-scrollbar-thumb {
+  background: rgba(0, 243, 255, 0.35);
+  border-radius: 3px;
+}
+
+.activity-log-stream::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-cyan);
+}
+
 .activity-entry {
   display: flex;
-  gap: 5px;
+  gap: 6px;
   align-items: baseline;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  flex-shrink: 0; /* CRITICAL: Never shrink height so lines NEVER overlap or squish into one another */
+  min-height: 18px;
+  line-height: 18px;
 }
 
 .log-time { color: var(--text-muted); }
