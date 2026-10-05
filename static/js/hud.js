@@ -41,6 +41,9 @@
   const hudUptime = document.getElementById('hud-uptime');
   const headerEngineText = document.getElementById('header-engine-text');
   const reactorCore = document.getElementById('reactor-core');
+  const btnShortcutsModal = document.getElementById('btn-shortcuts-modal');
+  const shortcutsModal = document.getElementById('shortcuts-modal');
+  const btnCloseShortcuts = document.getElementById('btn-close-shortcuts');
 
   // DOM Elements - Telemetry Gauges
   const cpuPercent = document.getElementById('cpu-percent');
@@ -835,12 +838,12 @@
     });
   }
 
-  // Clear chat button
+  // Clear chat button - Clears screen view while preserving chat_history.json
   if (btnClearChat) {
     btnClearChat.addEventListener('click', function () {
-      if (confirm('Clear current conversation history, Sir?')) {
-        logActivity('User', 'Reset Request', 'Wiping conversation context');
-        sendWebSocket({ type: 'clear_chat' });
+      if (confirm('Start fresh screen session, Sir? (Your chat_history.json will stay completely safe)')) {
+        logActivity('User', 'Fresh Screen', 'Clearing active viewport');
+        handleChatCleared();
       }
     });
   }
@@ -852,9 +855,9 @@
       if (!action) return;
 
       if (action === 'clear_chat') {
-        if (confirm('Clear chat history, Sir?')) {
-          logActivity('User', 'Reset Request', 'Wiping conversation context');
-          sendWebSocket({ type: 'clear_chat' });
+        if (confirm('Start fresh screen session, Sir? (Your chat_history.json will stay completely safe)')) {
+          logActivity('User', 'Fresh Screen', 'Clearing active viewport');
+          handleChatCleared();
         }
         return;
       }
@@ -1090,8 +1093,123 @@
       });
     }
 
-    // Keyboard Shortcuts: Alt+T (Telemetry), Alt+Q (Actions)
+    // Shortcuts Modal Controls (F1 to toggle, Esc or click outside to hide)
+    function showShortcutsModal() {
+      if (shortcutsModal) shortcutsModal.style.display = 'flex';
+    }
+
+    function hideShortcutsModal() {
+      if (shortcutsModal) shortcutsModal.style.display = 'none';
+    }
+
+    function toggleShortcutsModal() {
+      if (!shortcutsModal) return;
+      if (shortcutsModal.style.display === 'flex') {
+        hideShortcutsModal();
+      } else {
+        showShortcutsModal();
+      }
+    }
+
+    if (btnShortcutsModal) {
+      btnShortcutsModal.addEventListener('click', toggleShortcutsModal);
+    }
+    if (btnCloseShortcuts) {
+      btnCloseShortcuts.addEventListener('click', hideShortcutsModal);
+    }
+    if (shortcutsModal) {
+      shortcutsModal.addEventListener('click', function (e) {
+        if (e.target === shortcutsModal) {
+          hideShortcutsModal();
+        }
+      });
+    }
+
+    // Comprehensive Keyboard Shortcuts: F1, Esc, Ctrl+K, Ctrl+Shift+S, Ctrl+L, Alt+1..5, Alt+M, Alt+T, Alt+Q
     window.addEventListener('keydown', function (e) {
+      // 1. F1: Toggle Shortcuts Modal
+      if (e.key === 'F1') {
+        e.preventDefault();
+        toggleShortcutsModal();
+        return;
+      }
+
+      // 2. Esc: Close modal if open, else blur chat input
+      if (e.key === 'Escape') {
+        if (shortcutsModal && shortcutsModal.style.display === 'flex') {
+          e.preventDefault();
+          hideShortcutsModal();
+          return;
+        }
+        if (chatInput && document.activeElement === chatInput) {
+          chatInput.blur();
+          return;
+        }
+      }
+
+      // 3. Ctrl + K: Quick Focus Chat Input
+      if (e.ctrlKey && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        if (chatInput) {
+          chatInput.focus();
+          chatInput.select();
+        }
+        return;
+      }
+
+      // 4. Ctrl + Shift + S: Instant Screenshot
+      if (e.ctrlKey && e.shiftKey && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        logActivity('User', 'Shortcut 📸', 'Instant Screenshot Capture');
+        sendWebSocket({ type: 'quick_action', action: 'screenshot' });
+        return;
+      }
+
+      // 5. Ctrl + L: Fresh Screen View (Safe: Never deletes chat_history.json)
+      if (e.ctrlKey && (e.key === 'l' || e.key === 'L')) {
+        e.preventDefault();
+        if (confirm('Start fresh screen session, Sir? (chat_history.json stays completely safe)')) {
+          logActivity('User', 'Fresh Screen', 'Clearing active viewport');
+          handleChatCleared();
+        }
+        return;
+      }
+
+      // 6. Alt + 1 .. Alt + 5: Quick Action Tiles
+      if (e.altKey && !e.ctrlKey && !e.shiftKey) {
+        const quickMap = {
+          '1': 'system_status',
+          '2': 'open_chrome',
+          '3': 'open_vscode',
+          '4': 'open_task_manager',
+          '5': 'screenshot',
+        };
+        if (quickMap[e.key]) {
+          e.preventDefault();
+          const act = quickMap[e.key];
+          logActivity('User', 'Shortcut Tile', act.replace(/_/g, ' ').toUpperCase());
+          sendWebSocket({ type: 'quick_action', action: act });
+          return;
+        }
+      }
+
+      // 7. Alt + M: Cycle Bottom Log Console Height (MIN / MID / MAX)
+      if (e.altKey && (e.key === 'm' || e.key === 'M')) {
+        e.preventDefault();
+        const minBtn = document.getElementById('btn-log-min');
+        const midBtn = document.getElementById('btn-log-mid');
+        const maxBtn = document.getElementById('btn-log-max');
+        if (midBtn && midBtn.classList.contains('active')) {
+          if (maxBtn) maxBtn.click();
+        } else if (maxBtn && maxBtn.classList.contains('active')) {
+          if (minBtn) minBtn.click();
+        } else {
+          if (midBtn) midBtn.click();
+        }
+        return;
+      }
+
+      // 8. Alt + T (Telemetry) and Alt + Q (Actions)
       if (e.altKey && (e.key === 't' || e.key === 'T')) {
         e.preventDefault();
         toggleTelemetry();

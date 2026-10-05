@@ -208,12 +208,20 @@ def add_chat_history_message(role: str, content: str, meta: Optional[dict] = Non
 
 
 def clear_chat_history() -> None:
-    """Clears persistent conversation history in chat_history.json."""
+    """Safely archives persistent conversation history to protect user messages from ever being lost."""
     try:
-        with open(CHAT_HISTORY_FILE, "w", encoding="utf-8") as f:
-            json.dump([], f)
+        if os.path.exists(CHAT_HISTORY_FILE):
+            history = load_chat_history()
+            if history:
+                timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                archive_dir = os.path.join(os.path.dirname(CHAT_HISTORY_FILE), "history_archives")
+                os.makedirs(archive_dir, exist_ok=True)
+                archive_path = os.path.join(archive_dir, f"chat_history_archive_{timestamp}.json")
+                with open(archive_path, "w", encoding="utf-8") as f:
+                    json.dump(history, f, indent=2)
+                print(f"[*] Chat history safely archived to: {archive_path}")
     except Exception as err:
-        print(f"[!] Warning: Failed to clear chat history: {err}")
+        print(f"[!] Warning: Failed to archive chat history: {err}")
 
 
 # =====================================================================
