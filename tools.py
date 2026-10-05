@@ -585,7 +585,7 @@ def find_installed_app(app_query: str) -> dict | None:
     Pronouns and generic words ('it', 'that', 'this', 'app') are strictly rejected.
     """
     clean = app_query.lower().strip() if app_query else ""
-    if not clean or clean in ("it", "that", "this", "app", "the app", "again", "it again"):
+    if not clean or clean in ("it", "that", "this", "app", "the app", "again", "now", "it now", "that now", "it again", "last app", "the last app", "last one"):
         return None
 
     cache = load_apps_cache()
@@ -625,8 +625,13 @@ def launch_desktop_app(app_name: str, call_me: str = "Sir") -> tuple[bool, str]:
     """
     clean_name = app_name.lower().strip() if app_name else ""
 
-    # Contextual pronoun resolution ('it', 'that', 'again')
-    if clean_name in ("it", "that", "this", "again", "the app", "it again"):
+    # Contextual pronoun resolution ('it', 'that', 'again', 'now', etc.)
+    pronoun_set = (
+        "it", "that", "this", "again", "now", "the app", "that app", "this app",
+        "it now", "that now", "it again", "that again", "last app", "the last app",
+        "last one", "the last one", "previous app", "the previous app"
+    )
+    if clean_name in pronoun_set:
         last = get_last_app()
         if last:
             clean_name = last
@@ -769,7 +774,12 @@ def close_app(app_name: str, call_me: str = "Sir") -> str:
     Supports pronoun resolution ('close it', 'kill that').
     """
     clean_name = app_name.lower().strip() if app_name else ""
-    if clean_name in ("it", "that", "this", "the app"):
+    close_pronoun_set = (
+        "it", "that", "this", "the app", "that app", "this app",
+        "now", "it now", "that now", "last app", "the last app",
+        "last one", "the last one", "previous app", "the previous app"
+    )
+    if clean_name in close_pronoun_set:
         last = get_last_app()
         if last:
             clean_name = last
@@ -1348,24 +1358,6 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     """
     cleaned = user_text.strip().lower()
     cleaned = re.sub(r"[?!.,;]+$", "", cleaned).strip()
-
-    # Contextual Pronoun & Referential Intent Passthrough:
-    # If user says "open that", "open it", "launch that", "close that", etc.,
-    # DO NOT perform a naive hardcoded action. Let Ollama / Gemini resolve the
-    # reference from conversation history and dispatch the appropriate tool.
-    contextual_pronoun_phrases = (
-        "open that", "open it", "open this", "open that folder", "open that file", "open that app", "open the app",
-        "launch that", "launch it", "launch this",
-        "start that", "start it", "start this",
-        "run that", "run it", "run this",
-        "close that", "close it", "close this",
-        "kill that", "kill it", "kill this",
-        "check that", "check it", "check this",
-        "open that directory", "open the directory", "open the folder"
-    )
-    if cleaned in contextual_pronoun_phrases or cleaned.startswith(("open that ", "open it ", "launch that ", "start that ")):
-        return False, ""
-
     # Media Playback Controls
     is_media, media_res = control_media(cleaned, call_me)
     if is_media:
@@ -1952,24 +1944,33 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
                 return True, f"{msg} You can now proceed to {secondary_action}."
 
     # 23. Open Desktop Application (Native Laptop App First, with Browser Fallback)
-    if cleaned in ("open", "launch", "start", "run") or re.match(r"^(?:please\s+)?(?:open|launch|start|run)\s*$", cleaned):
+    pronoun_tokens = (
+        "it", "that", "this", "again", "now", "the app", "that app", "this app",
+        "it now", "that now", "it again", "that again", "last app", "the last app",
+        "last one", "the last one", "previous app", "the previous app"
+    )
+
+    if cleaned in ("open", "launch", "start", "run", "open it", "open that", "open now", "open this") or re.match(r"^(?:please\s+)?(?:open|launch|start|run)\s*$", cleaned):
+        last = get_last_app()
+        if last:
+            launched, msg = launch_desktop_app(last, call_me=call_me)
+            return True, msg
         return True, f"{call_me}, which application would you like me to open?"
 
-    open_app_match = re.search(r"^(?:please\s+)?(?:open|launch|start|run)\s+([a-zA-Z0-9\s\-\\\/]+)\b", cleaned)
+    open_app_match = re.search(r"^(?:please\s+)?(?:open|launch|start|run|reopen|restart)\s+([a-zA-Z0-9\s\-\\\/]+)\b", cleaned)
     if open_app_match:
         app_to_open = open_app_match.group(1).strip()
         app_to_open = re.sub(r"[\\/]+$", "", app_to_open).strip()
         # Clean duplicate trigger words (e.g. "open open canva" -> "canva")
-        app_to_open = re.sub(r"^(?:open|launch|start|run)\s+", "", app_to_open, flags=re.IGNORECASE).strip()
-        if not app_to_open:
-            return True, f"{call_me}, which application would you like me to open?"
-        if app_to_open in ("it", "that", "this", "again", "the app", "it again"):
-            app_to_open = get_last_app()
-            if not app_to_open:
+        app_to_open = re.sub(r"^(?:open|launch|start|run|reopen|restart)\s+", "", app_to_open, flags=re.IGNORECASE).strip()
+        if not app_to_open or app_to_open in pronoun_tokens:
+            last = get_last_app()
+            if last:
+                app_to_open = last
+            else:
                 return True, f"{call_me}, which application would you like me to open?"
         if app_to_open not in ("folder", "file") and not is_file_target(app_to_open):
             launched, msg = launch_desktop_app(app_to_open, call_me=call_me)
-            if launched:
-                return True, msg
+            return True, msg
 
     return False, ""

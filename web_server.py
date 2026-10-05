@@ -321,37 +321,55 @@ async def websocket_endpoint(websocket: WebSocket):
                 })
 
                 # Stream response through core processing generator
-                async for event in process_user_message_stream(user_text):
-                    event_type = event.get("type")
+                try:
+                    async for event in process_user_message_stream(user_text):
+                        event_type = event.get("type")
 
-                    if event_type == "status":
-                        await manager.send_json(websocket, {
-                            "type": "status",
-                            "state": event.get("state"),
-                            "detail": event.get("detail", ""),
-                        })
+                        if event_type == "status":
+                            await manager.send_json(websocket, {
+                                "type": "status",
+                                "state": event.get("state"),
+                                "detail": event.get("detail", ""),
+                            })
 
-                    elif event_type == "activity":
-                        await manager.send_json(websocket, {
-                            "type": "activity",
-                            "actor": event.get("actor", "System"),
-                            "action": event.get("action", ""),
-                            "detail": event.get("detail", ""),
-                            "timestamp": datetime.datetime.now().strftime("%I:%M:%S %p"),
-                        })
+                        elif event_type == "activity":
+                            await manager.send_json(websocket, {
+                                "type": "activity",
+                                "actor": event.get("actor", "System"),
+                                "action": event.get("action", ""),
+                                "detail": event.get("detail", ""),
+                                "timestamp": datetime.datetime.now().strftime("%I:%M:%S %p"),
+                            })
 
-                    elif event_type == "chunk":
-                        await manager.send_json(websocket, {
-                            "type": "stream_chunk",
-                            "chunk": event.get("text", ""),
-                        })
+                        elif event_type == "chunk":
+                            await manager.send_json(websocket, {
+                                "type": "stream_chunk",
+                                "chunk": event.get("text", ""),
+                            })
 
-                    elif event_type == "done":
-                        await manager.send_json(websocket, {
-                            "type": "stream_end",
-                            "full_text": event.get("full_text", ""),
-                            "meta": event.get("meta", {}),
-                        })
+                        elif event_type == "done":
+                            await manager.send_json(websocket, {
+                                "type": "stream_end",
+                                "full_text": event.get("full_text", ""),
+                                "meta": event.get("meta", {}),
+                            })
+                except Exception as stream_err:
+                    err_msg = f"Sir, an error occurred while processing command: {stream_err}"
+                    await manager.send_json(websocket, {
+                        "type": "activity",
+                        "actor": "System",
+                        "action": "Execution Error",
+                        "detail": str(stream_err)[:100],
+                    })
+                    await manager.send_json(websocket, {
+                        "type": "stream_chunk",
+                        "chunk": err_msg,
+                    })
+                    await manager.send_json(websocket, {
+                        "type": "stream_end",
+                        "full_text": err_msg,
+                        "meta": {"engine": "system", "source_label": "SYSTEM ERROR"},
+                    })
 
     except WebSocketDisconnect:
         pass

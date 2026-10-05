@@ -840,8 +840,50 @@ async def process_user_message_stream(
             display_tool = "screenshot"
             source_lbl = "SCREENSHOT TOOL"
         elif category == "system_command":
-            display_tool = "system_tool"
-            source_lbl = "SYSTEM TOOL"
+            lower_res = result.lower()
+            lower_cmd = cleaned.lower()
+            if "whatsapp" in lower_res or "whatsapp" in lower_cmd:
+                display_tool = "whatsapp"
+                source_lbl = "APP: WHATSAPP"
+            elif "chrome" in lower_res or "chrome" in lower_cmd:
+                display_tool = "chrome"
+                source_lbl = "APP: CHROME"
+            elif "vs code" in lower_res or "code" in lower_cmd or "vscode" in lower_res:
+                display_tool = "vscode"
+                source_lbl = "APP: VS CODE"
+            elif "task manager" in lower_res or "taskmgr" in lower_cmd:
+                display_tool = "task_manager"
+                source_lbl = "APP: TASK MANAGER"
+            elif "closed" in lower_res and "reopened" in lower_res:
+                display_tool = "reopen_app"
+                source_lbl = "TOOL: REOPEN"
+            elif "closed" in lower_res:
+                display_tool = "close_app"
+                source_lbl = "TOOL: CLOSE"
+            elif "launching" in lower_res or "launched" in lower_res:
+                display_tool = "launch_app"
+                source_lbl = "TOOL: LAUNCH"
+            elif "volume" in lower_cmd:
+                display_tool = "volume"
+                source_lbl = "TOOL: VOLUME"
+            elif "brightness" in lower_cmd:
+                display_tool = "brightness"
+                source_lbl = "TOOL: BRIGHTNESS"
+            elif "battery" in lower_cmd:
+                display_tool = "battery"
+                source_lbl = "TOOL: BATTERY"
+            elif "wifi" in lower_cmd or "wi-fi" in lower_cmd or "network" in lower_cmd:
+                display_tool = "network"
+                source_lbl = "TOOL: NETWORK"
+            elif "clipboard" in lower_cmd:
+                display_tool = "clipboard"
+                source_lbl = "TOOL: CLIPBOARD"
+            elif "note" in lower_cmd:
+                display_tool = "notes"
+                source_lbl = "TOOL: NOTES"
+            else:
+                display_tool = "system_tool"
+                source_lbl = "SYSTEM TOOL"
         elif category:
             source_lbl = f"TOOL: {category.replace('_', ' ').upper()}"
         else:
@@ -860,8 +902,8 @@ async def process_user_message_stream(
             if m:
                 tool_meta["screenshot_url"] = f"/screenshots/{m.group(1)}"
 
-        yield {"type": "status", "state": "USING TOOL", "detail": f"Using {display_tool}"}
-        yield {"type": "activity", "actor": "KIRAHT", "action": f"Tool: {display_tool}", "detail": f"Source: {source_lbl}"}
+        yield {"type": "status", "state": "USING TOOL", "detail": f"Using {source_lbl}"}
+        yield {"type": "activity", "actor": "Tool", "action": f"Executed ({source_lbl})", "detail": result[:120]}
         await asyncio.sleep(0.05)
         yield {"type": "activity", "actor": "System", "action": "Executed", "detail": result[:120]}
 

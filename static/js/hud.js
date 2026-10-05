@@ -342,14 +342,18 @@
   // =========================================================================
   // 4. CHAT HISTORY & MESSAGING
   // =========================================================================
+  let isHistoryInitiallyLoaded = false;
   function renderChatHistory(messages) {
     if (!messages || messages.length === 0) return;
+    if (isHistoryInitiallyLoaded && chatViewport && chatViewport.children.length > 0) {
+      return;
+    }
     chatViewport.innerHTML = '';
 
     messages.forEach(function (msg) {
       appendMessageCard(msg.role, msg.content, msg.timestamp || 'Previous', msg.meta);
     });
-
+    isHistoryInitiallyLoaded = true;
     scrollToBottom();
   }
 
@@ -388,6 +392,10 @@
       variant = 'screenshot';
       icon = '📸';
       text = 'SCREENSHOT TOOL';
+    } else if (sourceLabel.startsWith('APP:')) {
+      variant = 'app';
+      icon = '📱';
+      text = sourceLabel;
     } else if (engine === 'tool' || tool || sourceLabel.startsWith('TOOL:')) {
       variant = 'tool';
       icon = '🛠️';
@@ -768,6 +776,19 @@
     entry.appendChild(detailEl);
 
     activityLogStream.appendChild(entry);
+
+    // Flash left Telemetry panel Tools status on tool or app execution
+    if (coreToolsStatus && (actor === 'Tool' || (action && (action.includes('Tool') || action.includes('APP:') || action.includes('Execute'))))) {
+      const toolLabel = detail ? detail.replace(/^Source:\s*/i, '').replace(/[()]/g, '') : action;
+      coreToolsStatus.innerHTML = `<span class="telem-dot-mini green-pulse"></span> ${toolLabel.substring(0, 16)}`;
+      coreToolsStatus.className = 'stat-value text-green';
+      if (window._toolStatusResetTimer) clearTimeout(window._toolStatusResetTimer);
+      window._toolStatusResetTimer = setTimeout(function () {
+        if (coreToolsStatus) {
+          coreToolsStatus.innerHTML = `<span class="telem-dot-mini green-pulse"></span> READY`;
+        }
+      }, 8000);
+    }
 
     // Keep log trimmed to 40 entries
     while (activityLogStream.children.length > 40) {
