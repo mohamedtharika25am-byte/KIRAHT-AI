@@ -366,6 +366,51 @@
     scrollToBottom();
   }
 
+  function createEngineSourceBadge(meta) {
+    const badge = document.createElement('span');
+    badge.className = 'engine-source-badge';
+
+    let icon = '⚡';
+    let text = 'GEMINI CLOUD';
+    let variant = 'gemini';
+
+    if (!meta) {
+      badge.classList.add('badge-gemini');
+      badge.innerHTML = `<span class="badge-icon">⚡</span> <span class="badge-text">GEMINI CLOUD</span>`;
+      return badge;
+    }
+
+    const sourceLabel = meta.source_label || '';
+    const engine = (meta.engine || '').toLowerCase();
+    const tool = (meta.tool || '').toLowerCase();
+
+    if (tool === 'screenshot' || sourceLabel.includes('SCREENSHOT')) {
+      variant = 'screenshot';
+      icon = '📸';
+      text = 'SCREENSHOT TOOL';
+    } else if (engine === 'tool' || tool || sourceLabel.startsWith('TOOL:')) {
+      variant = 'tool';
+      icon = '🛠️';
+      text = sourceLabel || `TOOL: ${(tool || 'SYSTEM').toUpperCase()}`;
+    } else if (engine === 'ollama' || sourceLabel.includes('OLLAMA')) {
+      variant = 'ollama';
+      icon = '🦙';
+      text = meta.model ? `OLLAMA (${meta.model})` : (sourceLabel || 'OLLAMA LOCAL');
+    } else if (engine === 'gemini' || sourceLabel.includes('GEMINI')) {
+      variant = 'gemini';
+      icon = '⚡';
+      text = meta.model ? `GEMINI (${meta.model})` : (sourceLabel || 'GEMINI CLOUD');
+    } else if (sourceLabel) {
+      variant = 'gemini';
+      icon = '⚡';
+      text = sourceLabel;
+    }
+
+    badge.classList.add(`badge-${variant}`);
+    badge.innerHTML = `<span class="badge-icon">${icon}</span> <span class="badge-text">${text}</span>`;
+    return badge;
+  }
+
   function appendMessageCard(role, content, timestamp, meta) {
     const isUser = role === 'user';
     const card = document.createElement('div');
@@ -389,15 +434,24 @@
     const header = document.createElement('div');
     header.className = 'message-header';
 
+    const headerLeft = document.createElement('div');
+    headerLeft.className = 'message-header-left';
+
     const sender = document.createElement('span');
     sender.className = 'sender-name';
     sender.textContent = isUser ? 'You' : 'KIRAHT AI';
+    headerLeft.appendChild(sender);
+
+    if (!isUser) {
+      const badge = createEngineSourceBadge(meta);
+      headerLeft.appendChild(badge);
+    }
 
     const time = document.createElement('span');
     time.className = 'message-timestamp';
     time.textContent = timestamp || getCurrentTime();
 
-    header.appendChild(sender);
+    header.appendChild(headerLeft);
     header.appendChild(time);
 
     const contentEl = document.createElement('div');
@@ -447,15 +501,24 @@
     const header = document.createElement('div');
     header.className = 'message-header';
 
+    const headerLeft = document.createElement('div');
+    headerLeft.className = 'message-header-left';
+
     const sender = document.createElement('span');
     sender.className = 'sender-name';
     sender.textContent = 'KIRAHT AI';
+    headerLeft.appendChild(sender);
+
+    const thinkingBadge = document.createElement('span');
+    thinkingBadge.className = 'engine-source-badge badge-thinking';
+    thinkingBadge.innerHTML = `<span class="badge-icon">⏳</span> <span class="badge-text">ROUTING...</span>`;
+    headerLeft.appendChild(thinkingBadge);
 
     const time = document.createElement('span');
     time.className = 'message-timestamp';
     time.textContent = getCurrentTime();
 
-    header.appendChild(sender);
+    header.appendChild(headerLeft);
     header.appendChild(time);
 
     const contentEl = document.createElement('div');
@@ -544,15 +607,24 @@
       const header = document.createElement('div');
       header.className = 'message-header';
 
+      const headerLeft = document.createElement('div');
+      headerLeft.className = 'message-header-left';
+
       const sender = document.createElement('span');
       sender.className = 'sender-name';
       sender.textContent = 'KIRAHT AI';
+      headerLeft.appendChild(sender);
+
+      const streamBadge = document.createElement('span');
+      streamBadge.className = 'engine-source-badge badge-thinking';
+      streamBadge.innerHTML = `<span class="badge-icon">⚡</span> <span class="badge-text">STREAMING...</span>`;
+      headerLeft.appendChild(streamBadge);
 
       const time = document.createElement('span');
       time.className = 'message-timestamp';
       time.textContent = getCurrentTime();
 
-      header.appendChild(sender);
+      header.appendChild(headerLeft);
       header.appendChild(time);
 
       const contentEl = document.createElement('div');
@@ -598,6 +670,18 @@
   }
 
   function finishStream(fullText, meta) {
+    if (currentStreamingCard) {
+      const headerLeft = currentStreamingCard.querySelector('.message-header-left');
+      if (headerLeft) {
+        const oldBadge = headerLeft.querySelector('.engine-source-badge');
+        if (oldBadge) {
+          headerLeft.removeChild(oldBadge);
+        }
+        const badge = createEngineSourceBadge(meta);
+        headerLeft.appendChild(badge);
+      }
+    }
+
     if (currentStreamingContentEl) {
       const textToRender = fullText || accumulatedStreamText;
       currentStreamingContentEl.innerHTML = formatMarkdown(textToRender);
@@ -613,7 +697,8 @@
     }
 
     const engineTag = (meta && meta.engine) ? meta.engine.toUpperCase() : 'AI';
-    logActivity('KIRAHT', 'Response Done', `Delivered via ${engineTag}`);
+    const sourceLabel = (meta && meta.source_label) ? meta.source_label : `Delivered via ${engineTag}`;
+    logActivity('KIRAHT', 'Response Done', sourceLabel);
 
     currentStreamingCard = null;
     currentStreamingContentEl = null;

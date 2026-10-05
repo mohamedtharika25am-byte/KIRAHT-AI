@@ -99,7 +99,11 @@ async def handle_quick_action(req: QuickActionRequest):
 
     res_text = ""
     activity_action = ""
-    meta_info: Dict[str, Any] = {}
+    meta_info: Dict[str, Any] = {
+        "engine": "tool",
+        "tool": action,
+        "source_label": f"TOOL: {action.replace('_', ' ').upper()}",
+    }
 
     if action == "system_status":
         telem = get_system_telemetry()
@@ -128,9 +132,13 @@ async def handle_quick_action(req: QuickActionRequest):
             filename = os.path.basename(shot_path)
             res_text = f"{call_me}, screenshot captured and saved.\n![Screenshot](/screenshots/{filename})"
             meta_info["screenshot_url"] = f"/screenshots/{filename}"
+            meta_info["tool"] = "screenshot"
+            meta_info["source_label"] = "SCREENSHOT TOOL"
         else:
             from system_tools import take_screenshot
             res_text = take_screenshot(call_me=call_me)
+            meta_info["tool"] = "screenshot"
+            meta_info["source_label"] = "SCREENSHOT TOOL"
         activity_action = "Capture Screenshot"
 
     elif action == "file_manager":
@@ -275,14 +283,20 @@ async def websocket_endpoint(websocket: WebSocket):
 
             if msg_type == "quick_action":
                 act_name = msg_obj.get("action", "")
+                await manager.send_json(websocket, {
+                    "type": "activity",
+                    "actor": "User",
+                    "action": "Action Trigger",
+                    "detail": act_name.replace("_", " ").upper(),
+                })
                 req_obj = QuickActionRequest(action=act_name)
                 res = await handle_quick_action(req_obj)
 
                 await manager.send_json(websocket, {
                     "type": "activity",
-                    "actor": "User",
-                    "action": f"Quick Action: {act_name}",
-                    "detail": res.get("action", "")
+                    "actor": "Tool",
+                    "action": res.get("action", act_name),
+                    "detail": f"Execution complete ({res.get('meta', {}).get('source_label', 'TOOL')})",
                 })
                 await manager.send_json(websocket, {
                     "type": "chat_message",

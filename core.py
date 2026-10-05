@@ -834,8 +834,34 @@ async def process_user_message_stream(
     # 2. Check Deterministic Intent Router first
     is_handled, category, tool_name, result = check_deterministic_intent(cleaned, call_me)
     if is_handled:
-        yield {"type": "status", "state": "USING TOOL", "detail": f"Using {tool_name}"}
-        yield {"type": "activity", "actor": "KIRAHT", "action": f"Tool: {tool_name}", "detail": f"Category: {category}"}
+        display_tool = tool_name
+        is_screenshot = ("screenshot" in cleaned.lower() or "screen shot" in cleaned.lower() or "screenshot" in result.lower())
+        if is_screenshot:
+            display_tool = "screenshot"
+            source_lbl = "SCREENSHOT TOOL"
+        elif category == "system_command":
+            display_tool = "system_tool"
+            source_lbl = "SYSTEM TOOL"
+        elif category:
+            source_lbl = f"TOOL: {category.replace('_', ' ').upper()}"
+        else:
+            source_lbl = f"TOOL: {tool_name.replace('_', ' ').upper()}"
+
+        tool_meta = {
+            "engine": "tool",
+            "tool": display_tool,
+            "category": category,
+            "source_label": source_lbl,
+        }
+
+        if is_screenshot:
+            import re
+            m = re.search(r"([A-Za-z0-9_\-]+\.png)", result)
+            if m:
+                tool_meta["screenshot_url"] = f"/screenshots/{m.group(1)}"
+
+        yield {"type": "status", "state": "USING TOOL", "detail": f"Using {display_tool}"}
+        yield {"type": "activity", "actor": "KIRAHT", "action": f"Tool: {display_tool}", "detail": f"Source: {source_lbl}"}
         await asyncio.sleep(0.05)
         yield {"type": "activity", "actor": "System", "action": "Executed", "detail": result[:120]}
 
@@ -849,9 +875,10 @@ async def process_user_message_stream(
 
         # Save to chat history
         add_chat_history_message("user", cleaned)
-        add_chat_history_message("assistant", result, meta={"tool": tool_name, "category": category})
+        add_chat_history_message("assistant", result, meta=tool_meta)
 
-        yield {"type": "done", "full_text": result, "meta": {"tool": tool_name, "category": category}}
+        yield {"type": "activity", "actor": "Tool", "action": "Tool Delivered", "detail": f"Source: {source_lbl}"}
+        yield {"type": "done", "full_text": result, "meta": tool_meta}
         yield {"type": "status", "state": "READY", "detail": "Ready"}
         return
 
@@ -1010,8 +1037,17 @@ async def process_user_message_stream(
                 yield {"type": "activity", "actor": "System", "action": "File Saved", "detail": f"Saved {os.path.basename(cand_path)} (Safety Fallback)"}
 
     # Save completed exchange into persistent local chat_history.json
-    add_chat_history_message("user", cleaned)
-    add_chat_history_message("assistant", final_text, meta={"engine": "gemini" if use_gemini else "ollama"})
+    source_label = f"GEMINI CLOUD ({target_model})" if use_gemini else f"OLLAMA LOCAL ({ollama_model})"
+    engine_name = "gemini" if use_gemini else "ollama"
+    meta_info = {
+        "engine": engine_name,
+        "model": target_model if use_gemini else ollama_model,
+        "source_label": source_label,
+    }
 
-    yield {"type": "done", "full_text": final_text, "meta": {"engine": "gemini" if use_gemini else "ollama"}}
+    add_chat_history_message("user", cleaned)
+    add_chat_history_message("assistant", final_text, meta=meta_info)
+
+    yield {"type": "activity", "actor": "KIRAHT", "action": "Response Delivered", "detail": f"Engine Source: {source_label}"}
+    yield {"type": "done", "full_text": final_text, "meta": meta_info}
     yield {"type": "status", "state": "READY", "detail": "Ready"}
