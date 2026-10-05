@@ -170,7 +170,9 @@
         break;
 
       case 'chat_history':
-        renderChatHistory(packet.messages);
+        cachedChatHistory = packet.messages || [];
+        updateHistoryButtonBadge(cachedChatHistory.length);
+        // Clean launch mode: History is cached, not auto-rendered, to keep the startup fresh!
         break;
 
       case 'chat_message':
@@ -343,20 +345,106 @@
   }, 2000);
 
   // =========================================================================
-  // 4. CHAT HISTORY & MESSAGING
+  // 4. CHAT HISTORY & MESSAGING (ON-DEMAND ARCHIVE & FRESH BOOT)
   // =========================================================================
-  let isHistoryInitiallyLoaded = false;
-  function renderChatHistory(messages) {
-    if (!messages || messages.length === 0) return;
-    if (isHistoryInitiallyLoaded && chatViewport && chatViewport.children.length > 0) {
+  let cachedChatHistory = [];
+  let isHistoryRendered = false;
+
+  function updateHistoryButtonBadge(count) {
+    const navCountEl = document.getElementById('nav-history-count');
+    const tileDescEl = document.getElementById('tile-history-desc');
+    if (navCountEl) {
+      if (count > 0) {
+        navCountEl.textContent = count;
+        navCountEl.style.display = 'inline-block';
+      } else {
+        navCountEl.style.display = 'none';
+      }
+    }
+    if (tileDescEl) {
+      tileDescEl.textContent = count > 0 ? `${count} past logs saved` : 'View past conversations';
+    }
+  }
+
+  function displayLoadedHistory() {
+    if (isHistoryRendered) {
+      logActivity('History', 'Notice', 'Previous history is already displayed');
+      scrollToBottom();
       return;
     }
+
+    if (!cachedChatHistory || cachedChatHistory.length === 0) {
+      // If cache is empty, fetch fresh from backend
+      fetch('/chat_history.json?v=' + Date.now())
+        .then(function (res) { return res.json(); })
+        .then(function (data) {
+          if (Array.isArray(data) && data.length > 0) {
+            cachedChatHistory = data;
+            updateHistoryButtonBadge(cachedChatHistory.length);
+            renderLoadedHistory();
+          } else {
+            logActivity('History', 'Empty', 'No archived conversations found');
+            alert('No previous conversation history found, Sir.');
+          }
+        })
+        .catch(function () {
+          logActivity('History', 'Empty', 'Archive file unavailable');
+          alert('No previous history recorded yet, Sir.');
+        });
+      return;
+    }
+
+    renderLoadedHistory();
+  }
+
+  function renderLoadedHistory() {
+    if (isHistoryRendered || !chatViewport) return;
+
+    if (!cachedChatHistory || cachedChatHistory.length === 0) {
+      logActivity('History', 'Empty', 'No previous archived chats found');
+      return;
+    }
+
+    // Preserve any current active session cards if user has already exchanged messages
+    const existingCards = Array.from(chatViewport.children);
     chatViewport.innerHTML = '';
 
-    messages.forEach(function (msg) {
-      appendMessageCard(msg.role, msg.content, msg.timestamp || 'Previous', msg.meta);
+    // Archive header
+    const archiveHeader = document.createElement('div');
+    archiveHeader.className = 'history-divider';
+    archiveHeader.innerHTML = `<span>📜 PREVIOUS ARCHIVED LOGS (${cachedChatHistory.length} MESSAGES) 📜</span>`;
+    chatViewport.appendChild(archiveHeader);
+
+    // Append cached history cards
+    cachedChatHistory.forEach(function (msg) {
+      appendMessageCard(msg.role, msg.content, msg.timestamp || 'Archived', msg.meta);
     });
-    isHistoryInitiallyLoaded = true;
+
+    // If user already had messages or welcome message in active session, preserve them below active session divider
+    if (existingCards.length > 0) {
+      const activeDivider = document.createElement('div');
+      activeDivider.className = 'history-divider';
+      activeDivider.innerHTML = `<span>⚡ CURRENT ACTIVE SESSION ⚡</span>`;
+      chatViewport.appendChild(activeDivider);
+
+      existingCards.forEach(function (card) {
+        chatViewport.appendChild(card);
+      });
+    }
+
+    isHistoryRendered = true;
+
+    // Update buttons
+    const navText = document.getElementById('nav-history-text');
+    const btnNav = document.getElementById('btn-load-history');
+    const tileTitle = document.getElementById('tile-history-title');
+    const tileDesc = document.getElementById('tile-history-desc');
+    if (navText) navText.textContent = 'HISTORY LOADED';
+    if (btnNav) btnNav.classList.add('active');
+    if (tileTitle) tileTitle.textContent = 'HISTORY LOADED';
+    if (tileDesc) tileDesc.textContent = `${cachedChatHistory.length} logs displayed`;
+
+    logActivity('System', 'History Loaded', `${cachedChatHistory.length} archived messages rendered`);
     scrollToBottom();
   }
 
@@ -733,6 +821,18 @@
     currentStreamingContentEl = null;
     wordStreamQueue = [];
     accumulatedStreamText = '';
+    isHistoryRendered = false;
+
+    const navText = document.getElementById('nav-history-text');
+    const btnNav = document.getElementById('btn-load-history');
+    const tileTitle = document.getElementById('tile-history-title');
+    const tileDesc = document.getElementById('tile-history-desc');
+
+    if (navText) navText.textContent = 'LOAD HISTORY';
+    if (btnNav) btnNav.classList.remove('active');
+    if (tileTitle) tileTitle.textContent = 'LOAD HISTORY';
+    if (tileDesc) tileDesc.textContent = `${cachedChatHistory.length} past logs saved`;
+
     chatViewport.innerHTML = `
       <div class="message-card assistant-card">
         <div class="message-avatar">
@@ -744,7 +844,7 @@
             <span class="message-timestamp">Just now</span>
           </div>
           <div class="message-content">
-            Conversation history cleared, Sir. 3D Arc Reactor synchronized and ready for command.
+            Fresh screen session active, Sir. 3D Arc Reactor synchronized. Past logs remain safely archived in chat_history.json.
           </div>
         </div>
       </div>
@@ -859,6 +959,14 @@
     });
   }
 
+  // Load history navbar button
+  const btnLoadHistory = document.getElementById('btn-load-history');
+  if (btnLoadHistory) {
+    btnLoadHistory.addEventListener('click', function () {
+      displayLoadedHistory();
+    });
+  }
+
   // Large Tactical Quick Action Tiles
   document.querySelectorAll('.tactical-action-tile').forEach(function (tile) {
     tile.addEventListener('click', function () {
@@ -870,6 +978,11 @@
           logActivity('User', 'Fresh Screen', 'Clearing active viewport');
           handleChatCleared();
         }
+        return;
+      }
+
+      if (action === 'load_history') {
+        displayLoadedHistory();
         return;
       }
 
@@ -1220,8 +1333,11 @@
         return;
       }
 
-      // 8. Alt + T (Telemetry) and Alt + Q (Actions)
-      if (e.altKey && (e.key === 't' || e.key === 'T')) {
+      // 8. Alt + H (Load History), Alt + T (Telemetry), and Alt + Q (Actions)
+      if (e.altKey && (e.key === 'h' || e.key === 'H')) {
+        e.preventDefault();
+        displayLoadedHistory();
+      } else if (e.altKey && (e.key === 't' || e.key === 'T')) {
         e.preventDefault();
         toggleTelemetry();
       } else if (e.altKey && (e.key === 'q' || e.key === 'Q')) {

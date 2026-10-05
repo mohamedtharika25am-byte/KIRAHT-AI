@@ -2167,3 +2167,42 @@ body.cyber-hud {
   color: var(--accent-green);
   border-color: rgba(0, 255, 136, 0.4);
 }
+
+/* ==================== PREVIOUS CONVERSATION ARCHIVE STYLES ==================== */
+.history-divider {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 18px 0 14px;
+  color: var(--accent-cyan);
+  font-family: var(--font-header);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  position: relative;
+  z-index: 2;
+  opacity: 0.85;
+}
+
+.history-divider::before,
+.history-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(0, 243, 255, 0.35), transparent);
+}
+
+.tile-history {
+  border-color: rgba(0, 243, 255, 0.25);
+}
+
+.tile-history:hover {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 12px rgba(0, 243, 255, 0.25);
+}
+
+.tile-history:hover .tile-icon {
+  transform: scale(1.1) rotate(-6deg);
+}

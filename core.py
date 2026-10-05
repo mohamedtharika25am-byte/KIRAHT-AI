@@ -923,7 +923,6 @@ async def process_user_message_stream(
         }
 
         if is_screenshot:
-            import re
             m = re.search(r"([A-Za-z0-9_\-]+\.png)", result)
             if m:
                 tool_meta["screenshot_url"] = f"/screenshots/{m.group(1)}"

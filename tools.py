@@ -470,6 +470,8 @@ WEB_SITES = {
     "twitter": "https://x.com",
     "x": "https://x.com",
     "chatgpt": "https://chatgpt.com",
+    "gemini": "https://gemini.google.com",
+    "claude": "https://claude.ai",
     "canva": "https://www.canva.com",
     "figma": "https://www.figma.com",
     "notion": "https://www.notion.so",
@@ -477,6 +479,12 @@ WEB_SITES = {
     "facebook": "https://www.facebook.com",
     "reddit": "https://www.reddit.com",
     "netflix": "https://www.netflix.com",
+    "pinterest": "https://www.pinterest.com",
+    "pintrest": "https://www.pinterest.com",
+    "spotify": "https://open.spotify.com",
+    "amazon": "https://www.amazon.in",
+    "flipkart": "https://www.flipkart.com",
+    "whatsapp": "https://web.whatsapp.com",
     "drive": "https://drive.google.com",
     "maps": "https://maps.google.com",
 }
@@ -726,9 +734,11 @@ def launch_desktop_app(app_name: str, call_me: str = "Sir") -> tuple[bool, str]:
         return True, f"{call_me}, opened ChatGPT in your browser."
 
     if clean_name in WEB_SITES:
+        set_last_app(clean_name)
         return True, open_web(clean_name, call_me=call_me)
 
-    return False, f"{call_me}, no installed desktop app found for '{app_name}'."
+    set_last_app(clean_name)
+    return False, f"{call_me}, no installed desktop app found for '{app_name}'. Say 'open in chrome' or 'open in brave' to launch it in your browser."
 
 
 # ============================================================
@@ -867,6 +877,105 @@ def open_web(site_name: str, search_query: str = "", call_me: str = "Sir") -> st
 
     webbrowser.open(url)
     return f"{call_me}, opening {clean_site.title()} in your browser."
+
+
+def open_in_target_browser(target_query: str, browser_name: str = "chrome", call_me: str = "Sir") -> tuple[bool, str]:
+    """
+    Opens a website, service, or search query in a specific browser:
+    - chrome: Google Chrome
+    - brave: Brave Browser
+    - edge: Microsoft Edge
+    - web / default: System default browser
+    Supports pronoun resolution ('open in chrome', 'open that in brave', 'in chrome').
+    """
+    clean_target = (target_query or "").strip().lower()
+    clean_browser = (browser_name or "").strip().lower()
+
+    # Contextual pronoun resolution
+    if not clean_target or clean_target in ("it", "that", "this", "the app", "that app", "website", "the site"):
+        last = get_last_app()
+        if last:
+            clean_target = last.lower().strip()
+        else:
+            clean_target = "google"
+
+    set_last_app(clean_target)
+
+    # Determine URL
+    if clean_target in WEB_SITES:
+        url = WEB_SITES[clean_target]
+        site_title = clean_target.title()
+    elif clean_target.startswith("http://") or clean_target.startswith("https://"):
+        url = clean_target
+        site_title = clean_target
+    elif "." in clean_target and " " not in clean_target:
+        url = f"https://{clean_target}"
+        site_title = clean_target
+    else:
+        encoded = urllib.parse.quote(clean_target)
+        url = f"https://www.google.com/search?q={encoded}"
+        site_title = f"'{clean_target}'"
+
+    # Browser launch logic
+    if clean_browser == "chrome":
+        chrome_paths = [
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+            os.path.expandvars(r"%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe"),
+        ]
+        for cp in chrome_paths:
+            if os.path.exists(cp):
+                try:
+                    subprocess.Popen([cp, url])
+                    return True, f"{call_me}, opened {site_title} in Google Chrome."
+                except Exception:
+                    pass
+        try:
+            subprocess.Popen(["start", "chrome", url], shell=True)
+            return True, f"{call_me}, opened {site_title} in Google Chrome."
+        except Exception:
+            pass
+
+    elif clean_browser == "brave":
+        brave_paths = [
+            r"C:\Program Files\BraveSoftware\Brave-Browser\Application\brave.exe",
+            r"C:\Program Files (x86)\BraveSoftware\Brave-Browser\Application\brave.exe",
+            os.path.expandvars(r"%LOCALAPPDATA%\BraveSoftware\Brave-Browser\Application\brave.exe"),
+        ]
+        for bp in brave_paths:
+            if os.path.exists(bp):
+                try:
+                    subprocess.Popen([bp, url])
+                    return True, f"{call_me}, opened {site_title} in Brave Browser."
+                except Exception:
+                    pass
+        try:
+            subprocess.Popen(["start", "brave", url], shell=True)
+            return True, f"{call_me}, opened {site_title} in Brave Browser."
+        except Exception:
+            pass
+
+    elif clean_browser == "edge":
+        edge_paths = [
+            r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe",
+            r"C:\Program Files\Microsoft\Edge\Application\msedge.exe",
+        ]
+        for ep in edge_paths:
+            if os.path.exists(ep):
+                try:
+                    subprocess.Popen([ep, url])
+                    return True, f"{call_me}, opened {site_title} in Microsoft Edge."
+                except Exception:
+                    pass
+
+    # Default browser fallback
+    try:
+        import webbrowser
+        webbrowser.open(url)
+        browser_label = clean_browser.title() if clean_browser not in ("web", "browser", "default") else "your browser"
+        return True, f"{call_me}, opened {site_title} in {browser_label}."
+    except Exception as e:
+        return False, f"{call_me}, failed to open browser: {e}"
 
 
 def open_folder(folder_name: str, call_me: str = "Sir") -> str:
@@ -1940,8 +2049,28 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         app_info = find_installed_app(clean_cand)
         if app_info or primary_app in ("whatsapp", "chrome", "notepad", "spotify", "vscode", "vs code", "calculator", "word", "excel", "edge"):
             launched, msg = launch_desktop_app(primary_app, call_me=call_me)
-            if launched:
-                return True, f"{msg} You can now proceed to {secondary_action}."
+    # 22.2 Browser-Specific Open Commands (Chrome, Brave, Edge, Web)
+    # e.g. "opwn in chrome", "open in chrome", "open that in brave", "open in web", "in chrome", "in brave"
+    browser_only_match = re.search(
+        r"^(?:please\s+)?(?:open|launch|start|opwn)?\s*(?:it|that|this|the app)?\s*in\s+(chrome|google chrome|brave|brave browser|edge|web|browser|default browser)$",
+        cleaned, re.IGNORECASE
+    )
+    if browser_only_match:
+        b_raw = browser_only_match.group(1).strip().lower()
+        b_type = "chrome" if "chrome" in b_raw else ("brave" if "brave" in b_raw else ("edge" if "edge" in b_raw else "web"))
+        last = get_last_app()
+        return open_in_target_browser(last, b_type, call_me=call_me)
+
+    # e.g. "open pintrest in chrome", "open pinterest in brave", "open youtube in web"
+    target_in_browser = re.search(
+        r"^(?:please\s+)?(?:open|launch|start|opwn)\s+(.+?)\s+in\s+(chrome|google chrome|brave|brave browser|edge|web|browser|default browser)$",
+        cleaned, re.IGNORECASE
+    )
+    if target_in_browser:
+        t_raw = target_in_browser.group(1).strip()
+        b_raw = target_in_browser.group(2).strip().lower()
+        b_type = "chrome" if "chrome" in b_raw else ("brave" if "brave" in b_raw else ("edge" if "edge" in b_raw else "web"))
+        return open_in_target_browser(t_raw, b_type, call_me=call_me)
 
     # 23. Open Desktop Application (Native Laptop App First, with Browser Fallback)
     pronoun_tokens = (

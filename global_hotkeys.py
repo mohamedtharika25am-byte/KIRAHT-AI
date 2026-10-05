@@ -1,9 +1,14 @@
 """
 KIRAHT AI - Global System Hotkeys Daemon (Category 2)
 Listens for system-wide hotkeys across Windows (regardless of which app is active):
-  - Alt + Shift + K : Bring KIRAHT Web HUD to front / Open Web HUD
-  - Alt + Shift + S : Global Instant Screen Capture
-  - Alt + Shift + D : Global System Diagnostic Trigger
+  - Ctrl + Alt + K / Ctrl + Shift + K : Bring KIRAHT Web HUD to front / Open Web HUD
+  - Ctrl + Alt + S / Ctrl + Shift + S : Global Instant Screen Capture
+  - Ctrl + Alt + D / Ctrl + Shift + D : Global System Diagnostic Trigger
+
+Note on Windows OS:
+Alt+Shift is reserved by the Windows kernel for switching keyboard input languages,
+so Windows blocks user applications from hooking Alt+Shift. Ctrl+Alt and Ctrl+Shift
+are fully supported and work reliably across all Windows 10/11 versions.
 """
 
 import ctypes
@@ -20,26 +25,42 @@ MOD_SHIFT = 0x0004
 MOD_WIN = 0x0008
 
 WM_HOTKEY = 0x0312
-PM_REMOVE = 0x0001
+WM_QUIT = 0x0012
 
-HOTKEY_HUD = 1       # Alt + Shift + K
-HOTKEY_SCREEN = 2    # Alt + Shift + S
-HOTKEY_DIAG = 3      # Alt + Shift + D
+# Hotkey IDs
+HK_HUD_CA = 101       # Ctrl + Alt + K
+HK_HUD_CS = 102       # Ctrl + Shift + K
+HK_SCREEN_CA = 201    # Ctrl + Alt + S
+HK_SCREEN_CS = 202    # Ctrl + Shift + S
+HK_DIAG_CA = 301      # Ctrl + Alt + D
+HK_DIAG_CS = 302      # Ctrl + Shift + D
 
 VK_K = 0x4B
 VK_S = 0x53
 VK_D = 0x44
 
 _hotkey_thread = None
-_stop_event = threading.Event()
+_hotkey_thread_id = None
 _user32 = ctypes.windll.user32 if sys.platform == "win32" else None
+_kernel32 = ctypes.windll.kernel32 if sys.platform == "win32" else None
+
+
+def _force_window_foreground(hwnd):
+    """Bypasses Windows focus-stealing prevention to bring window to front."""
+    if not _user32:
+        return
+    # Restore if minimized
+    _user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+    # Simulate ALT keystroke to grant foreground activation privilege
+    _user32.keybd_event(0x12, 0, 0, 0)
+    _user32.keybd_event(0x12, 0, 2, 0)
+    _user32.SetForegroundWindow(hwnd)
 
 
 def _bring_hud_to_front():
     """Focuses the browser window running KIRAHT AI HUD or opens it."""
     try:
         import win32gui
-        import win32con
         found = []
 
         def enum_win(hwnd, _):
@@ -50,9 +71,7 @@ def _bring_hud_to_front():
 
         win32gui.EnumWindows(enum_win, None)
         if found:
-            hwnd = found[0]
-            win32gui.ShowWindow(hwnd, win32con.SW_RESTORE)
-            win32gui.SetForegroundWindow(hwnd)
+            _force_window_foreground(found[0])
             return True
     except Exception:
         pass
@@ -61,7 +80,7 @@ def _bring_hud_to_front():
 
 
 def _trigger_global_screenshot():
-    """Takes instant screenshot from any window."""
+    """Takes instant screenshot from any active window."""
     try:
         from system_tools import capture_screenshot
         res = capture_screenshot()
@@ -80,38 +99,53 @@ def _trigger_global_diag():
         print(f"[!] Global diag error: {e}")
 
 
-def _hotkey_worker():
-    if not _user32:
+def _hotkey_worker(ready_evt: threading.Event):
+    global _hotkey_thread_id
+    if not _user32 or not _kernel32:
+        ready_evt.set()
         return
-    # Register hotkeys on thread message queue
-    _user32.RegisterHotKey(None, HOTKEY_HUD, MOD_ALT | MOD_SHIFT, VK_K)
-    _user32.RegisterHotKey(None, HOTKEY_SCREEN, MOD_ALT | MOD_SHIFT, VK_S)
-    _user32.RegisterHotKey(None, HOTKEY_DIAG, MOD_ALT | MOD_SHIFT, VK_D)
 
-    print("[*] Global System Hotkeys active (Alt+Shift+K: Focus HUD, Alt+Shift+S: Screenshot, Alt+Shift+D: Diagnostic)")
+    _hotkey_thread_id = _kernel32.GetCurrentThreadId()
+
+    # Register hotkey combinations
+    reg_list = [
+        (HK_HUD_CA, MOD_CONTROL | MOD_ALT, VK_K, "Ctrl+Alt+K (Focus HUD)"),
+        (HK_HUD_CS, MOD_CONTROL | MOD_SHIFT, VK_K, "Ctrl+Shift+K (Focus HUD)"),
+        (HK_SCREEN_CA, MOD_CONTROL | MOD_ALT, VK_S, "Ctrl+Alt+S (Screenshot)"),
+        (HK_SCREEN_CS, MOD_CONTROL | MOD_SHIFT, VK_S, "Ctrl+Shift+S (Screenshot)"),
+        (HK_DIAG_CA, MOD_CONTROL | MOD_ALT, VK_D, "Ctrl+Alt+D (Diagnostic)"),
+        (HK_DIAG_CS, MOD_CONTROL | MOD_SHIFT, VK_D, "Ctrl+Shift+D (Diagnostic)"),
+    ]
+
+    active_ids = []
+    for hkid, mod, vk, desc in reg_list:
+        success = _user32.RegisterHotKey(None, hkid, mod, vk)
+        if success:
+            active_ids.append(hkid)
+
+    print(f"[*] Global System Hotkeys initialized ({len(active_ids)} hotkeys active).")
+    ready_evt.set()
 
     msg = wintypes.MSG()
     try:
-        while not _stop_event.is_set():
-            if _user32.PeekMessageW(ctypes.byref(msg), None, 0, 0, PM_REMOVE):
-                if msg.message == WM_HOTKEY:
-                    hk_id = msg.wParam
-                    if hk_id == HOTKEY_HUD:
-                        threading.Thread(target=_bring_hud_to_front, daemon=True).start()
-                    elif hk_id == HOTKEY_SCREEN:
-                        threading.Thread(target=_trigger_global_screenshot, daemon=True).start()
-                    elif hk_id == HOTKEY_DIAG:
-                        threading.Thread(target=_trigger_global_diag, daemon=True).start()
-                _user32.TranslateMessage(ctypes.byref(msg))
-                _user32.DispatchMessageW(ctypes.byref(msg))
-            time.sleep(0.04)
+        while _user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+            if msg.message == WM_HOTKEY:
+                hk_id = msg.wParam
+                if hk_id in (HK_HUD_CA, HK_HUD_CS):
+                    threading.Thread(target=_bring_hud_to_front, daemon=True).start()
+                elif hk_id in (HK_SCREEN_CA, HK_SCREEN_CS):
+                    threading.Thread(target=_trigger_global_screenshot, daemon=True).start()
+                elif hk_id in (HK_DIAG_CA, HK_DIAG_CS):
+                    threading.Thread(target=_trigger_global_diag, daemon=True).start()
+
+            _user32.TranslateMessage(ctypes.byref(msg))
+            _user32.DispatchMessageW(ctypes.byref(msg))
     finally:
-        try:
-            _user32.UnregisterHotKey(None, HOTKEY_HUD)
-            _user32.UnregisterHotKey(None, HOTKEY_SCREEN)
-            _user32.UnregisterHotKey(None, HOTKEY_DIAG)
-        except Exception:
-            pass
+        for hkid in active_ids:
+            try:
+                _user32.UnregisterHotKey(None, hkid)
+            except Exception:
+                pass
 
 
 def start_global_hotkeys():
@@ -121,11 +155,23 @@ def start_global_hotkeys():
         return
     if _hotkey_thread and _hotkey_thread.is_alive():
         return
-    _stop_event.clear()
-    _hotkey_thread = threading.Thread(target=_hotkey_worker, name="KIRAHT-GlobalHotkeys", daemon=True)
+
+    ready_evt = threading.Event()
+    _hotkey_thread = threading.Thread(
+        target=_hotkey_worker,
+        args=(ready_evt,),
+        name="KIRAHT-GlobalHotkeys",
+        daemon=True
+    )
     _hotkey_thread.start()
+    ready_evt.wait(timeout=2.0)
 
 
 def stop_global_hotkeys():
     """Stops the global system hotkeys daemon."""
-    _stop_event.set()
+    global _hotkey_thread_id
+    if _user32 and _hotkey_thread_id:
+        try:
+            _user32.PostThreadMessageW(_hotkey_thread_id, WM_QUIT, 0, 0)
+        except Exception:
+            pass

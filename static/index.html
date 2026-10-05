@@ -61,6 +61,9 @@
           <button id="toggle-actions-btn" class="hud-nav-toggle-btn active" title="Toggle Quick Actions Sidebar (Alt+Q)">
             <span class="toggle-dot">●</span> ACTIONS
           </button>
+          <button id="btn-load-history" class="hud-nav-toggle-btn" title="Load Previous Chat History (Alt+H)">
+            📜 <span id="nav-history-text">LOAD HISTORY</span> <span class="nav-badge" id="nav-history-count" style="display:none; margin-left:4px; font-size:10px; background:rgba(0,243,255,0.2); padding:1px 5px; border-radius:10px; border:1px solid #00f3ff;">0</span>
+          </button>
           <button id="btn-shortcuts-modal" class="hud-nav-toggle-btn" title="Tactical Keyboard Shortcuts (F1)">
             ⌨️ KEYS
           </button>
@@ -425,14 +428,25 @@
             </div>
           </button>
 
-          <!-- Tile 9: Clear Chat -->
+          <!-- Tile 9: Load History -->
+          <button class="tactical-action-tile tile-history" id="tile-load-history" data-action="load_history">
+            <div class="tile-icon-wrap">
+              <span class="tile-icon">📜</span>
+            </div>
+            <div class="tile-content">
+              <span class="tile-title" id="tile-history-title">LOAD HISTORY</span>
+              <span class="tile-desc" id="tile-history-desc">View past conversations</span>
+            </div>
+          </button>
+
+          <!-- Tile 10: Clear Chat -->
           <button class="tactical-action-tile tile-danger" data-action="clear_chat">
             <div class="tile-icon-wrap">
               <span class="tile-icon">🧹</span>
             </div>
             <div class="tile-content">
               <span class="tile-title">CLEAR CHAT</span>
-              <span class="tile-desc">Reset history</span>
+              <span class="tile-desc">Reset screen view</span>
             </div>
           </button>
         </div>
@@ -537,6 +551,10 @@
             <span class="shortcut-desc">Cycle Bottom Console Height (MIN / MID / MAX)</span>
           </div>
           <div class="shortcut-item">
+            <span class="shortcut-keys"><kbd>Alt</kbd> + <kbd>H</kbd></span>
+            <span class="shortcut-desc">Load / Toggle Previous Conversation History</span>
+          </div>
+          <div class="shortcut-item">
             <span class="shortcut-keys"><kbd>Alt</kbd> + <kbd>T</kbd></span>
             <span class="shortcut-desc">Toggle Left Telemetry Sidebar</span>
           </div>
@@ -551,15 +569,15 @@
         </div>
         <div class="shortcuts-grid">
           <div class="shortcut-item">
-            <span class="shortcut-keys"><kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>K</kbd></span>
+            <span class="shortcut-keys"><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>K</kbd> / <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>K</kbd></span>
             <span class="shortcut-desc">Bring KIRAHT AI HUD to Front (From Any Window)</span>
           </div>
           <div class="shortcut-item">
-            <span class="shortcut-keys"><kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd></span>
+            <span class="shortcut-keys"><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>S</kbd> / <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>S</kbd></span>
             <span class="shortcut-desc">Global Instant Screen Capture (From Any Window)</span>
           </div>
           <div class="shortcut-item">
-            <span class="shortcut-keys"><kbd>Alt</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd></span>
+            <span class="shortcut-keys"><kbd>Ctrl</kbd> + <kbd>Alt</kbd> + <kbd>D</kbd> / <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>D</kbd></span>
             <span class="shortcut-desc">Global Hardware Diagnostic Trigger</span>
           </div>
         </div>
