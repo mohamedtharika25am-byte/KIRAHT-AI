@@ -44,6 +44,7 @@ from file_tools import (
     create_folder,
     get_last_path,
     safe_delete_file,
+    safe_delete_folder,
     resolve_path,
     search_files_across_folders,
     open_system_item,
@@ -1798,18 +1799,24 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         target_file = read_match.group(1).strip()
         return True, read_file_content(target_file, max_lines=60, call_me=call_me)
 
-    # 15.1 Delete File with Permission Gate
-    del_file_match = re.search(
-        r"^(?:please\s+)?(?:delete\s+file|remove\s+file|del\s+file|delete|remove|del)\s+([a-zA-Z0-9_\-\./\\]+)\b",
+    # 15.1 Delete File or Folder with Safety Trash Backup
+    del_match = re.search(
+        r"^(?:please\s+)?(?:delete|remove|del)\s+(?:the\s+)?(?:folder|directory|dir|file)?\s*([a-zA-Z0-9_\-\./\\'\s]+?)(?:\s+(?:folder|directory|dir|file|this folder and file))?$",
         cleaned,
     )
-    if del_file_match:
-        target_file = del_file_match.group(1).strip()
-        if is_file_target(target_file) or os.path.isfile(resolve_path(target_file)):
-            if request_permission("file_delete", f"Permanently delete file '{target_file}'", call_me=call_me):
-                return True, safe_delete_file(target_file, call_me=call_me)
+    if del_match:
+        target_item = del_match.group(1).strip().strip("'\"")
+        full_p = resolve_path(target_item)
+        if os.path.isdir(full_p):
+            if request_permission("folder_delete", f"Delete folder '{target_item}'", call_me=call_me):
+                return True, safe_delete_folder(target_item, call_me=call_me)
             else:
-                return True, f"{call_me}, file deletion for '{target_file}' was cancelled."
+                return True, f"{call_me}, folder deletion for '{target_item}' was cancelled."
+        elif os.path.isfile(full_p) or is_file_target(target_item):
+            if request_permission("file_delete", f"Delete file '{target_item}'", call_me=call_me):
+                return True, safe_delete_file(target_item, call_me=call_me)
+            else:
+                return True, f"{call_me}, file deletion for '{target_item}' was cancelled."
 
     # 16. YouTube Search with Query
     yt_match = (

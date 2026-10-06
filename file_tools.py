@@ -547,8 +547,39 @@ def safe_delete_file(filepath: str, call_me: str = "Sir") -> str:
         bak_path = os.path.join(bak_dir, f"{base_name}_{timestamp}.bak")
         shutil.copy2(full_path, bak_path)
 
+        shutil.remove = os.remove
         os.remove(full_path)
         return f"{call_me}, successfully deleted '{base_name}'. (Safety backup saved in .kiraht_trash/)"
     except Exception as err:
         return f"{call_me}, failed to delete '{base_name}': {err}"
+
+
+def safe_delete_folder(folder_path: str, call_me: str = "Sir") -> str:
+    """
+    Safely deletes a directory after creating a backup copy in .kiraht_trash/.
+    Guards against deleting root directories.
+    """
+    full_path = resolve_path(folder_path)
+    if not os.path.exists(full_path):
+        return f"{call_me}, folder '{folder_path}' does not exist."
+    if not os.path.isdir(full_path):
+        return safe_delete_file(folder_path, call_me=call_me)
+
+    norm_ws = os.path.normpath(WORKSPACE_DIR)
+    norm_target = os.path.normpath(full_path)
+    if norm_target == norm_ws or len(norm_target) <= 3:
+        return f"{call_me}, cannot delete the root workspace folder for safety."
+
+    base_name = os.path.basename(full_path) or "folder"
+    try:
+        bak_dir = os.path.join(WORKSPACE_DIR, ".kiraht_trash")
+        os.makedirs(bak_dir, exist_ok=True)
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        bak_path = os.path.join(bak_dir, f"{base_name}_{timestamp}")
+        shutil.copytree(full_path, bak_path, dirs_exist_ok=True)
+
+        shutil.rmtree(full_path)
+        return f"{call_me}, successfully deleted folder '{base_name}'. (Safety backup saved in .kiraht_trash/)"
+    except Exception as err:
+        return f"{call_me}, failed to delete folder '{base_name}': {err}"
 

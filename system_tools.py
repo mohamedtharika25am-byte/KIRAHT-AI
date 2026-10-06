@@ -685,7 +685,7 @@ def check_ping(host: str = "8.8.8.8", call_me: str = "Sir") -> str:
 
 def show_desktop_notification(title: str, message: str, call_me: str = "Sir") -> str:
     """
-    Triggers a native Windows balloon notification.
+    Triggers a native Windows balloon notification that remains visible.
     """
     try:
         clean_title = title.replace("'", "''")
@@ -698,8 +698,11 @@ $n.BalloonTipTitle = '{clean_title}'
 $n.BalloonTipText = '{clean_msg}'
 $n.Visible = $True
 $n.ShowBalloonTip(4000)
+Start-Sleep -Seconds 4
+$n.Visible = $False
+$n.Dispose()
 """
-        subprocess.Popen(["powershell", "-NoProfile", "-Command", ps])
+        subprocess.Popen(["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps])
         return f"{call_me}, notification sent: '{title}'"
     except Exception as err:
         return f"{call_me}, notification failed: {err}"
