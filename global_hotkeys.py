@@ -45,56 +45,122 @@ _user32 = ctypes.windll.user32 if sys.platform == "win32" else None
 _kernel32 = ctypes.windll.kernel32 if sys.platform == "win32" else None
 
 
+def _attach_thread_to_input_desktop():
+    """Binds calling thread to the physical interactive user desktop (WinSta0\\Default)."""
+    if _user32:
+        try:
+            hdesk = _user32.OpenInputDesktop(0, False, 0x01FF)
+            if hdesk:
+                _user32.SetThreadDesktop(hdesk)
+        except Exception:
+            pass
+
+
 def _force_window_foreground(hwnd):
     """Bypasses Windows focus-stealing prevention to bring window to front."""
     if not _user32:
         return
-    # Restore if minimized
-    _user32.ShowWindow(hwnd, 9)  # SW_RESTORE
-    # Simulate ALT keystroke to grant foreground activation privilege
-    _user32.keybd_event(0x12, 0, 0, 0)
-    _user32.keybd_event(0x12, 0, 2, 0)
-    _user32.SetForegroundWindow(hwnd)
+    try:
+        fore_thread = _user32.GetWindowThreadProcessId(_user32.GetForegroundWindow(), None)
+        curr_thread = _kernel32.GetCurrentThreadId() if _kernel32 else 0
+        if fore_thread and curr_thread and fore_thread != curr_thread:
+            _user32.AttachThreadInput(curr_thread, fore_thread, True)
+
+        _user32.ShowWindow(hwnd, 9)  # SW_RESTORE
+        _user32.keybd_event(0x12, 0, 0, 0)
+        _user32.keybd_event(0x12, 0, 2, 0)
+        _user32.SetForegroundWindow(hwnd)
+        _user32.BringWindowToTop(hwnd)
+
+        if fore_thread and curr_thread and fore_thread != curr_thread:
+            _user32.AttachThreadInput(curr_thread, fore_thread, False)
+    except Exception:
+        pass
 
 
 def _bring_hud_to_front():
     """Focuses the browser window running KIRAHT AI HUD or opens it."""
+    _attach_thread_to_input_desktop()
+    found_hwnd = None
     try:
-        import win32gui
-        found = []
+        WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+        candidates = []
 
-        def enum_win(hwnd, _):
-            if win32gui.IsWindowVisible(hwnd):
-                title = win32gui.GetWindowText(hwnd)
-                if "KIRAHT AI" in title or "Tactical Web HUD" in title:
-                    found.append(hwnd)
-
-        win32gui.EnumWindows(enum_win, None)
-        if found:
-            _force_window_foreground(found[0])
+        def enum_proc(hwnd, lparam):
+            if _user32.IsWindowVisible(hwnd):
+                length = _user32.GetWindowTextLengthW(hwnd)
+                if length > 0:
+                    buff = ctypes.create_unicode_buffer(length + 1)
+                    _user32.GetWindowTextW(hwnd, buff, length + 1)
+                    title = buff.value.lower()
+                    if "kiraht ai" in title or "tactical web hud" in title or "127.0.0.1:8000" in title or "localhost:8000" in title:
+                        candidates.insert(0, (hwnd, 1))  # Highest priority
+                    elif any(b in title for b in ["brave", "chrome", "edge"]):
+                        candidates.append((hwnd, 2))     # Fallback browser window
             return True
+
+        proc = WNDENUMPROC(enum_proc)
+        _user32.EnumWindows(proc, 0)
+        if candidates:
+            candidates.sort(key=lambda x: x[1])
+            found_hwnd = candidates[0][0]
     except Exception:
         pass
+
+    if found_hwnd:
+        _force_window_foreground(found_hwnd)
+        try:
+            import winsound
+            winsound.MessageBeep(winsound.MB_OK)
+        except Exception:
+            pass
+        return True
+
+    # If HUD window not active, launch browser and notify
     webbrowser.open("http://127.0.0.1:8000")
+    try:
+        import winsound
+        winsound.MessageBeep(winsound.MB_OK)
+    except Exception:
+        pass
     return True
 
 
 def _trigger_global_screenshot():
-    """Takes instant screenshot from any active window."""
+    """Takes instant screenshot from any active window with toast feedback."""
+    _attach_thread_to_input_desktop()
     try:
-        from system_tools import capture_screenshot
+        from system_tools import capture_screenshot, show_desktop_notification
+        import winsound
         res = capture_screenshot()
+        fname = os.path.basename(res) if res else "screenshot.png"
+        show_desktop_notification("📸 KIRAHT AI — Screen Captured", f"Screenshot saved: {fname}")
+        winsound.MessageBeep(winsound.MB_ICONASTERISK)
         print(f"[*] Global hotkey screenshot: {res}")
     except Exception as e:
         print(f"[!] Global screenshot error: {e}")
 
 
 def _trigger_global_diag():
-    """Triggers global system telemetry diagnostic."""
+    """Triggers global system telemetry diagnostic with native Windows toast notification."""
+    _attach_thread_to_input_desktop()
     try:
         from core import get_system_telemetry
+        from system_tools import show_desktop_notification
+        import winsound
         telem = get_system_telemetry()
-        print(f"[*] Global diagnostic: CPU {telem.get('cpu', {}).get('percent')}%")
+        cpu_val = telem.get("cpu", {}).get("percent", "--")
+        ram_used = telem.get("ram", {}).get("used_gb", "--")
+        ram_total = telem.get("ram", {}).get("total_gb", "--")
+        ram_pct = telem.get("ram", {}).get("percent", "--")
+        bat = telem.get("battery", {})
+        bat_pct = bat.get("percent", "--")
+        bat_status = "Charging" if bat.get("charging") else "Battery"
+
+        msg = f"CPU: {cpu_val}% | RAM: {ram_used}/{ram_total}GB ({ram_pct}%) | Bat: {bat_pct}% ({bat_status})"
+        show_desktop_notification("⚡ KIRAHT AI — System Diagnostic", msg)
+        winsound.MessageBeep(winsound.MB_ICONASTERISK)
+        print(f"[*] Global diagnostic: {msg}")
     except Exception as e:
         print(f"[!] Global diag error: {e}")
 
@@ -105,6 +171,7 @@ def _hotkey_worker(ready_evt: threading.Event):
         ready_evt.set()
         return
 
+    _attach_thread_to_input_desktop()
     _hotkey_thread_id = _kernel32.GetCurrentThreadId()
 
     # Register hotkey combinations
