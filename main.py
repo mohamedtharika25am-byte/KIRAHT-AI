@@ -1991,13 +1991,32 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                         pass
 
                 # Intercept FILE_SAVE directives from LLM output
-                from file_tools import safe_create_or_modify_file, resolve_path
+                from file_tools import safe_create_or_modify_file, resolve_path, KIRAHT_PROJECTS_DIR, WORKSPACE_DIR
+                save_intent_keywords = [
+                    r"\b(?:save\s+it|save\s+this|save\s+the\s+file|save\s+as|save\s+to|save\s+in|save\s+into)\b",
+                    r"\b(?:create\s+(?:a\s+)?(?:new\s+)?file|write\s+(?:to\s+)?(?:a\s+)?file|make\s+(?:a\s+)?file)\b",
+                    r"\b(?:save\s+pannu|file\s+create\s+pannu|athula\s+save|podu\s+file|add\s+pannu)\b",
+                    r"\b(?:la\s+save\s+pannu|folder\s+la\s+save)\b",
+                    r"^(?:yes|yeah|sure|ok|okay|do it|proceed|confirm)\b",
+                ]
+                has_save_intent = any(re.search(pat, user_input, re.IGNORECASE) for pat in save_intent_keywords)
                 file_save_matches = list(re.finditer(r"```FILE_SAVE:([^\n]+)\n(.*?)```", full_reply, re.DOTALL))
                 for m in file_save_matches:
                     save_path = m.group(1).strip().strip("'\"")
                     file_content = m.group(2)
+                    base_name = os.path.basename(save_path)
+                    ext = os.path.splitext(save_path)[1].lstrip(".") or "python"
+                    if not has_save_intent:
+                        rec_offer = f"\n\n*Shall I save this code for you, {call_me}? I recommend saving it to `kiraht's project/{base_name}`.*"
+                        full_reply = full_reply.replace(m.group(0), f"```{ext}\n{file_content}\n```{rec_offer}")
+                        continue
                     full_p = resolve_path(save_path)
+                    norm_dir = os.path.normpath(os.path.dirname(full_p))
+                    if norm_dir == os.path.normpath(WORKSPACE_DIR) and not re.search(r"\b(?:workspace|root)\b", user_input, re.IGNORECASE):
+                        full_p = os.path.join(KIRAHT_PROJECTS_DIR, base_name)
+                        full_p = resolve_path(full_p)
                     safe_res = safe_create_or_modify_file(full_p, file_content, call_me=call_me)
+                    full_reply = full_reply.replace(m.group(0), f"```{ext}\n{file_content}\n```\n\n> **[File Saved]** `{base_name}` saved to `{full_p}`")
                     print(f"\n[KIRAHT AI: 💾 {safe_res}]")
 
                 # If web context was attached, rewrite last user message in history to clean user_input

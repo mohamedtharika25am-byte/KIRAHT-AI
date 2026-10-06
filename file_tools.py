@@ -11,6 +11,8 @@ import shutil
 import subprocess
 
 WORKSPACE_DIR = r"d:\KIRAHT AI"
+KIRAHT_PROJECTS_DIR = os.path.join(WORKSPACE_DIR, "Kiraht's project")
+os.makedirs(KIRAHT_PROJECTS_DIR, exist_ok=True)
 
 
 def get_user_known_folders() -> dict:
@@ -23,7 +25,14 @@ def get_user_known_folders() -> dict:
         "kiraht": WORKSPACE_DIR,
         "kiraht ai": WORKSPACE_DIR,
         "kiraht-ai": WORKSPACE_DIR,
-        "project": WORKSPACE_DIR,
+        "kiraht's project": KIRAHT_PROJECTS_DIR,
+        "kiraht's projects": KIRAHT_PROJECTS_DIR,
+        "kiraht project": KIRAHT_PROJECTS_DIR,
+        "kiraht projects": KIRAHT_PROJECTS_DIR,
+        "kirahts project": KIRAHT_PROJECTS_DIR,
+        "kirahts projects": KIRAHT_PROJECTS_DIR,
+        "projects": KIRAHT_PROJECTS_DIR,
+        "project": KIRAHT_PROJECTS_DIR,
         "downloads": os.path.join(home, "Downloads"),
         "documents": os.path.join(home, "Documents"),
         "desktop": os.path.join(home, "Desktop"),
@@ -155,14 +164,17 @@ def resolve_path(target_path: str) -> str:
             if norm_k == norm_target and os.path.exists(v):
                 return v
 
-    # Prefix checks (e.g. "downloads/resume.pdf" or "desktop/file.txt")
-    for key in ("downloads", "desktop", "documents", "workspace", "videos", "pictures", "movies", "music"):
+    # Prefix checks (e.g. "downloads/resume.pdf" or "kiraht's project/code.py")
+    for key in (
+        "downloads", "desktop", "documents", "workspace", "videos", "pictures", "movies", "music",
+        "kiraht's project", "kiraht's projects", "kiraht project", "kiraht projects", "kirahts project", "projects", "project",
+    ):
         if key in known:
             if lower_p.startswith(f"{key}/") or lower_p.startswith(f"{key}\\"):
                 rel = clean_path[len(key) + 1:]
                 return os.path.join(known[key], rel)
 
-    # 1. Try workspace first
+    # 1. Try workspace and Kiraht's project first
     ws_candidate = os.path.abspath(os.path.join(WORKSPACE_DIR, clean_path))
     if os.path.exists(ws_candidate):
         return ws_candidate
@@ -171,10 +183,19 @@ def resolve_path(target_path: str) -> str:
     if os.path.exists(ws_clean_cand):
         return ws_clean_cand
 
+    proj_candidate = os.path.abspath(os.path.join(KIRAHT_PROJECTS_DIR, clean_path))
+    if os.path.exists(proj_candidate):
+        return proj_candidate
+
+    proj_clean_cand = os.path.abspath(os.path.join(KIRAHT_PROJECTS_DIR, lower_clean))
+    if os.path.exists(proj_clean_cand):
+        return proj_clean_cand
+
     # 2. Search root directories, user home, and known folders
     home = os.path.expanduser("~")
     search_roots = [
         WORKSPACE_DIR,
+        KIRAHT_PROJECTS_DIR,
         "D:\\",
         home,
         known.get("downloads", ""),

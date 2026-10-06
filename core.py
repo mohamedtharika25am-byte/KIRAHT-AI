@@ -177,21 +177,25 @@ def build_system_prompt(memory: dict) -> str:
         f"1. If the user writes in English, reply in crisp, clear English.\n"
         f"2. TANGLISH DEFINITION: Tanglish is Tamil spoken or written phonetically using English letters. You understand Tanglish perfectly. When the user asks in Tanglish, reply in polite, natural Tanglish or clear English.\n"
         f"3. STRICT PROHIBITION: NEVER use Hindi or Hinglish words under any circumstances.\n\n"
-        f"FILE SAVING & CREATION DIRECTIVE:\n"
-        f"- You have FULL READ/WRITE PERMISSION to create and save files anywhere in the workspace ({WORKSPACE_DIR}) and any other specified user directory.\n"
-        f"- Whenever the user instructs you to save code/data into a file, or write/create a file, or whenever you write a script to be saved:\n"
-        f"  YOU MUST output a structured file block in this exact format:\n"
-        f"  ```FILE_SAVE:<filepath>\n"
-        f"  <file content here>\n"
-        f"  ```\n"
-        f"  Example:\n"
-        f"  ```FILE_SAVE:d:\\KIRAHT AI\\add_numbers.py\n"
-        f"  num1 = float(input(\"Enter first number: \"))\n"
-        f"  num2 = float(input(\"Enter second number: \"))\n"
-        f"  print(f\"Sum: {{num1 + num2}}\")\n"
-        f"  ```\n"
-        f"  The backend server automatically intercepts this block, creates all parent folders, writes the file to disk, and confirms the save.\n"
-        f"  Never claim you have saved a file without including the ```FILE_SAVE:<filepath> block.\n\n"
+        f"CODE GENERATION & FILE SAVING RULES:\n"
+        f"1. CODE GENERATION / EXPLANATIONS (NEVER AUTO-SAVE TO DISK):\n"
+        f"   - When the user asks for code, scripts, circuits, or technical help (e.g. 'write python code for...', 'how to use esp32...', 'give me script...', 'oled is not mandatory'):\n"
+        f"     Present the code using regular markdown code blocks (e.g. ```python, ```ino, ```cpp).\n"
+        f"     STRICT DIRECTIVE: DO NOT output ```FILE_SAVE:...```! NEVER automatically write or save code to disk on your own without an explicit user command to save/create a file!\n"
+        f"     Instead, at the end of your response, ask politely if they want you to save it:\n"
+        f"     'Shall I save this code for you, Sir? I recommend saving it in `kiraht\\'s project/<filename>`.'\n"
+        f"     (If speaking Tanglish: 'Sir, intha code-ah save pannata? `kiraht\\'s project/<filename>`-la save panna recommend panren. Vera folder venaalum sollunga!')\n"
+        f"2. EXPLICIT FILE SAVING (ONLY ON DIRECT USER COMMAND):\n"
+        f"   - ONLY output a ```FILE_SAVE:<filepath>``` block when the user EXPLICITLY ordered you to save, create, or write a file (e.g. 'save this as...', 'create file...', 'save pannu', 'yes save it').\n"
+        f"   - DEFAULT RECOMMENDATION & DESTINATION: Default to saving scripts and projects inside 'Kiraht\\'s project' folder:\n"
+        f"     ```FILE_SAVE:d:\\KIRAHT AI\\Kiraht's project\\<filename>\n"
+        f"     <file content here>\n"
+        f"     ```\n"
+        f"     DO NOT save user scripts directly into the root workspace folder ({WORKSPACE_DIR})!\n"
+        f"   - CUSTOM DESTINATION: If the user explicitly mentions another directory (e.g. 'downloads', 'desktop', 'documents', or a custom folder path), target that specified folder instead.\n"
+        f"     Example: ```FILE_SAVE:C:\\Users\\KiTE\\Downloads\\<filename>```\n"
+        f"   - The backend server automatically intercepts this block, creates all parent folders, writes the file to disk, and confirms the save.\n"
+        f"   - Never claim you have saved a file without including the ```FILE_SAVE:<filepath> block.\n\n"
         f"FOLDER CREATION DIRECTIVE:\n"
         f"- Whenever the user instructs you to create, add, or make a folder/directory (e.g. 'create folder atomic_game', 'add folder in that named xyz', 'atomic_game nu folder create pannu'):\n"
         f"  YOU MUST output a structured folder block in this exact format:\n"
@@ -628,9 +632,11 @@ def handle_direct_file_create(cleaned: str, call_me: str = "Sir") -> Tuple[bool,
     if create_match:
         target_name = create_match.group(1).strip().strip("'\"")
         new_content = create_match.group(2).strip()
-        from file_tools import safe_create_or_modify_file, resolve_path
-        res = safe_create_or_modify_file(target_name, new_content, call_me=call_me)
+        from file_tools import safe_create_or_modify_file, resolve_path, KIRAHT_PROJECTS_DIR
+        if not os.path.dirname(target_name) and not os.path.isabs(target_name):
+            target_name = os.path.join(KIRAHT_PROJECTS_DIR, target_name)
         full_p = resolve_path(target_name)
+        res = safe_create_or_modify_file(full_p, new_content, call_me=call_me)
         return True, "file_system", "safe_create_or_modify_file", f"{res}\nLocation: {full_p}"
 
     create_simple = re.search(
@@ -641,8 +647,8 @@ def handle_direct_file_create(cleaned: str, call_me: str = "Sir") -> Tuple[bool,
     if create_simple:
         fname = create_simple.group(1).strip().strip("'\"")
         folder = create_simple.group(2).strip().strip("'\"") if create_simple.group(2) else ""
-        from file_tools import safe_create_or_modify_file, resolve_path, WORKSPACE_DIR
-        target_dir = resolve_path(folder) if folder else WORKSPACE_DIR
+        from file_tools import safe_create_or_modify_file, resolve_path, KIRAHT_PROJECTS_DIR
+        target_dir = resolve_path(folder) if folder else KIRAHT_PROJECTS_DIR
         full_p = os.path.join(target_dir, fname) if not os.path.isabs(fname) else fname
         starter = f"// {fname} - Created by KIRAHT AI\n" if fname.endswith((".ino", ".cpp", ".c", ".js")) else f"# {fname} - Created by KIRAHT AI\n"
         res = safe_create_or_modify_file(full_p, starter, call_me=call_me)
@@ -708,8 +714,8 @@ def try_handle_conversational_file_save(user_text: str, call_me: str = "Sir") ->
 
     affirmative_patterns = [
         r"^(?:yeah|yes|yep|sure|ok|okay|do it|save it|save this|save the file|save code|save script|save|save pannu|pannu|do bro|yeah do bro|yeah do|yes do|go ahead|proceed|confirm)(?:\s+(?:bro|sir|please|it|this))?(?:\s+(?:in|to|into|inside|as)\s+(.+))?$",
-        r"^(?:please\s+)?save(?:\s+this|\s+the|\s+it)?\s+(?:code|script|file)?(?:\s+(?:as|in|to|into)\s+(.+))?$",
-        r"^(?:please\s+)?add(?:\s+this)?\s+(?:code|file|script)\s+(?:in|to|into)\s+(.+)$",
+        r"^(?:please\s+)?save(?:\s+this|\s+the|\s+it)?\s+(?:code|script|file)?(?:\s+(?:as|in|to|into|inside)\s+(.+))?$",
+        r"^(?:please\s+)?add(?:\s+this)?\s+(?:code|file|script)\s+(?:in|to|into|inside)\s+(.+)$",
         r"^(?:athula|vera\s+folder\s+la|folder\s+la)\s+(?:code\s+)?(?:save\s+pannu|add\s+pannu|podu)\b",
     ]
 
@@ -723,10 +729,19 @@ def try_handle_conversational_file_save(user_text: str, call_me: str = "Sir") ->
                 specified_dest = m.group(1).strip()
             break
 
+    # Tanglish destination syntax: "<folder> la save pannu" / "<folder> folder la save pannu"
+    if not matched:
+        tanglish_la = re.search(r"^([a-zA-Z0-9_\-\.:\\/ ']+?)(?:\s+folder)?\s+la\s+(?:code\s+)?(?:save\s+pannu|add\s+pannu|podu|save)\b", lower)
+        if tanglish_la:
+            matched = True
+            cand = tanglish_la.group(1).strip()
+            if cand not in ("athula", "vera", "antha", ""):
+                specified_dest = cand
+
     if not matched:
         if re.search(r"\b(save\s+it|save\s+this|save\s+file|save\s+code|save\s+pannu|add\s+pannu)\b", lower):
             matched = True
-            dest_m = re.search(r"\b(?:in|to|into|as)\s+(.+)$", cleaned, re.IGNORECASE)
+            dest_m = re.search(r"\b(?:in|to|into|inside|as)\s+(.+)$", cleaned, re.IGNORECASE)
             if dest_m:
                 specified_dest = dest_m.group(1).strip()
 
@@ -776,25 +791,34 @@ def try_handle_conversational_file_save(user_text: str, call_me: str = "Sir") ->
     if not code_content:
         return False, "", "", ""
 
-    from file_tools import resolve_path, safe_create_or_modify_file, WORKSPACE_DIR
+    from file_tools import resolve_path, safe_create_or_modify_file, WORKSPACE_DIR, KIRAHT_PROJECTS_DIR
 
     filename = ""
-    target_folder = WORKSPACE_DIR
+    target_folder = KIRAHT_PROJECTS_DIR  # Default recommendation and destination!
 
     if specified_dest:
         dest_clean = specified_dest.strip().strip("'\"")
-        fn_match = re.search(r"\b([a-zA-Z0-9_\-]+\.[a-zA-Z0-9]+)$", dest_clean)
-        if fn_match:
-            filename = fn_match.group(1)
-            parent_part = dest_clean[:fn_match.start()].strip()
-            parent_part = re.sub(r"^(?:in|to|into|inside|as)\s+", "", parent_part, flags=re.IGNORECASE).strip()
-            if parent_part:
-                target_folder = resolve_path(parent_part)
+        dest_clean = re.sub(r"\s+(?:folder|foler|directory|dir)\s*$", "", dest_clean, flags=re.IGNORECASE).strip()
+        dest_clean = re.sub(r"^(?:in|to|into|inside|as)\s+", "", dest_clean, flags=re.IGNORECASE).strip()
+
+        # Check pattern: "<filename> in <folder>" or "<filename> to <folder>"
+        split_m = re.match(r"^([a-zA-Z0-9_\-]+\.[a-zA-Z0-9]+)\s+(?:in|to|into|inside)\s+(.+)$", dest_clean, re.IGNORECASE)
+        if split_m:
+            filename = split_m.group(1).strip()
+            target_folder = resolve_path(split_m.group(2).strip())
         else:
-            target_folder = resolve_path(dest_clean)
+            fn_match = re.search(r"\b([a-zA-Z0-9_\-]+\.[a-zA-Z0-9]+)$", dest_clean)
+            if fn_match:
+                filename = fn_match.group(1)
+                parent_part = dest_clean[:fn_match.start()].strip()
+                parent_part = re.sub(r"^(?:in|to|into|inside|as)\s+", "", parent_part, flags=re.IGNORECASE).strip()
+                if parent_part:
+                    target_folder = resolve_path(parent_part)
+            else:
+                target_folder = resolve_path(dest_clean)
 
     if not filename:
-        fn_in_ast = re.search(r"\b([a-zA-Z0-9_\-]+\.(?:py|js|ts|html|css|json|txt|md|cpp|c|java|sh|bat))\b", target_assistant_msg, re.IGNORECASE)
+        fn_in_ast = re.search(r"\b([a-zA-Z0-9_\-]+\.(?:py|ino|cpp|c|h|hpp|js|ts|html|css|json|txt|md|java|sh|bat))\b", target_assistant_msg, re.IGNORECASE)
         if fn_in_ast:
             filename = fn_in_ast.group(1)
 
@@ -976,7 +1000,9 @@ def check_deterministic_intent(user_text: str, call_me: str = "Sir") -> Tuple[bo
                 cand_file = save_cand.group(1).strip().strip("'\"")
                 code_blocks = re.findall(r"```(?:[a-zA-Z0-9_\-\+]+)?\s*\n(.*?)```", last_ast, re.DOTALL)
                 if code_blocks:
-                    from file_tools import resolve_path, safe_create_or_modify_file
+                    from file_tools import resolve_path, safe_create_or_modify_file, KIRAHT_PROJECTS_DIR
+                    if not os.path.dirname(cand_file) and not os.path.isabs(cand_file):
+                        cand_file = os.path.join(KIRAHT_PROJECTS_DIR, cand_file)
                     full_p = resolve_path(cand_file)
                     safe_create_or_modify_file(full_p, code_blocks[0].strip(), call_me=call_me)
                     return True, "file_system", "safe_create_or_modify_file", f"{call_me}, executed save for '{os.path.basename(full_p)}'."
@@ -1373,38 +1399,75 @@ async def process_user_message_stream(
             final_text = final_text.replace(m.group(0), replacement)
             yield {"type": "activity", "actor": "System", "action": "Deleted", "detail": f"Auto-executed deletion for {os.path.basename(full_p)}"}
 
+    # Determine if user explicitly requested file creation/saving
+    save_intent_keywords = [
+        r"\b(?:save\s+it|save\s+this|save\s+the\s+file|save\s+as|save\s+to|save\s+in|save\s+into)\b",
+        r"\b(?:create\s+(?:a\s+)?(?:new\s+)?file|write\s+(?:to\s+)?(?:a\s+)?file|make\s+(?:a\s+)?file)\b",
+        r"\b(?:save\s+pannu|file\s+create\s+pannu|athula\s+save|podu\s+file|add\s+pannu)\b",
+        r"\b(?:la\s+save\s+pannu|folder\s+la\s+save)\b",
+        r"^(?:yes|yeah|sure|ok|okay|do it|proceed|confirm)\b",
+    ]
+    has_save_intent = any(re.search(pat, cleaned, re.IGNORECASE) for pat in save_intent_keywords)
+
     # Post-generation File Interception (Interception of FILE_SAVE blocks)
     file_save_matches = list(re.finditer(r"```FILE_SAVE:([^\n]+)\n(.*?)```", final_text, re.DOTALL))
     for m in file_save_matches:
         save_path = m.group(1).strip().strip("'\"")
         file_content = m.group(2)
-        full_p = resolve_path(save_path)
+        base_name = os.path.basename(save_path)
+        ext = os.path.splitext(save_path)[1].lstrip(".") or "python"
 
         # Safety Check: If user asked for a folder, redirect to folder creation
-        if re.search(r"\b(?:folder|dir|directory)\b", cleaned, re.IGNORECASE) and not os.path.splitext(full_p)[1]:
+        if re.search(r"\b(?:folder|dir|directory)\b", cleaned, re.IGNORECASE) and not os.path.splitext(save_path)[1]:
+            full_p = resolve_path(save_path)
             create_folder(full_p, call_me=call_me)
-            base_name = os.path.basename(full_p)
-            replacement = f"> **[Folder Created]** `{base_name}` created at `{full_p}`"
+            bname = os.path.basename(full_p)
+            replacement = f"> **[Folder Created]** `{bname}` created at `{full_p}`"
             final_text = final_text.replace(m.group(0), replacement)
-            yield {"type": "activity", "actor": "System", "action": "Folder Created", "detail": f"Created folder {base_name}"}
+            yield {"type": "activity", "actor": "System", "action": "Folder Created", "detail": f"Created folder {bname}"}
             continue
 
+        if not has_save_intent:
+            # DO NOT AUTO-SAVE! User asked for code/help, not to write to disk.
+            # Convert FILE_SAVE block to a standard syntax-highlighted code block:
+            rec_offer = (
+                f"\n\n*Shall I save this code for you, {call_me}? I recommend saving it in `kiraht's project/{base_name}`. "
+                f"(Or let me know if you prefer another folder like Downloads or Desktop!)*"
+            )
+            if not any(q in final_text.lower() for q in ("shall i save", "save pannata", "would you like me to save", "recommend saving")):
+                replacement = f"```{ext}\n{file_content}\n```{rec_offer}"
+            else:
+                replacement = f"```{ext}\n{file_content}\n```"
+            final_text = final_text.replace(m.group(0), replacement)
+            yield {"type": "activity", "actor": "System", "action": "Code Generated", "detail": f"Generated code for {base_name} (Awaiting confirmation)"}
+            continue
+
+        # User explicitly requested to save:
+        from file_tools import KIRAHT_PROJECTS_DIR, WORKSPACE_DIR
+        full_p = resolve_path(save_path)
+        norm_dir = os.path.normpath(os.path.dirname(full_p))
+        if norm_dir == os.path.normpath(WORKSPACE_DIR) and not re.search(r"\b(?:workspace|root)\b", cleaned, re.IGNORECASE):
+            full_p = os.path.join(KIRAHT_PROJECTS_DIR, base_name)
+            full_p = resolve_path(full_p)
+
         safe_create_or_modify_file(full_p, file_content, call_me=call_me)
-        base_name = os.path.basename(full_p)
-        ext = os.path.splitext(full_p)[1].lstrip(".") or "python"
         replacement = f"```{ext}\n{file_content}\n```\n\n> **[File Saved]** `{base_name}` saved to `{full_p}`"
         final_text = final_text.replace(m.group(0), replacement)
         yield {"type": "activity", "actor": "System", "action": "File Saved", "detail": f"Saved {base_name} to {full_p}"}
 
-    # Safety Fallback: If assistant claims a file was saved or used nano/cat
-    saved_claims = re.findall(r"(?:saved|created|written|nano|cat\s+>\s*)\s+(?:the\s+)?(?:script|file|code)?\s*(?:as|in|into)?\s*[`'\"]?([a-zA-Z0-9_\-\./\\]+\.[a-zA-Z0-9]+)[`'\"]?", final_text, re.IGNORECASE)
-    for claimed_file in saved_claims:
-        cand_path = resolve_path(claimed_file)
-        if not os.path.exists(cand_path):
-            code_blocks = re.findall(r"```(?:[a-zA-Z0-9_\-\+]+)?\s*\n(.*?)```", final_text, re.DOTALL)
-            if code_blocks:
-                safe_create_or_modify_file(cand_path, code_blocks[0].strip(), call_me=call_me)
-                yield {"type": "activity", "actor": "System", "action": "File Saved", "detail": f"Saved {os.path.basename(cand_path)} (Safety Fallback)"}
+    # If code was generated via regular markdown blocks without FILE_SAVE, and user didn't request save:
+    # Ensure we ask the user if they'd like to save it in Kiraht's project
+    if not has_save_intent and not file_save_matches:
+        code_blocks = re.findall(r"```(?:[a-zA-Z0-9_\-\+]+)?\s*\n(.*?)```", final_text, re.DOTALL)
+        if any(len(b.strip().splitlines()) >= 3 for b in code_blocks):
+            if not any(q in final_text.lower() for q in ("shall i save", "save pannata", "would you like me to save", "recommend saving", "save this as a file")):
+                fn_m = re.search(r"\b([a-zA-Z0-9_\-]+\.(?:py|ino|cpp|c|h|hpp|js|ts|html|css|json|txt))\b", final_text, re.IGNORECASE)
+                suggested_fn = fn_m.group(1) if fn_m else "script.py"
+                is_tanglish_prompt = any(w in cleaned.lower() for w in ("laam", "keta", "pannu", "venum", "sollu", "iruku", "enna", "epdi"))
+                if is_tanglish_prompt:
+                    final_text += f"\n\n*Sir, intha code-ah save pannata? `kiraht's project/{suggested_fn}`-la save panna recommend panren. Vera folder venaalum sollunga!*"
+                else:
+                    final_text += f"\n\n*Shall I save this code for you, {call_me}? I recommend saving it to `kiraht's project/{suggested_fn}`. (Or let me know if you prefer another folder like Downloads or Desktop!)*"
 
     # Save completed exchange into persistent local chat_history.json
     source_label = f"GEMINI CLOUD ({target_model})" if use_gemini else f"OLLAMA LOCAL ({ollama_model})"
