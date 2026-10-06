@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Atomic Game</title>
+    <style>
+        body { text-align: center; font-family: sans-serif; margin-top: 50px; }
+        #atom { font-size: 50px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>Atomic Clicker</h1>
+    <div id="atom">⚛️</div>
+    <p>Score: <span id="score">0</span></p>
+    <script>
+        let score = 0;
+        document.getElementById('atom').onclick = () => {
+            score++;
+            document.getElementById('score').innerText = score;
+        };
+    </script>
+</body>
+</html>

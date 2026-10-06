@@ -41,6 +41,8 @@ from file_tools import (
     list_workspace_files,
     read_file_content,
     safe_create_or_modify_file,
+    create_folder,
+    get_last_path,
     safe_delete_file,
     resolve_path,
     search_files_across_folders,
@@ -1007,6 +1009,81 @@ def open_folder(folder_name: str, call_me: str = "Sir") -> str:
     return f"{call_me}, folder '{folder_name}' was not found on your system."
 
 
+def parse_and_create_folder(user_text: str, call_me: str = "Sir") -> tuple[bool, str]:
+    """
+    Detects and executes directory/folder creation commands in English and Tanglish.
+    Supports parent folder resolution ("in that", "in kiraht's project", "in workspace", "athula").
+    """
+    cleaned = user_text.strip()
+    cleaned_no_punct = re.sub(r"[?!.,;]+$", "", cleaned).strip()
+    lower = cleaned_no_punct.lower()
+
+    # Must contain folder / directory / dir / mkdir keyword
+    if not re.search(r"\b(folder|folders|directory|dir|mkdir)\b", lower):
+        return False, ""
+
+    # Reject commands asking to open, explore, view, or read existing folders
+    if re.search(r"^(?:open|show|view|explore|list|read|search|inspect)\s+", lower) and not re.search(r"\b(create|make|add|new|podu|pannu)\b", lower):
+        return False, ""
+
+    # Pattern 1: "add/create/make/new folder in that / in <parent> named/called <name>"
+    m1 = re.search(
+        r"^(?:please\s+)?(?:add|create|make|new)\s+(?:a\s+)?(?:new\s+)?(?:folder|directory|dir)\s+in\s+([a-zA-Z0-9_\-'\s\\]+?)\s+(?:named|called|name)\s+([a-zA-Z0-9_\-\.]+)\s*$",
+        lower,
+    )
+    if m1:
+        parent_part = m1.group(1).strip()
+        folder_name = m1.group(2).strip()
+        return True, create_folder(folder_name, parent_folder=parent_part, call_me=call_me)
+
+    # Pattern 2: "add/create/make/new folder (named/called)? <name> in/inside <parent>"
+    m2 = re.search(
+        r"^(?:please\s+)?(?:add|create|make|new)\s+(?:a\s+)?(?:new\s+)?(?:folder|directory|dir)\s+(?:named\s+|called\s+|name\s+)?([a-zA-Z0-9_\-\.]+)\s+(?:in|inside|into)\s+([a-zA-Z0-9_\-'\s\\]+)\s*$",
+        lower,
+    )
+    if m2:
+        folder_name = m2.group(1).strip()
+        parent_part = m2.group(2).strip()
+        return True, create_folder(folder_name, parent_folder=parent_part, call_me=call_me)
+
+    # Pattern 3: "add/create/make/new folder (named/called)? <name>"
+    m3 = re.search(
+        r"^(?:please\s+)?(?:add|create|make|new)\s+(?:a\s+)?(?:new\s+)?(?:folder|directory|dir)\s+(?:named\s+|called\s+|name\s+)?([a-zA-Z0-9_\-\.]+)\s*$",
+        lower,
+    )
+    if m3:
+        folder_name = m3.group(1).strip()
+        return True, create_folder(folder_name, call_me=call_me)
+
+    # Pattern 4: Tanglish: "(athula | in that )?<name> nu (folder|directory|dir) (create|add|make|podu)( pannu)?"
+    m4 = re.search(
+        r"^(?:athula|in\s+that)?\s*([a-zA-Z0-9_\-\.]+)\s*nu\s+(?:folder|directory|dir)\s+(?:create|add|make|podu)(?:\s+pannu)?\s*$",
+        lower,
+    )
+    if m4:
+        folder_name = m4.group(1).strip()
+        parent_part = "that" if ("athula" in lower or "in that" in lower) else None
+        return True, create_folder(folder_name, parent_folder=parent_part, call_me=call_me)
+
+    # Pattern 5: Tanglish: "(athula )?(folder|directory|dir) (create|add|make|podu)( pannu)? (named |called )?<name>"
+    m5 = re.search(
+        r"^(?:athula\s+)?(?:folder|directory|dir)\s+(?:create|add|make|podu)(?:\s+pannu)?\s+(?:named\s+|called\s+)?([a-zA-Z0-9_\-\.]+)\s*$",
+        lower,
+    )
+    if m5:
+        folder_name = m5.group(1).strip()
+        parent_part = "that" if "athula" in lower else None
+        return True, create_folder(folder_name, parent_folder=parent_part, call_me=call_me)
+
+    # Pattern 6: "mkdir <name_or_path>"
+    m6 = re.search(r"^mkdir\s+([a-zA-Z0-9_\-\./\\]+)\s*$", lower)
+    if m6:
+        folder_path = m6.group(1).strip()
+        return True, create_folder(folder_path, call_me=call_me)
+
+    return False, ""
+
+
 def adjust_volume(action: str, call_me: str = "Sir", steps: int = 5) -> str:
     """
     Legacy keystroke volume control (mute toggle or basic steps).
@@ -1501,6 +1578,11 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
     is_trans, trans_res = translate_text(cleaned, call_me)
     if is_trans:
         return True, trans_res
+
+    # 0. Deterministic Folder Creation Engine (English & Tanglish)
+    is_folder, folder_res = parse_and_create_folder(user_text, call_me)
+    if is_folder:
+        return True, folder_res
 
     # 1. Rescan Installed Applications Cache
     if cleaned in ("/scan_apps", "scan apps", "rescan apps", "refresh apps"):

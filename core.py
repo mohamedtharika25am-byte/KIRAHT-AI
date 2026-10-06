@@ -192,6 +192,16 @@ def build_system_prompt(memory: dict) -> str:
         f"  ```\n"
         f"  The backend server automatically intercepts this block, creates all parent folders, writes the file to disk, and confirms the save.\n"
         f"  Never claim you have saved a file without including the ```FILE_SAVE:<filepath> block.\n\n"
+        f"FOLDER CREATION DIRECTIVE:\n"
+        f"- Whenever the user instructs you to create, add, or make a folder/directory (e.g. 'create folder atomic_game', 'add folder in that named xyz', 'atomic_game nu folder create pannu'):\n"
+        f"  YOU MUST output a structured folder block in this exact format:\n"
+        f"  ```FOLDER_CREATE:<folder_path>\n"
+        f"  ```\n"
+        f"  Example:\n"
+        f"  ```FOLDER_CREATE:d:\\KIRAHT AI\\kiraht's project\\atomic_game\n"
+        f"  ```\n"
+        f"  The backend server automatically intercepts this block and creates the directory on disk.\n"
+        f"  STRICT RULE: NEVER output a ```FILE_SAVE:...``` block when the user asked for a FOLDER! A folder is a directory, NOT a file with Python code or placeholder text inside it.\n\n"
         f"Tone and Rules:\n"
         f"1. {response_style}\n"
         f"2. Be razor-sharp, direct, and factual. Never add conversational filler.\n"
@@ -731,7 +741,13 @@ def check_deterministic_intent(user_text: str, call_me: str = "Sir") -> Tuple[bo
     cleaned = user_text.strip()
     lower = cleaned.lower()
 
-    # 0. File Creation & Conversational Save Intent
+    # 0.0 Folder Creation Intent (English & Tanglish)
+    from tools import parse_and_create_folder
+    is_folder, folder_res = parse_and_create_folder(cleaned, call_me)
+    if is_folder:
+        return True, "folder_create", "create_folder", folder_res
+
+    # 0.1 File Creation & Conversational Save Intent
     is_create, f_cat, f_tool, f_res = handle_direct_file_create(cleaned, call_me)
     if is_create:
         return True, f_cat, f_tool, f_res
@@ -910,6 +926,9 @@ async def process_user_message_stream(
             else:
                 display_tool = "system_tool"
                 source_lbl = "SYSTEM TOOL"
+        elif category == "folder_create":
+            display_tool = "create_folder"
+            source_lbl = "TOOL: CREATE FOLDER"
         elif category:
             source_lbl = f"TOOL: {category.replace('_', ' ').upper()}"
         else:
@@ -1079,13 +1098,34 @@ async def process_user_message_stream(
     if not final_text:
         final_text = f"{call_me}, systems standing by."
 
+    # Post-generation Folder Interception (Interception of FOLDER_CREATE blocks)
+    from file_tools import safe_create_or_modify_file, create_folder, resolve_path
+    folder_create_matches = list(re.finditer(r"```FOLDER_CREATE:([^\n]+)```", final_text))
+    for m in folder_create_matches:
+        f_path = m.group(1).strip().strip("'\"")
+        create_folder(f_path, call_me=call_me)
+        full_p = resolve_path(f_path)
+        base_name = os.path.basename(full_p)
+        replacement = f"> **[Folder Created]** `{base_name}` created at `{full_p}`"
+        final_text = final_text.replace(m.group(0), replacement)
+        yield {"type": "activity", "actor": "System", "action": "Folder Created", "detail": f"Created folder {base_name}"}
+
     # Post-generation File Interception (Interception of FILE_SAVE blocks)
-    from file_tools import safe_create_or_modify_file, resolve_path
     file_save_matches = list(re.finditer(r"```FILE_SAVE:([^\n]+)\n(.*?)```", final_text, re.DOTALL))
     for m in file_save_matches:
         save_path = m.group(1).strip().strip("'\"")
         file_content = m.group(2)
         full_p = resolve_path(save_path)
+
+        # Safety Check: If user asked for a folder, redirect to folder creation
+        if re.search(r"\b(?:folder|dir|directory)\b", cleaned, re.IGNORECASE) and not os.path.splitext(full_p)[1]:
+            create_folder(full_p, call_me=call_me)
+            base_name = os.path.basename(full_p)
+            replacement = f"> **[Folder Created]** `{base_name}` created at `{full_p}`"
+            final_text = final_text.replace(m.group(0), replacement)
+            yield {"type": "activity", "actor": "System", "action": "Folder Created", "detail": f"Created folder {base_name}"}
+            continue
+
         safe_create_or_modify_file(full_p, file_content, call_me=call_me)
         base_name = os.path.basename(full_p)
         ext = os.path.splitext(full_p)[1].lstrip(".") or "python"

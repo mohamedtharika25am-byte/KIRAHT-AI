@@ -407,6 +407,9 @@ def safe_create_or_modify_file(filepath: str, new_content: str, call_me: str = "
         if parent_dir:
             os.makedirs(parent_dir, exist_ok=True)
 
+        if os.path.isdir(full_path):
+            return f"{call_me}, '{base_name}' is a directory, not a file. File write skipped."
+
         if os.path.exists(full_path):
             backup_path = f"{full_path}.bak"
             try:
@@ -421,6 +424,49 @@ def safe_create_or_modify_file(filepath: str, new_content: str, call_me: str = "
         return f"{call_me}, successfully saved '{base_name}' to {full_path}."
     except Exception as err:
         return f"{call_me}, failed to save '{base_name}': {err}"
+
+
+def create_folder(folder_name_or_path: str, parent_folder: str = None, call_me: str = "Sir") -> str:
+    """
+    Creates a new directory on disk.
+    Supports relative names, parent resolution, pronoun follow-ups ('in that', 'in this'),
+    and automatically cleans up any accidentally created dummy zero/small files with the same name.
+    """
+    clean_target = folder_name_or_path.strip().strip("'\"")
+    clean_target = re.sub(r"^(?:named|called)\s+", "", clean_target, flags=re.IGNORECASE).strip()
+    clean_target = re.sub(r"\s+folder$", "", clean_target, flags=re.IGNORECASE).strip()
+
+    # Determine base directory
+    if os.path.isabs(clean_target):
+        target_dir = clean_target
+    elif parent_folder:
+        p_clean = parent_folder.strip().strip("'\"")
+        p_clean = re.sub(r"^(?:in|into|inside)\s+", "", p_clean, flags=re.IGNORECASE).strip()
+        parent_dir = resolve_path(p_clean)
+        target_dir = os.path.abspath(os.path.join(parent_dir, clean_target))
+    else:
+        # Check if the last accessed path is an existing directory other than root workspace
+        last = get_last_path()
+        if last and os.path.isdir(last) and last != WORKSPACE_DIR:
+            target_dir = os.path.abspath(os.path.join(last, clean_target))
+        else:
+            target_dir = os.path.abspath(os.path.join(WORKSPACE_DIR, clean_target))
+
+    folder_name = os.path.basename(target_dir)
+
+    try:
+        # If a file already exists at this path (e.g. dummy script created previously)
+        if os.path.isfile(target_dir):
+            try:
+                os.remove(target_dir)
+            except Exception as r_err:
+                return f"{call_me}, a file named '{folder_name}' already exists at {target_dir} and could not be replaced: {r_err}"
+
+        os.makedirs(target_dir, exist_ok=True)
+        set_last_path(target_dir)
+        return f"{call_me}, folder '{folder_name}' has been created successfully at '{target_dir}'."
+    except Exception as err:
+        return f"{call_me}, failed to create folder '{folder_name}': {err}"
 
 
 def search_files_across_folders(query: str, target_location: str = "all", max_results: int = 8, call_me: str = "Sir") -> str:
