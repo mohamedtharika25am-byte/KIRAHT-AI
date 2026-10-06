@@ -128,7 +128,6 @@ def _bring_hud_to_front():
     try:
         WNDENUMPROC = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
         hud_candidates = []
-        browser_candidates = []
 
         def enum_proc(hwnd, lparam):
             if _user32.IsWindowVisible(hwnd):
@@ -138,33 +137,39 @@ def _bring_hud_to_front():
                     _user32.GetWindowTextW(hwnd, buff, length + 1)
                     title = buff.value.lower()
                     # Skip code editors and developer tools
-                    if any(ed in title for ed in ["visual studio", "vscode", "antigravity ide", "sublime", "pycharm", ".py -", ".py —"]):
+                    if any(ed in title for ed in ["visual studio", "vscode", "antigravity", "sublime", "pycharm", ".py -", ".py —"]):
                         return True
+                    # Check specifically for KIRAHT AI Tactical Web HUD
                     if "tactical web hud" in title or "localhost:8000" in title or "127.0.0.1:8000" in title:
                         hud_candidates.append(hwnd)
                     elif "kiraht ai" in title and any(b in title for b in ["brave", "chrome", "edge", "firefox", "opera"]):
                         hud_candidates.append(hwnd)
-                    elif any(b in title for b in ["brave", "chrome", "edge", "firefox", "opera"]):
-                        browser_candidates.append(hwnd)
             return True
 
         proc = WNDENUMPROC(enum_proc)
         _user32.EnumWindows(proc, 0)
         if hud_candidates:
             found_hwnd = hud_candidates[0]
-        elif browser_candidates:
-            found_hwnd = browser_candidates[0]
     except Exception:
         pass
 
     if found_hwnd:
+        # HUD window is already open: bring existing window to front without extra tabs
         _force_window_foreground(found_hwnd)
+        print("[*] Global hotkey: HUD focused.")
     else:
-        # Only open in browser if HUD is not already open anywhere
+        # HUD is not open: launch in default browser
+        opened = False
         try:
-            webbrowser.open("http://127.0.0.1:8000")
+            opened = webbrowser.open("http://127.0.0.1:8000")
         except Exception:
             pass
+        if not opened:
+            try:
+                os.startfile("http://127.0.0.1:8000")
+            except Exception:
+                pass
+        print("[*] Global hotkey: HUD launched in browser.")
 
     try:
         import winsound
@@ -174,11 +179,10 @@ def _bring_hud_to_front():
 
     try:
         from system_tools import show_desktop_notification
-        show_desktop_notification("⚡ KIRAHT AI — Web HUD Active", "Tactical Web HUD focused.")
+        show_desktop_notification("⚡ KIRAHT AI — Web HUD", "Tactical Web HUD activated.")
     except Exception:
         pass
 
-    print("[*] Global hotkey: HUD focused.")
     return True
 
 
