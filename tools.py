@@ -1963,13 +1963,15 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
                 rel_json = json.dumps(rel) if rel else "[]"
                 return True, f"__NEED_PHONE__;;;{t_name};;;;;;{rel_json};;;send"
 
-    # Check "send <target> (from|on|via|through) whatsapp <msg>" (e.g. "send juhail from whatsapp hi")
-    wa_from_match = re.search(rf"^(?:please\s+)?send\s+([a-zA-Z0-9_\-\.\s]+?)\s+(?:from|on|via|through)\s+{WA_TRIGS}\s*(.*)$", user_text.strip(), re.IGNORECASE)
+    # Check "send/sent <target> (from|on|via|through) whatsapp <msg>" (e.g. "send juhail from whatsapp hi")
+    wa_from_match = re.search(rf"^(?:please\s+)?(?:send|sent|share|forward)\s+([a-zA-Z0-9_\-\.\s]+?)\s+(?:from|on|via|through)\s+{WA_TRIGS}\s*(.*)$", user_text.strip(), re.IGNORECASE)
     if wa_from_match:
         target = wa_from_match.group(1).strip()
         msg_text = wa_from_match.group(2).strip()
         phone, display_name, related = resolve_contact(target)
         if not phone:
+            if msg_text:
+                return True, send_whatsapp_message(target, msg_text, call_me, is_group=False, auto_send=True)
             rel_json = json.dumps(related) if related else "[]"
             return True, f"__NEED_PHONE__;;;{target};;;{msg_text};;;{rel_json};;;send"
         disp = display_name if display_name else target.title()
@@ -1977,14 +1979,15 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
             return True, f"__NEED_MESSAGE__;;;{target};;;{disp};;;individual;;;send"
         return True, send_whatsapp_message(target, msg_text, call_me, is_group=False, auto_send=True)
 
-    wa_pattern = rf"^(?:please\s+)?(?:send\s+(?:a\s+)?(?:{WA_TRIGS}\s+)?(?:message|msg)\s+(?:to\s+)?|send\s+{WA_TRIGS}(?:\s+to)?|{WA_TRIGS})\s+(.*)$"
+    wa_pattern = rf"^(?:please\s+)?(?:(?:send|sent|share|forward|drop)\s+(?:a\s+)?(?:{WA_TRIGS}\s+)?(?:message|msg)\s+(?:to\s+)?|(?:send|sent|share|forward|drop)\s+{WA_TRIGS}(?:\s+to)?|{WA_TRIGS}(?:\s+to)?)\s+(.*)$"
     wa_match = re.search(wa_pattern, user_text.strip(), re.IGNORECASE)
     if wa_match:
-        # Check if user explicitly used 'send' (auto-send) or just 'whatsapp' (review mode)
-        is_auto_send = bool(re.search(rf"^\s*(?:please\s+)?send\s+(?:a\s+)?(?:{WA_TRIGS}|message|msg)\b", user_text.strip(), re.IGNORECASE))
+        # Check if user explicitly used 'send'/'sent' (auto-send) or just 'whatsapp' (review mode)
+        is_auto_send = bool(re.search(rf"^\s*(?:please\s+)?(?:send|sent|share|forward)\s+(?:a\s+)?(?:{WA_TRIGS}|message|msg)\b", user_text.strip(), re.IGNORECASE))
         send_flag = "send" if is_auto_send else "review"
 
         rest = wa_match.group(1).strip()
+        rest = re.sub(r"^to\s+", "", rest, flags=re.IGNORECASE).strip()
         is_group = False
 
         # Check if starts with group keyword (e.g. "grp roombies" or "group clg project")
@@ -1996,8 +1999,8 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         target = ""
         msg_text = ""
 
-        # Case A: explicit delimiter (: or saying or msg or text: or that)
-        delim_match = re.search(r"^(.*?)\s*(?::|saying|msg|message|text:|that)\s*(.*)$", rest, re.IGNORECASE)
+        # Case A: explicit delimiter (: NOT followed by //, or saying or text:)
+        delim_match = re.search(r"^(.*?)\s*(?::(?!\/\/)|saying|text:)\s*(.*)$", rest, re.IGNORECASE)
         if delim_match:
             target = delim_match.group(1).strip()
             msg_text = delim_match.group(2).strip()
@@ -2033,30 +2036,36 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
                     target = rest
                     msg_text = ""
         else:
-            # Case C: Check if entire rest is a known contact or alias
-            phone, dname, rel = resolve_contact(rest)
-            if phone:
-                target = rest
-                msg_text = ""
+            # Case C: URL in rest (e.g. "dharma https://pin.it/...")
+            url_match = re.search(r"^(.*?)\s+(https?://\S+.*)$", rest, re.IGNORECASE)
+            if url_match:
+                target = url_match.group(1).strip()
+                msg_text = url_match.group(2).strip()
             else:
-                # Case D: Check if first N words match a known contact (greedy 3 words down to 1)
-                words = rest.split()
-                matched_prefix = False
-                for n in range(min(3, len(words) - 1), 0, -1):
-                    cand = " ".join(words[:n])
-                    c_phone, c_dname, c_rel = resolve_contact(cand)
-                    if c_phone:
-                        target = cand
-                        msg_text = " ".join(words[n:])
-                        matched_prefix = True
-                        break
-                if not matched_prefix:
-                    if len(words) == 1:
-                        target = words[0]
-                        msg_text = ""
-                    else:
-                        target = words[0]
-                        msg_text = " ".join(words[1:])
+                # Case D: Check if entire rest is a known contact or alias
+                phone, dname, rel = resolve_contact(rest)
+                if phone:
+                    target = rest
+                    msg_text = ""
+                else:
+                    # Case E: Check if first N words match a known contact (greedy 3 words down to 1)
+                    words = rest.split()
+                    matched_prefix = False
+                    for n in range(min(3, len(words) - 1), 0, -1):
+                        cand = " ".join(words[:n])
+                        c_phone, c_dname, c_rel = resolve_contact(cand)
+                        if c_phone:
+                            target = cand
+                            msg_text = " ".join(words[n:])
+                            matched_prefix = True
+                            break
+                    if not matched_prefix:
+                        if len(words) == 1:
+                            target = words[0]
+                            msg_text = ""
+                        else:
+                            target = words[0]
+                            msg_text = " ".join(words[1:])
 
         # Check if it's a group:
         if is_group:
@@ -2078,6 +2087,8 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         # Individual contact:
         phone, display_name, related = resolve_contact(target)
         if not phone:
+            if msg_text:
+                return True, send_whatsapp_message(target, msg_text, call_me, is_group=False, auto_send=is_auto_send)
             related_data = []
             for item in related:
                 related_data.append(item)

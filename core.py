@@ -213,6 +213,17 @@ def build_system_prompt(memory: dict) -> str:
         f"  ```DELETE_TARGET:d:\\KIRAHT AI\\downloads\n"
         f"  ```\n"
         f"  The backend server automatically intercepts this block, performs the deletion with a safe backup in .kiraht_trash/, and confirms to the user.\n\n"
+        f"WHATSAPP MESSAGING & DESKTOP DIRECTIVE:\n"
+        f"- You have NATIVE desktop automation to send WhatsApp messages to any contact or phone number on this laptop.\n"
+        f"- NEVER say 'I am unable to interface with WhatsApp', 'I cannot send messages automatically', 'I do not have access to your account', or provide wa.me links to click manually. You HAVE direct desktop tool execution!\n"
+        f"- Whenever the user instructs you to message someone on WhatsApp (e.g. 'sent whatsapp to dharma : https://...', 'whatsapp dharma hello', 'send whatsapp to naveen'):\n"
+        f"  YOU MUST output a structured WhatsApp block in this exact format:\n"
+        f"  ```WHATSAPP:<target>:::<message>\n"
+        f"  ```\n"
+        f"  Example:\n"
+        f"  ```WHATSAPP:dharma:::https://pin.it/DLsW6wVCQ\n"
+        f"  ```\n"
+        f"  The backend server automatically looks up contacts, launches WhatsApp Desktop, and delivers the message.\n\n"
         f"Tone and Rules:\n"
         f"1. {response_style}\n"
         f"2. Be razor-sharp, direct, and factual. Never add conversational filler.\n"
@@ -805,6 +816,107 @@ def try_handle_conversational_file_save(user_text: str, call_me: str = "Sir") ->
     return True, "file_system", "safe_create_or_modify_file", f"{call_me}, I have saved the script as '{filename}' in {final_filepath}. It is ready for execution."
 
 
+def handle_direct_whatsapp(cleaned: str, call_me: str = "Sir") -> Tuple[bool, str, str, str]:
+    """
+    Directly parses and executes WhatsApp messaging intents (English & Tanglish).
+    Matches patterns like:
+      - 'sent whatsapp to dharma : https://pin.it/DLsW6wVCQ'
+      - 'sent whatsapp dharma https://pin.it/DLsW6wVCQ'
+      - 'send whatsapp to dharma : ...'
+      - 'whatsapp dharma hello'
+      - 'dharma ku whatsapp anupu ...'
+    """
+    WA_TRIGS = r"(?:whats?\s*app|whatasapp|whataspp|whatsap|whatapp|whatsappp|whatssap|watsapp|watapp|watsp|whapp|whasap|whtsp|whtsapp|wa|wp)"
+    lower = cleaned.lower()
+
+    if not re.search(rf"\b(?:{WA_TRIGS}|message|msg)\b", lower):
+        return False, "", "", ""
+
+    target = ""
+    msg = ""
+
+    # Pattern 1: Tanglish "<target> ku (whatsapp|msg) (anupu|podu) <msg>"
+    t_m = re.search(
+        rf"^([a-zA-Z0-9_\-\.\s]+?)\s+ku\s+(?:(?:msg|message|whatsapp)\s+)?(?:anupu|podu|send\s*pannu|anupunga)(?:\s+(?:solli\s+|saying\s+|that\s+|:\s*)?(.*))?$",
+        cleaned,
+        re.IGNORECASE
+    )
+    if t_m:
+        target = t_m.group(1).strip()
+        msg = (t_m.group(2) or "").strip()
+
+    # Pattern 2: "send/sent/share/forward <target> (on/via/through) whatsapp <msg>"
+    if not target:
+        wa_from = re.search(
+            rf"^(?:please\s+)?(?:send|sent|share|forward)\s+([a-zA-Z0-9_\-\.\s]+?)\s+(?:from|on|via|through)\s+{WA_TRIGS}\s*(.*)$",
+            cleaned,
+            re.IGNORECASE
+        )
+        if wa_from:
+            target = wa_from.group(1).strip()
+            msg = wa_from.group(2).strip()
+
+    # Pattern 3: Standard English:
+    # "(please )?(send|sent|share|forward|drop)? (a )?(whatsapp|wa|message|msg)? (to )?<rest>"
+    if not target:
+        wa_pat = re.search(
+            rf"^(?:please\s+)?(?:(?:send|sent|share|forward|drop)\s+(?:a\s+)?(?:{WA_TRIGS}\s+)?(?:message|msg)\s+(?:to\s+)?|(?:send|sent|share|forward|drop)\s+{WA_TRIGS}(?:\s+to)?|{WA_TRIGS}(?:\s+to)?)\s+(.*)$",
+            cleaned,
+            re.IGNORECASE
+        )
+        if wa_pat:
+            rest = wa_pat.group(1).strip()
+            rest = re.sub(r"^to\s+", "", rest, flags=re.IGNORECASE).strip()
+
+            # Check explicit delimiter (: NOT followed by //, or saying, or text:)
+            delim = re.search(r"^(.*?)\s*(?::(?!\/\/)|saying|text:)\s*(.*)$", rest, re.IGNORECASE)
+            if delim:
+                target = delim.group(1).strip()
+                msg = delim.group(2).strip()
+            else:
+                # Check URL in rest (e.g. "dharma https://pin.it/...")
+                url_match = re.search(r"^(.*?)\s+(https?://\S+.*)$", rest, re.IGNORECASE)
+                if url_match:
+                    target = url_match.group(1).strip()
+                    msg = url_match.group(2).strip()
+                else:
+                    from system_tools import resolve_contact
+                    words = rest.split()
+                    if len(words) == 1:
+                        target = words[0]
+                        msg = ""
+                    else:
+                        matched_c = False
+                        for n in range(min(3, len(words) - 1), 0, -1):
+                            cand = " ".join(words[:n])
+                            phone_c, _, _ = resolve_contact(cand)
+                            if phone_c:
+                                target = cand
+                                msg = " ".join(words[n:])
+                                matched_c = True
+                                break
+                        if not matched_c:
+                            target = words[0]
+                            msg = " ".join(words[1:])
+
+    if target:
+        # Ignore if user was just saying 'open whatsapp' or 'close whatsapp'
+        if target.lower() in ("app", "desktop", "web") and not msg:
+            return False, "", "", ""
+
+        from system_tools import send_whatsapp_message, resolve_contact
+        phone, disp, _ = resolve_contact(target)
+        display_label = disp if disp else target.title()
+
+        if not msg:
+            return True, "whatsapp", "send_whatsapp", f"{call_me}, please specify the message to send to {display_label} (e.g. 'whatsapp {target} <message>')."
+
+        res = send_whatsapp_message(target, msg, call_me=call_me, auto_send=True)
+        return True, "whatsapp", "send_whatsapp", res
+
+    return False, "", "", ""
+
+
 def check_deterministic_intent(user_text: str, call_me: str = "Sir") -> Tuple[bool, str, str, str]:
     """
     Checks if user text can be answered with a 100% deterministic local tool.
@@ -813,7 +925,12 @@ def check_deterministic_intent(user_text: str, call_me: str = "Sir") -> Tuple[bo
     cleaned = user_text.strip()
     lower = cleaned.lower()
 
-    # 0.0 Folder Creation Intent (English & Tanglish)
+    # 0.0 Direct WhatsApp Messaging Intent (English & Tanglish)
+    is_wa, wa_cat, wa_tool, wa_res = handle_direct_whatsapp(cleaned, call_me)
+    if is_wa:
+        return True, wa_cat, wa_tool, wa_res
+
+    # 0.1 Folder Creation Intent (English & Tanglish)
     from tools import parse_and_create_folder
     is_folder, folder_res = parse_and_create_folder(cleaned, call_me)
     if is_folder:
@@ -1205,6 +1322,17 @@ async def process_user_message_stream(
     final_text = "".join(full_reply_chunks).strip()
     if not final_text:
         final_text = f"{call_me}, systems standing by."
+
+    # Post-generation WhatsApp Interception (Interception of WHATSAPP blocks)
+    wa_matches = list(re.finditer(r"```WHATSAPP:([^:\n]+):::([^\n`]+)```", final_text))
+    for m in wa_matches:
+        wa_target = m.group(1).strip()
+        wa_msg = m.group(2).strip()
+        from system_tools import send_whatsapp_message
+        wa_res = send_whatsapp_message(wa_target, wa_msg, call_me=call_me, auto_send=True)
+        replacement = f"> **[WhatsApp Dispatched]** {wa_res}"
+        final_text = final_text.replace(m.group(0), replacement)
+        yield {"type": "activity", "actor": "Tool", "action": "WhatsApp Dispatched", "detail": f"Sent to {wa_target}: {wa_msg[:50]}"}
 
     # Post-generation Folder Interception (Interception of FOLDER_CREATE blocks)
     from file_tools import safe_create_or_modify_file, create_folder, safe_delete_folder, safe_delete_file, resolve_path

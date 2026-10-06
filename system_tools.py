@@ -1516,7 +1516,11 @@ def send_whatsapp_message(target: str, message: str, call_me: str = "Sir", is_gr
             phone_number = "+" + clean_digits
             display_name = target.strip()
         else:
-            return f"{call_me}, contact '{target}' was not found in your contacts."
+            try:
+                dispatch_whatsapp_desktop(target.strip(), message, auto_send=auto_send)
+                return f"{call_me}, opened WhatsApp Desktop and searched for '{target.title()}' with your message: '{message}'."
+            except Exception as search_err:
+                return f"{call_me}, contact '{target}' was not found in your contacts and desktop search failed: {search_err}"
 
     clean_digits = sanitize_whatsapp_phone(phone_number)
     display = display_name if display_name else target.title()
