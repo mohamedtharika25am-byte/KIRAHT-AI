@@ -30,10 +30,15 @@ WM_QUIT = 0x0012
 # Hotkey IDs
 HK_HUD_CA = 101       # Ctrl + Alt + K
 HK_HUD_CS = 102       # Ctrl + Shift + K
+HK_HUD_WS = 103       # Win + Shift + K
+
 HK_SCREEN_CA = 201    # Ctrl + Alt + S
 HK_SCREEN_CS = 202    # Ctrl + Shift + S
+HK_SCREEN_WA = 203    # Win + Alt + S
+
 HK_DIAG_CA = 301      # Ctrl + Alt + D
 HK_DIAG_CS = 302      # Ctrl + Shift + D
+HK_DIAG_WS = 303      # Win + Shift + D
 
 VK_K = 0x4B
 VK_S = 0x53
@@ -174,12 +179,15 @@ def _hotkey_worker(ready_evt: threading.Event):
     _attach_thread_to_input_desktop()
     _hotkey_thread_id = _kernel32.GetCurrentThreadId()
 
-    # Register hotkey combinations
+    # Register hotkey combinations (Dual Mode: Win+Shift and Ctrl+Alt supported simultaneously)
     reg_list = [
+        (HK_HUD_WS, MOD_WIN | MOD_SHIFT, VK_K, "Win+Shift+K (Focus HUD)"),
         (HK_HUD_CA, MOD_CONTROL | MOD_ALT, VK_K, "Ctrl+Alt+K (Focus HUD)"),
         (HK_HUD_CS, MOD_CONTROL | MOD_SHIFT, VK_K, "Ctrl+Shift+K (Focus HUD)"),
         (HK_SCREEN_CA, MOD_CONTROL | MOD_ALT, VK_S, "Ctrl+Alt+S (Screenshot)"),
         (HK_SCREEN_CS, MOD_CONTROL | MOD_SHIFT, VK_S, "Ctrl+Shift+S (Screenshot)"),
+        (HK_SCREEN_WA, MOD_WIN | MOD_ALT, VK_S, "Win+Alt+S (Screenshot)"),
+        (HK_DIAG_WS, MOD_WIN | MOD_SHIFT, VK_D, "Win+Shift+D (Diagnostic)"),
         (HK_DIAG_CA, MOD_CONTROL | MOD_ALT, VK_D, "Ctrl+Alt+D (Diagnostic)"),
         (HK_DIAG_CS, MOD_CONTROL | MOD_SHIFT, VK_D, "Ctrl+Shift+D (Diagnostic)"),
     ]
@@ -198,11 +206,11 @@ def _hotkey_worker(ready_evt: threading.Event):
         while _user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
             if msg.message == WM_HOTKEY:
                 hk_id = msg.wParam
-                if hk_id in (HK_HUD_CA, HK_HUD_CS):
+                if hk_id in (HK_HUD_WS, HK_HUD_CA, HK_HUD_CS):
                     threading.Thread(target=_bring_hud_to_front, daemon=True).start()
-                elif hk_id in (HK_SCREEN_CA, HK_SCREEN_CS):
+                elif hk_id in (HK_SCREEN_CA, HK_SCREEN_CS, HK_SCREEN_WA):
                     threading.Thread(target=_trigger_global_screenshot, daemon=True).start()
-                elif hk_id in (HK_DIAG_CA, HK_DIAG_CS):
+                elif hk_id in (HK_DIAG_WS, HK_DIAG_CA, HK_DIAG_CS):
                     threading.Thread(target=_trigger_global_diag, daemon=True).start()
 
             _user32.TranslateMessage(ctypes.byref(msg))
