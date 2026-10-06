@@ -202,6 +202,17 @@ def build_system_prompt(memory: dict) -> str:
         f"  ```\n"
         f"  The backend server automatically intercepts this block and creates the directory on disk.\n"
         f"  STRICT RULE: NEVER output a ```FILE_SAVE:...``` block when the user asked for a FOLDER! A folder is a directory, NOT a file with Python code or placeholder text inside it.\n\n"
+        f"FILE & FOLDER DELETION DIRECTIVE:\n"
+        f"- You have FULL PERMISSION to delete files and folders whenever requested by the user.\n"
+        f"- NEVER refuse deletion by claiming lack of OS permissions or telling the user to run commands manually.\n"
+        f"- Whenever the user instructs you to delete or remove a file or directory (e.g. 'delete downloads folder', 'remove esp32_audio_recorder.ino', 'delete folder xyz', 'downloads ah delete pannu'):\n"
+        f"  YOU MUST output a structured deletion block in this exact format:\n"
+        f"  ```DELETE_TARGET:<path>\n"
+        f"  ```\n"
+        f"  Example:\n"
+        f"  ```DELETE_TARGET:d:\\KIRAHT AI\\downloads\n"
+        f"  ```\n"
+        f"  The backend server automatically intercepts this block, performs the deletion with a safe backup in .kiraht_trash/, and confirms to the user.\n\n"
         f"Tone and Rules:\n"
         f"1. {response_style}\n"
         f"2. Be razor-sharp, direct, and factual. Never add conversational filler.\n"
@@ -610,6 +621,67 @@ def handle_direct_file_create(cleaned: str, call_me: str = "Sir") -> Tuple[bool,
         res = safe_create_or_modify_file(target_name, new_content, call_me=call_me)
         full_p = resolve_path(target_name)
         return True, "file_system", "safe_create_or_modify_file", f"{res}\nLocation: {full_p}"
+
+    create_simple = re.search(
+        r"^(?:please\s+)?(?:create|make|write)\s+(?:a\s+)?(?:new\s+)?file\s+([a-zA-Z0-9_\-\./\\]+)(?:\s+(?:in|inside|to)\s+(?:the\s+)?([a-zA-Z0-9_\-\./\\:'\s]+))?$",
+        cleaned,
+        re.IGNORECASE,
+    )
+    if create_simple:
+        fname = create_simple.group(1).strip().strip("'\"")
+        folder = create_simple.group(2).strip().strip("'\"") if create_simple.group(2) else ""
+        from file_tools import safe_create_or_modify_file, resolve_path, WORKSPACE_DIR
+        target_dir = resolve_path(folder) if folder else WORKSPACE_DIR
+        full_p = os.path.join(target_dir, fname) if not os.path.isabs(fname) else fname
+        starter = f"// {fname} - Created by KIRAHT AI\n" if fname.endswith((".ino", ".cpp", ".c", ".js")) else f"# {fname} - Created by KIRAHT AI\n"
+        res = safe_create_or_modify_file(full_p, starter, call_me=call_me)
+        return True, "file_system", "safe_create_or_modify_file", f"{res}\nLocation: {resolve_path(full_p)}"
+
+    return False, "", "", ""
+
+
+def handle_direct_delete(cleaned: str, call_me: str = "Sir") -> Tuple[bool, str, str, str]:
+    """
+    Directly and safely executes file and folder deletion requests.
+    Supports English, Tanglish, and direct paths without requiring LLM inference.
+    """
+    lower = cleaned.lower()
+    del_patterns = [
+        r"^(?:please\s+)?(?:delete|remove|del|erase|destroy)\s+(?:the\s+)?(?:folder|directory|dir|file)?\s*([a-zA-Z0-9_\-\./\\:\'\s]+?)(?:\s+(?:folder|directory|dir|file|this folder and file))?$",
+        r"^(?:please\s+)?(?:rmdir|rd|del|rm)\s+(?:/s\s+/q\s+|-[a-z]*\s+)?([a-zA-Z0-9_\-\./\\:\'\s]+)$",
+        r"^([a-zA-Z0-9_\-\./\\:\'\s]+?)\s+(?:folder|file)?\s*(?:ah\s+)?(?:delete|remove)\s+(?:pannu|panniru|seithuvidu)\b",
+    ]
+
+    target_path = ""
+    for pat in del_patterns:
+        m = re.match(pat, lower)
+        if m:
+            target_path = m.group(1).strip().strip("'\"")
+            target_path = re.sub(r"\s+(?:this\s+folder\s+and\s+file|this\s+folder|this\s+file)$", "", target_path).strip()
+            break
+
+    if not target_path:
+        if ("delete" in lower or "remove" in lower) and any(w in lower for w in ("folder", "downloads", "directory", "file", ".ino", ".py")):
+            m = re.search(r"\b(?:in|at|the)?\s*([a-zA-Z]:[\\/][a-zA-Z0-9_\-\./\\:\s]+)", cleaned)
+            if m:
+                target_path = m.group(1).strip().strip("'\"")
+
+    if target_path:
+        from file_tools import resolve_path, safe_delete_folder, safe_delete_file, WORKSPACE_DIR
+        full_p = resolve_path(target_path)
+        if not os.path.exists(full_p):
+            cand = os.path.join(WORKSPACE_DIR, target_path)
+            if os.path.exists(cand):
+                full_p = cand
+
+        if os.path.exists(full_p):
+            if os.path.isdir(full_p):
+                res = safe_delete_folder(full_p, call_me=call_me)
+                return True, "file_system", "safe_delete_folder", res
+            else:
+                res = safe_delete_file(full_p, call_me=call_me)
+                return True, "file_system", "safe_delete_file", res
+
     return False, "", "", ""
 
 
@@ -755,6 +827,42 @@ def check_deterministic_intent(user_text: str, call_me: str = "Sir") -> Tuple[bo
     is_save, s_cat, s_tool, s_res = try_handle_conversational_file_save(cleaned, call_me)
     if is_save:
         return True, s_cat, s_tool, s_res
+
+    # 0.2 Direct File & Folder Deletion Intent
+    is_del, d_cat, d_tool, d_res = handle_direct_delete(cleaned, call_me)
+    if is_del:
+        return True, d_cat, d_tool, d_res
+
+    # 0.3 Follow-up Execution Intent: "execute this", "execute", "do it", "run this"
+    if lower in ("execute this", "execute", "run this", "run", "do it", "pannu", "execute command", "itha execute pannu"):
+        history = load_chat_history()
+        last_ast = None
+        for msg in reversed(history):
+            if msg.get("role") == "assistant" and msg.get("content"):
+                last_ast = msg["content"]
+                break
+        if last_ast:
+            # Check for shell deletion commands
+            del_m = re.search(r"(?:rmdir\s+/s\s+/q|rd\s+/s\s+/q|del\s+/f\s+/q|del|rm)\s+([^\n`]+)", last_ast, re.IGNORECASE)
+            if del_m:
+                t_path = del_m.group(1).strip().strip("'\"")
+                from file_tools import resolve_path, safe_delete_folder, safe_delete_file
+                full_p = resolve_path(t_path)
+                if os.path.exists(full_p):
+                    if os.path.isdir(full_p):
+                        return True, "file_system", "safe_delete_folder", safe_delete_folder(full_p, call_me=call_me)
+                    else:
+                        return True, "file_system", "safe_delete_file", safe_delete_file(full_p, call_me=call_me)
+            # Check for code blocks to save
+            save_cand = re.search(r"(?:save|create|file|code)\s+.*?([a-zA-Z0-9_\-\./\\]+\.[a-zA-Z0-9]+)", last_ast, re.IGNORECASE)
+            if save_cand:
+                cand_file = save_cand.group(1).strip().strip("'\"")
+                code_blocks = re.findall(r"```(?:[a-zA-Z0-9_\-\+]+)?\s*\n(.*?)```", last_ast, re.DOTALL)
+                if code_blocks:
+                    from file_tools import resolve_path, safe_create_or_modify_file
+                    full_p = resolve_path(cand_file)
+                    safe_create_or_modify_file(full_p, code_blocks[0].strip(), call_me=call_me)
+                    return True, "file_system", "safe_create_or_modify_file", f"{call_me}, executed save for '{os.path.basename(full_p)}'."
 
     # 1. Built-in Slash & System Commands
     if lower in ("/clear", "clear chat", "clear conversation"):
@@ -1099,7 +1207,7 @@ async def process_user_message_stream(
         final_text = f"{call_me}, systems standing by."
 
     # Post-generation Folder Interception (Interception of FOLDER_CREATE blocks)
-    from file_tools import safe_create_or_modify_file, create_folder, resolve_path
+    from file_tools import safe_create_or_modify_file, create_folder, safe_delete_folder, safe_delete_file, resolve_path
     folder_create_matches = list(re.finditer(r"```FOLDER_CREATE:([^\n]+)```", final_text))
     for m in folder_create_matches:
         f_path = m.group(1).strip().strip("'\"")
@@ -1109,6 +1217,33 @@ async def process_user_message_stream(
         replacement = f"> **[Folder Created]** `{base_name}` created at `{full_p}`"
         final_text = final_text.replace(m.group(0), replacement)
         yield {"type": "activity", "actor": "System", "action": "Folder Created", "detail": f"Created folder {base_name}"}
+
+    # Post-generation Deletion Interception (Interception of DELETE_TARGET blocks)
+    delete_matches = list(re.finditer(r"```DELETE_TARGET:([^\n]+)```", final_text))
+    for m in delete_matches:
+        d_path = m.group(1).strip().strip("'\"")
+        full_p = resolve_path(d_path)
+        if os.path.isdir(full_p):
+            del_res = safe_delete_folder(full_p, call_me=call_me)
+        else:
+            del_res = safe_delete_file(full_p, call_me=call_me)
+        replacement = f"> **[Action Executed]** {del_res}"
+        final_text = final_text.replace(m.group(0), replacement)
+        yield {"type": "activity", "actor": "System", "action": "Deleted", "detail": f"Removed {os.path.basename(full_p)}"}
+
+    # Post-generation Ollama Bash Command Interception (e.g. rmdir /s /q ... or del ...)
+    bash_del_matches = list(re.finditer(r"```(?:bash|cmd|sh|powershell)?\s*\n\s*(?:rmdir\s+/s\s+/q|rd\s+/s\s+/q|del\s+/f\s+/q|del)\s+([^\n`]+?)\s*\n```", final_text, re.IGNORECASE))
+    for m in bash_del_matches:
+        raw_t = m.group(1).strip().strip("'\"")
+        full_p = resolve_path(raw_t)
+        if os.path.exists(full_p):
+            if os.path.isdir(full_p):
+                del_res = safe_delete_folder(full_p, call_me=call_me)
+            else:
+                del_res = safe_delete_file(full_p, call_me=call_me)
+            replacement = f"> **[Action Executed]** {del_res}"
+            final_text = final_text.replace(m.group(0), replacement)
+            yield {"type": "activity", "actor": "System", "action": "Deleted", "detail": f"Auto-executed deletion for {os.path.basename(full_p)}"}
 
     # Post-generation File Interception (Interception of FILE_SAVE blocks)
     file_save_matches = list(re.finditer(r"```FILE_SAVE:([^\n]+)\n(.*?)```", final_text, re.DOTALL))
@@ -1133,8 +1268,8 @@ async def process_user_message_stream(
         final_text = final_text.replace(m.group(0), replacement)
         yield {"type": "activity", "actor": "System", "action": "File Saved", "detail": f"Saved {base_name} to {full_p}"}
 
-    # Safety Fallback: If assistant claims a file was saved but it's not yet on disk
-    saved_claims = re.findall(r"(?:saved|created|written)\s+(?:the\s+)?(?:script|file|code)\s+as\s+[`'\"]?([a-zA-Z0-9_\-\./\\]+)[`'\"]?", final_text, re.IGNORECASE)
+    # Safety Fallback: If assistant claims a file was saved or used nano/cat
+    saved_claims = re.findall(r"(?:saved|created|written|nano|cat\s+>\s*)\s+(?:the\s+)?(?:script|file|code)?\s*(?:as|in|into)?\s*[`'\"]?([a-zA-Z0-9_\-\./\\]+\.[a-zA-Z0-9]+)[`'\"]?", final_text, re.IGNORECASE)
     for claimed_file in saved_claims:
         cand_path = resolve_path(claimed_file)
         if not os.path.exists(cand_path):

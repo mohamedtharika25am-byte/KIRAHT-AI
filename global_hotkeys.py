@@ -159,11 +159,12 @@ def _bring_hud_to_front():
 
     if found_hwnd:
         _force_window_foreground(found_hwnd)
-
-    try:
-        webbrowser.open("http://127.0.0.1:8000")
-    except Exception:
-        pass
+    else:
+        # Only open in browser if HUD is not already open anywhere
+        try:
+            webbrowser.open("http://127.0.0.1:8000")
+        except Exception:
+            pass
 
     try:
         import winsound

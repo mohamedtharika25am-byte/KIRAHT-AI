@@ -26,6 +26,8 @@
   let isStreamingActive = false;
   let pendingStreamEnd = null;
   let thinkingCard = null;
+  let isGenerating = false;
+  let lastOptimisticUserMessage = null;
 
   // DOM Elements - Core & Navigation
   const chatViewport = document.getElementById('chat-viewport');
@@ -99,7 +101,10 @@
       ws.onopen = function () {
         isConnected = true;
         if (networkDot) networkDot.className = 'status-dot green-pulse';
-        if (networkStatusText) networkStatusText.textContent = 'ONLINE';
+        if (networkStatusText) {
+          networkStatusText.textContent = 'CONNECTING...';
+          networkStatusText.style.color = 'var(--text-muted)';
+        }
         updateStatus('READY', 'Connected to KIRAHT AI Brain');
         logActivity('System', 'Connected', 'Tactical HUD operational @ 127.0.0.1:8000');
         if (reconnectTimeout) {
@@ -125,9 +130,13 @@
           networkDot.style.background = '#ff3366';
           networkDot.style.boxShadow = '0 0 10px #ff3366';
         }
-        if (networkStatusText) networkStatusText.textContent = 'DISCONNECTED';
+        if (networkStatusText) {
+          networkStatusText.textContent = 'DISCONNECTED';
+          networkStatusText.style.color = '#ff3366';
+        }
         updateStatus('OFFLINE', 'Connection lost — retrying in 3s...');
         logActivity('System', 'Disconnected', 'Lost link to 127.0.0.1:8000');
+        if (typeof setGeneratingState === 'function') setGeneratingState(false);
         scheduleReconnect();
       };
 
@@ -176,9 +185,14 @@
         break;
 
       case 'chat_message':
+        if (packet.role === 'user' && lastOptimisticUserMessage && packet.content === lastOptimisticUserMessage) {
+          lastOptimisticUserMessage = null;
+          return;
+        }
         renderSingleMessage(packet.role, packet.content, packet.timestamp, packet.meta);
         if (packet.role === 'user') {
           showThinkingIndicator();
+          setGeneratingState(true);
         }
         break;
 
@@ -207,6 +221,7 @@
           currentStreamingCard = null;
           currentStreamingContentEl = null;
         }
+        setGeneratingState(false);
         logActivity('System', 'Error', packet.error);
         break;
     }
@@ -260,11 +275,27 @@
 
     // Network & Host
     if (data.network) {
-      if (netSsid) netSsid.textContent = data.network.ssid || 'Wi-Fi';
+      const isNetOnline = Boolean(data.network.online);
+      if (networkStatusText) {
+        networkStatusText.textContent = isNetOnline ? 'ONLINE' : 'OFFLINE';
+        networkStatusText.style.color = isNetOnline ? 'var(--accent-cyan)' : '#ffaa00';
+      }
+      if (networkDot) {
+        if (isNetOnline) {
+          networkDot.className = 'status-dot green-pulse';
+          networkDot.style.background = '#00f3ff';
+          networkDot.style.boxShadow = '0 0 10px #00f3ff';
+        } else {
+          networkDot.className = 'status-dot';
+          networkDot.style.background = '#ffaa00';
+          networkDot.style.boxShadow = '0 0 10px #ffaa00';
+        }
+      }
+      if (netSsid) netSsid.textContent = data.network.ssid || (isNetOnline ? 'Wi-Fi' : 'Offline');
       if (netDownload) netDownload.textContent = data.network.download || '0.0 KB/s';
       if (netUpload) netUpload.textContent = data.network.upload || '0.0 KB/s';
-      if (netPing) netPing.textContent = data.network.ping || '24 ms';
-      if (netConnection) netConnection.textContent = data.network.connection || data.network.ssid || 'Wi-Fi';
+      if (netPing) netPing.textContent = data.network.ping || (isNetOnline ? '24 ms' : 'Offline');
+      if (netConnection) netConnection.textContent = data.network.connection || (isNetOnline ? 'Wi-Fi' : 'No Internet');
     }
     if (data.os && osName) {
       osName.textContent = data.os.name ? data.os.name.split(' (')[0] : 'Windows 11';
@@ -519,12 +550,12 @@
     avatar.className = 'message-avatar';
     if (isUser) {
       const userImg = document.createElement('img');
-      userImg.src = '/static/img/user_avatar.jpg?v=' + Date.now();
+      userImg.src = '/static/img/user_avatar.jpg';
       userImg.className = 'message-avatar-img user-avatar-img';
       userImg.alt = 'User';
       userImg.onerror = function () {
-        this.remove();
-        avatar.textContent = 'U';
+        this.style.display = 'none';
+        avatar.innerHTML = '<span class="avatar-fallback-user">👤</span>';
       };
       avatar.appendChild(userImg);
     } else {
@@ -812,6 +843,7 @@
     accumulatedStreamText = '';
     wordStreamQueue = [];
     thinkingCard = null;
+    setGeneratingState(false);
     scrollToBottom();
   }
 
@@ -822,6 +854,7 @@
     wordStreamQueue = [];
     accumulatedStreamText = '';
     isHistoryRendered = false;
+    setGeneratingState(false);
 
     const navText = document.getElementById('nav-history-text');
     const btnNav = document.getElementById('btn-load-history');
@@ -913,9 +946,66 @@
   }
 
   // =========================================================================
-  // 7. INPUT & SEND HANDLING
+  // 7. INPUT, SEND & GENERATION CANCELLATION (STOP) HANDLING
   // =========================================================================
+  function setGeneratingState(generating) {
+    isGenerating = Boolean(generating);
+    if (!btnSend) return;
+    if (isGenerating) {
+      btnSend.classList.add('btn-cancel');
+      btnSend.setAttribute('title', 'Stop Generating (Esc)');
+      btnSend.innerHTML = '<span class="btn-cancel-icon" style="font-size:12px;">■</span> <span class="btn-send-text">STOP</span>';
+    } else {
+      btnSend.classList.remove('btn-cancel');
+      btnSend.setAttribute('title', 'Send Directive (Enter)');
+      btnSend.innerHTML = '<span class="btn-send-icon">▲</span> <span class="btn-send-text">TRANSMIT</span>';
+    }
+  }
+
+  function cancelGeneration() {
+    if (!isGenerating && !thinkingCard && !currentStreamingCard) return;
+    logActivity('User', 'Stop', 'Generation canceled by user');
+    sendWebSocket({ type: 'cancel' });
+
+    if (wordStreamInterval) {
+      clearInterval(wordStreamInterval);
+      wordStreamInterval = null;
+    }
+    wordStreamQueue = [];
+    isStreamingActive = false;
+    pendingStreamEnd = null;
+
+    if (thinkingCard) {
+      if (thinkingCard.parentNode) {
+        thinkingCard.parentNode.removeChild(thinkingCard);
+      }
+      thinkingCard = null;
+    }
+
+    if (currentStreamingContentEl) {
+      const cursor = currentStreamingContentEl.querySelector('.typing-cursor');
+      if (cursor) cursor.remove();
+      const stopNote = document.createElement('span');
+      stopNote.className = 'badge-stopped';
+      stopNote.textContent = '[Response stopped by user]';
+      currentStreamingContentEl.appendChild(stopNote);
+    }
+
+    currentStreamingCard = null;
+    currentStreamingContentEl = null;
+    accumulatedStreamText = '';
+
+    setGeneratingState(false);
+    updateStatus('READY', 'Ready for command');
+    scrollToBottom();
+  }
+
   function sendMessage() {
+    if (isGenerating) {
+      cancelGeneration();
+      return;
+    }
+
     const text = chatInput.value.trim();
     if (!text) return;
 
@@ -925,11 +1015,22 @@
       return;
     }
 
-    logActivity('User', 'Transmit', text.length > 50 ? text.substring(0, 47) + '...' : text);
-    sendWebSocket({ type: 'chat', message: text });
+    // Immediately render user message card with avatar optimistically (Point 9)
+    const nowTime = getCurrentTime();
+    appendMessageCard('user', text, nowTime);
+    lastOptimisticUserMessage = text;
+
     chatInput.value = '';
     chatInput.style.height = '42px';
     chatInput.focus();
+    scrollToBottom();
+
+    // Show thinking indicator & switch button to STOP (Point 8)
+    showThinkingIndicator();
+    setGeneratingState(true);
+
+    logActivity('User', 'Transmit', text.length > 50 ? text.substring(0, 47) + '...' : text);
+    sendWebSocket({ type: 'chat', message: text });
   }
 
   if (btnSend) btnSend.addEventListener('click', sendMessage);
@@ -939,6 +1040,9 @@
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         sendMessage();
+      } else if (e.key === 'Escape' && isGenerating) {
+        e.preventDefault();
+        cancelGeneration();
       }
     });
 
@@ -948,6 +1052,13 @@
       this.style.height = Math.min(this.scrollHeight, 120) + 'px';
     });
   }
+
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && isGenerating) {
+      e.preventDefault();
+      cancelGeneration();
+    }
+  });
 
   // Clear chat button - Clears screen view while preserving chat_history.json
   if (btnClearChat) {

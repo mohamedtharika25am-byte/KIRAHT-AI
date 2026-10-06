@@ -1264,6 +1264,30 @@ body.cyber-hud {
   50% { opacity: 0; }
 }
 
+.badge-stopped {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  background: rgba(239, 68, 68, 0.15);
+  border: 1px solid rgba(239, 68, 68, 0.5);
+  border-radius: 4px;
+  color: #ef4444;
+  font-family: var(--font-header);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.avatar-fallback-user {
+  font-size: 16px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+}
+
 /* ==================== GEMINI-STYLE COLORFUL THINKING LOADER ==================== */
 .thinking-card {
   animation: fadeIn 0.25s ease-out;
@@ -1479,6 +1503,24 @@ body.cyber-hud {
 .btn-send:hover {
   transform: translateY(-1px);
   filter: brightness(1.2);
+}
+
+.btn-send.btn-cancel {
+  background: linear-gradient(135deg, #ef4444, #dc2626) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 16px rgba(239, 68, 68, 0.55) !important;
+  animation: cancelPulse 1.2s infinite alternate;
+}
+
+.btn-send.btn-cancel:hover {
+  background: linear-gradient(135deg, #f87171, #ef4444) !important;
+  transform: translateY(-1px);
+  filter: brightness(1.2);
+}
+
+@keyframes cancelPulse {
+  0% { box-shadow: 0 0 8px rgba(239, 68, 68, 0.4); }
+  100% { box-shadow: 0 0 18px rgba(239, 68, 68, 0.85); }
 }
 
 /* ==================== RIGHT: LARGE TACTICAL ACTION TILES ==================== */
@@ -2032,7 +2074,7 @@ body.cyber-hud {
 
 .hud-modal-card {
   width: 100%;
-  max-width: 580px;
+  max-width: 760px;
   background: rgba(10, 18, 34, 0.96);
   border: 1.5px solid var(--accent-cyan);
   border-radius: 10px;
@@ -2088,23 +2130,45 @@ body.cyber-hud {
 }
 
 .hud-modal-body {
-  padding: 16px 18px;
+  padding: 16px 20px;
   max-height: 75vh;
   overflow-y: auto;
 }
 
 .shortcuts-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 10px;
+}
+
+.cat-global-grid {
+  grid-template-columns: 1fr !important;
+  gap: 10px !important;
+}
+
+.cat-global-grid .shortcut-item {
+  padding: 11px 16px;
+  background: rgba(10, 22, 38, 0.85);
+  border: 1px solid rgba(0, 255, 136, 0.28);
+}
+
+.cat-global-grid .shortcut-item:hover {
+  background: rgba(0, 255, 136, 0.08);
+  border-color: rgba(0, 255, 136, 0.5);
+  box-shadow: 0 0 12px rgba(0, 255, 136, 0.18);
+}
+
+.cat-global-grid .shortcut-keys kbd {
+  color: var(--accent-green);
+  border-color: rgba(0, 255, 136, 0.4);
 }
 
 .shortcut-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 8px 12px;
+  gap: 16px;
+  padding: 9px 13px;
   background: rgba(15, 25, 45, 0.6);
   border: 1px solid rgba(0, 243, 255, 0.14);
   border-radius: 6px;
@@ -2119,15 +2183,16 @@ body.cyber-hud {
 .shortcut-keys {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  flex-wrap: wrap;
+  gap: 5px;
   flex-shrink: 0;
 }
 
 .shortcut-keys kbd {
   font-family: var(--font-mono);
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 700;
-  padding: 2px 6px;
+  padding: 3px 7px;
   background: rgba(0, 0, 0, 0.65);
   border: 1px solid rgba(0, 243, 255, 0.35);
   border-radius: 4px;
@@ -2136,10 +2201,13 @@ body.cyber-hud {
 }
 
 .shortcut-desc {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-primary);
   text-align: right;
   font-family: var(--font-body);
+  white-space: normal;
+  line-height: 1.4;
+  word-break: break-word;
 }
 
 .shortcuts-category-title {
@@ -2148,9 +2216,9 @@ body.cyber-hud {
   font-weight: 800;
   letter-spacing: 1.5px;
   color: var(--accent-cyan);
-  padding: 6px 0 4px 0;
-  margin-top: 6px;
-  margin-bottom: 6px;
+  padding: 8px 0 6px 0;
+  margin-top: 8px;
+  margin-bottom: 8px;
   border-bottom: 1px solid rgba(0, 243, 255, 0.2);
   display: flex;
   align-items: center;
@@ -2158,6 +2226,10 @@ body.cyber-hud {
 }
 
 .shortcuts-category-title.cat-global {
+  color: var(--accent-green);
+  border-bottom-color: rgba(0, 255, 136, 0.25);
+  margin-top: 16px;
+}
   color: var(--accent-green);
   border-bottom-color: rgba(0, 255, 136, 0.25);
   margin-top: 14px;
