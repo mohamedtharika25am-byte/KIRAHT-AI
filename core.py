@@ -1056,14 +1056,224 @@ def handle_direct_whatsapp(cleaned: str, call_me: str = "Sir") -> Tuple[bool, st
     if g_chk:
         is_group = True
 
-    phone, disp, _ = resolve_contact(target)
+    phone, disp, related = resolve_contact(target)
     display_label = disp if disp else target.title()
 
-    if not msg:
-        return True, "whatsapp", "send_whatsapp", f"{call_me}, please specify the message to send to {display_label} (e.g. 'whatsapp {target} <message>')."
+    # If individual contact is not found, prompt similar/related options (Requirement #3)
+    if not is_group and not phone:
+        valid_opts = [item for item in related if item.get("phone")]
+        if valid_opts:
+            save_pending_whatsapp({
+                "type": "need_phone",
+                "target": target,
+                "message": msg,
+                "related": valid_opts,
+                "auto_send": auto_send,
+            })
+            opts_str = "\n".join([f"  [{i+1}] {item['name']} ({item['phone']})" for i, item in enumerate(valid_opts)])
+            prompt_text = (
+                f"{call_me}, '{target.title()}' is not in your contacts.\n"
+                f"Similar / related contact options:\n{opts_str}\n\n"
+                f"Reply with:\n"
+                f"  * Option number (1-{len(valid_opts)}) to send to that contact\n"
+                f"  * Or re-enter the contact name\n"
+                f"  * Or a 10-digit phone number to save '{target.title()}' and send\n"
+                f"  * Or 'cancel' to abort"
+            )
+            return True, "whatsapp", "need_phone", prompt_text
+        else:
+            save_pending_whatsapp({
+                "type": "need_phone",
+                "target": target,
+                "message": msg,
+                "related": [],
+                "auto_send": auto_send,
+            })
+            prompt_text = (
+                f"{call_me}, '{target.title()}' is not in your contacts.\n"
+                f"Reply with:\n"
+                f"  * A 10-digit phone number to save '{target.title()}' and send\n"
+                f"  * Or re-enter the correct contact name\n"
+                f"  * Or 'cancel' to abort"
+            )
+            return True, "whatsapp", "need_phone", prompt_text
 
+    if not msg:
+        save_pending_whatsapp({
+            "type": "need_message",
+            "target": target,
+            "phone": phone,
+            "display": display_label,
+            "auto_send": auto_send,
+        })
+        return True, "whatsapp", "need_message", f"{call_me}, please specify the message to send to {display_label} (e.g. 'whatsapp {target} <message>')."
+
+    clear_pending_whatsapp()
     res = send_whatsapp_message(target, msg, call_me=call_me, is_group=is_group, auto_send=auto_send)
     return True, "whatsapp", "send_whatsapp", res
+
+
+PENDING_WHATSAPP_FILE = os.path.join(WORKSPACE_DIR, ".pending_whatsapp.json")
+
+def load_pending_whatsapp() -> Optional[Dict[str, Any]]:
+    if not os.path.exists(PENDING_WHATSAPP_FILE):
+        return None
+    try:
+        with open(PENDING_WHATSAPP_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if time.time() - data.get("timestamp", 0) < 600:
+                return data
+    except Exception:
+        pass
+    return None
+
+def save_pending_whatsapp(state: Dict[str, Any]) -> None:
+    try:
+        state["timestamp"] = time.time()
+        with open(PENDING_WHATSAPP_FILE, "w", encoding="utf-8") as f:
+            json.dump(state, f, indent=2)
+    except Exception:
+        pass
+
+def clear_pending_whatsapp() -> None:
+    try:
+        if os.path.exists(PENDING_WHATSAPP_FILE):
+            os.remove(PENDING_WHATSAPP_FILE)
+    except Exception:
+        pass
+
+
+def handle_whatsapp_conversational_followup(cleaned: str, call_me: str = "Sir") -> Tuple[bool, str, str, str]:
+    """
+    Handles conversational follow-ups for WhatsApp operations:
+    1. Selecting related contact by number (e.g. '1', '2')
+    2. Providing a 10-digit phone number to save and dispatch
+    3. Re-entering contact name
+    4. Providing the message when previously asked 'what message to send'
+    5. Cancelling pending operations ('cancel', 'venaam', 'abort')
+    """
+    lower = cleaned.lower().strip()
+    if lower.startswith("/"):
+        return False, "", "", ""
+
+    pending = load_pending_whatsapp()
+    history = load_chat_history()
+    last_ast = None
+    if history:
+        for m in reversed(history[-5:]):
+            if m.get("role") == "assistant" and m.get("content"):
+                last_ast = m["content"]
+                break
+
+    # If user wants to cancel
+    if lower in ("cancel", "abort", "stop", "venaam", "cancel whatsapp", "cancel pannu"):
+        if pending or (last_ast and ("whatsapp" in last_ast.lower() or "not in your contacts" in last_ast.lower())):
+            clear_pending_whatsapp()
+            return True, "whatsapp", "cancel_whatsapp", f"{call_me}, WhatsApp operation cancelled."
+
+    from system_tools import send_whatsapp_message, resolve_contact, add_contact, sanitize_whatsapp_phone
+
+    # Case 1: Active pending state
+    if pending:
+        p_type = pending.get("type")
+        msg = pending.get("message", "")
+        auto_send = pending.get("auto_send", True)
+        target = pending.get("target", "")
+
+        # 1.A: User replied with a number option (1, 2, 3...)
+        related = pending.get("related", [])
+        opt_match = re.match(r"^(?:option\s+|choice\s+)?(\d+)(?:\s+(?:ku\s+)?(?:anupu|send))?$", lower)
+        if opt_match and related:
+            choice_num = int(opt_match.group(1))
+            if 1 <= choice_num <= len(related):
+                chosen = related[choice_num - 1]
+                clear_pending_whatsapp()
+                chosen_phone = chosen.get("phone", "")
+                chosen_name = chosen.get("name", "")
+                if not msg:
+                    save_pending_whatsapp({
+                        "type": "need_message",
+                        "target": chosen_name,
+                        "phone": chosen_phone,
+                        "auto_send": auto_send,
+                    })
+                    return True, "whatsapp", "need_message", f"{call_me}, selected {chosen_name} ({chosen_phone}). What message would you like to send?"
+                res = send_whatsapp_message(chosen_phone, msg, call_me=call_me, auto_send=auto_send)
+                return True, "whatsapp", "send_whatsapp", f"{call_me}, selected {chosen_name} ({chosen_phone}). {res}"
+
+        # 1.B: User replied with a 10-digit phone number
+        digits = re.sub(r"\D", "", cleaned)
+        if len(digits) >= 10:
+            clean_digits = sanitize_whatsapp_phone(digits)
+            full_phone = "+" + clean_digits
+            save_name = target if target and target.lower() not in ("contact", "") else "New Contact"
+            add_res = add_contact(save_name, full_phone, call_me=call_me)
+            clear_pending_whatsapp()
+            if not msg:
+                save_pending_whatsapp({
+                    "type": "need_message",
+                    "target": save_name,
+                    "phone": full_phone,
+                    "auto_send": auto_send,
+                })
+                return True, "whatsapp", "need_message", f"{add_res} What message would you like to send to {save_name.title()}?"
+            res = send_whatsapp_message(full_phone, msg, call_me=call_me, auto_send=auto_send)
+            return True, "whatsapp", "send_whatsapp", f"{add_res} {res}"
+
+        # 1.C: Need message mode: user provided the message text
+        if p_type == "need_message":
+            clear_pending_whatsapp()
+            rec_target = pending.get("phone") or pending.get("target")
+            res = send_whatsapp_message(rec_target, cleaned, call_me=call_me, auto_send=auto_send)
+            return True, "whatsapp", "send_whatsapp", res
+
+        # 1.D: User re-entered a contact name
+        re_phone, re_name, _ = resolve_contact(cleaned)
+        if re_phone:
+            clear_pending_whatsapp()
+            if not msg:
+                save_pending_whatsapp({
+                    "type": "need_message",
+                    "target": re_name,
+                    "phone": re_phone,
+                    "auto_send": auto_send,
+                })
+                return True, "whatsapp", "need_message", f"{call_me}, selected {re_name} ({re_phone}). What message would you like to send?"
+            res = send_whatsapp_message(re_phone, msg, call_me=call_me, auto_send=auto_send)
+            return True, "whatsapp", "send_whatsapp", f"{call_me}, selected {re_name} ({re_phone}). {res}"
+
+    # Case 2: Chat history context fallback (Requirement #4)
+    if last_ast:
+        need_msg_match = re.search(
+            r"(?:please\s+specify\s+the\s+message\s+to\s+send\s+to|what\s+message\s+would\s+you\s+like\s+to\s+send\s+to)\s+([a-zA-Z0-9_\-\.\s]+?)(?:\s*\(|\?|\.|\n|$)",
+            last_ast,
+            re.IGNORECASE,
+        )
+        if need_msg_match and len(cleaned.split()) <= 25 and not any(k in lower for k in ("what", "who", "why", "how", "create", "delete", "open", "read")):
+            target_contact = need_msg_match.group(1).strip()
+            clear_pending_whatsapp()
+            res = send_whatsapp_message(target_contact, cleaned, call_me=call_me, auto_send=True)
+            return True, "whatsapp", "send_whatsapp", res
+
+        if "not in your contacts" in last_ast.lower() and "[" in last_ast:
+            opts = re.findall(r"\[(\d+)\]\s+(.*?)\s+\((\+?\d+)\)", last_ast)
+            opt_m = re.match(r"^(?:option\s+|choice\s+)?(\d+)$", lower)
+            if opt_m and opts:
+                idx = int(opt_m.group(1))
+                if 1 <= idx <= len(opts):
+                    chosen = opts[idx - 1]
+                    return True, "whatsapp", "need_message", f"{call_me}, selected {chosen[1]} ({chosen[2]}). What message would you like to send?"
+
+            digits = re.sub(r"\D", "", cleaned)
+            if len(digits) >= 10:
+                clean_digits = sanitize_whatsapp_phone(digits)
+                full_phone = "+" + clean_digits
+                name_match = re.search(r"'([^']+)'\s+is\s+not\s+in\s+your\s+contacts", last_ast)
+                target_n = name_match.group(1).strip() if name_match else "New Contact"
+                add_res = add_contact(target_n, full_phone, call_me=call_me)
+                return True, "whatsapp", "need_message", f"{add_res} What message would you like to send to {target_n.title()}?"
+
+    return False, "", "", ""
 
 
 def check_deterministic_intent(user_text: str, call_me: str = "Sir") -> Tuple[bool, str, str, str]:
@@ -1073,6 +1283,11 @@ def check_deterministic_intent(user_text: str, call_me: str = "Sir") -> Tuple[bo
     """
     cleaned = user_text.strip()
     lower = cleaned.lower()
+
+    # 0.00 Contextual WhatsApp Follow-up (Options, phone numbers, or message replies)
+    is_fu, fu_cat, fu_tool, fu_res = handle_whatsapp_conversational_followup(cleaned, call_me)
+    if is_fu:
+        return True, fu_cat, fu_tool, fu_res
 
     # 0.0 Direct WhatsApp Messaging Intent (English & Tanglish)
     is_wa, wa_cat, wa_tool, wa_res = handle_direct_whatsapp(cleaned, call_me)
