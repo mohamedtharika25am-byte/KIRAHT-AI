@@ -1861,15 +1861,27 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         return True, open_folder(f_target, call_me=call_me)
 
     # 20. Contacts & WhatsApp Messaging Engine
-    contact_add_match = re.search(
-        r"^(?:please\s+)?(?:add\s+contact|save\s+contact|add)\s+([a-zA-Z0-9_\s]+?)\s+([+0-9\s\-]+)$",
-        user_text.strip(),
-        re.IGNORECASE,
+    contact_add_match = (
+        re.search(
+            r"^(?:please\s+)?(?:add\s+contact|save\s+contact|add\s+number|number\s+add\s+pannu|contact\s+add\s+pannu)\s+([a-zA-Z0-9_\s]+?)\s+([+0-9\s\-]{10,})$",
+            user_text.strip(),
+            re.IGNORECASE,
+        )
+        or re.search(
+            r"^([a-zA-Z0-9_\s]+?)\s+(?:ku\s+)?(?:number|contact)\s+(?:add|save)\s*pannu\s+([+0-9\s\-]{10,})$",
+            user_text.strip(),
+            re.IGNORECASE,
+        )
+        or re.search(
+            r"^(?:please\s+)?(?:add|save)\s+([a-zA-Z0-9_\s]+?)\s+([+0-9\s\-]{10,})$",
+            user_text.strip(),
+            re.IGNORECASE,
+        )
     )
     if contact_add_match:
         c_name = contact_add_match.group(1).strip()
         c_phone = contact_add_match.group(2).strip()
-        if c_name.lower() not in ("alias", "nickname", "note", "group", "grp"):
+        if c_name.lower() not in ("alias", "nickname", "note", "group", "grp", "folder", "file"):
             return True, add_contact(c_name, c_phone, call_me)
 
     grp_add_match = re.search(

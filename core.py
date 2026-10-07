@@ -1073,11 +1073,12 @@ def handle_direct_whatsapp(cleaned: str, call_me: str = "Sir") -> Tuple[bool, st
             opts_str = "\n".join([f"  [{i+1}] {item['name']} ({item['phone']})" for i, item in enumerate(valid_opts)])
             prompt_text = (
                 f"{call_me}, '{target.title()}' is not in your contacts.\n"
-                f"Similar / related contact options:\n{opts_str}\n\n"
+                f"Similar / related contact options found:\n{opts_str}\n\n"
+                f"Shall I add a number for {target.title()}?\n"
                 f"Reply with:\n"
-                f"  * Option number (1-{len(valid_opts)}) to send to that contact\n"
-                f"  * Or re-enter the contact name\n"
-                f"  * Or a 10-digit phone number to save '{target.title()}' and send\n"
+                f"  * A 10-digit phone number to add '{target.title()}' to contacts and send your message\n"
+                f"  * Or an option number (1-{len(valid_opts)}) to send to that existing contact\n"
+                f"  * Or re-enter the correct contact name\n"
                 f"  * Or 'cancel' to abort"
             )
             return True, "whatsapp", "need_phone", prompt_text
@@ -1091,8 +1092,9 @@ def handle_direct_whatsapp(cleaned: str, call_me: str = "Sir") -> Tuple[bool, st
             })
             prompt_text = (
                 f"{call_me}, '{target.title()}' is not in your contacts.\n"
+                f"Shall I add a number for {target.title()}?\n"
                 f"Reply with:\n"
-                f"  * A 10-digit phone number to save '{target.title()}' and send\n"
+                f"  * A 10-digit phone number to add '{target.title()}' to contacts and send your message\n"
                 f"  * Or re-enter the correct contact name\n"
                 f"  * Or 'cancel' to abort"
             )
@@ -1255,14 +1257,15 @@ def handle_whatsapp_conversational_followup(cleaned: str, call_me: str = "Sir") 
             res = send_whatsapp_message(target_contact, cleaned, call_me=call_me, auto_send=True)
             return True, "whatsapp", "send_whatsapp", res
 
-        if "not in your contacts" in last_ast.lower() and "[" in last_ast:
-            opts = re.findall(r"\[(\d+)\]\s+(.*?)\s+\((\+?\d+)\)", last_ast)
-            opt_m = re.match(r"^(?:option\s+|choice\s+)?(\d+)$", lower)
-            if opt_m and opts:
-                idx = int(opt_m.group(1))
-                if 1 <= idx <= len(opts):
-                    chosen = opts[idx - 1]
-                    return True, "whatsapp", "need_message", f"{call_me}, selected {chosen[1]} ({chosen[2]}). What message would you like to send?"
+        if "not in your contacts" in last_ast.lower():
+            if "[" in last_ast:
+                opts = re.findall(r"\[(\d+)\]\s+(.*?)\s+\((\+?\d+)\)", last_ast)
+                opt_m = re.match(r"^(?:option\s+|choice\s+)?(\d+)$", lower)
+                if opt_m and opts:
+                    idx = int(opt_m.group(1))
+                    if 1 <= idx <= len(opts):
+                        chosen = opts[idx - 1]
+                        return True, "whatsapp", "need_message", f"{call_me}, selected {chosen[1]} ({chosen[2]}). What message would you like to send?"
 
             digits = re.sub(r"\D", "", cleaned)
             if len(digits) >= 10:
