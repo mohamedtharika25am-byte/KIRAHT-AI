@@ -9,6 +9,7 @@ import re
 import datetime
 import shutil
 import subprocess
+from typing import Optional, List, Dict, Tuple
 
 WORKSPACE_DIR = r"d:\KIRAHT AI"
 KIRAHT_PROJECTS_DIR = os.path.join(WORKSPACE_DIR, "Kiraht's project")
@@ -125,6 +126,9 @@ def resolve_path(target_path: str) -> str:
     if not clean_path:
         return WORKSPACE_DIR
 
+    # Strip workspace folder prefixes e.g. "kiraht ai/chat_history" -> "chat_history"
+    clean_path = re.sub(r"^kiraht\s*ai[\\/]", "", clean_path, flags=re.IGNORECASE).strip()
+
     lower_p = clean_path.lower().strip()
 
     # Coreference / pronoun resolution for follow-ups ("that folder", "that", "it", "this")
@@ -133,9 +137,23 @@ def resolve_path(target_path: str) -> str:
         if last and os.path.exists(last):
             return last
 
+    COMMON_EXTS = [".json", ".py", ".txt", ".md", ".html", ".css", ".js", ".ino", ".csv", ".bat", ".sh"]
+
+    def _check_cand(p: str) -> Optional[str]:
+        if not p:
+            return None
+        if os.path.exists(p):
+            return p
+        for ext in COMMON_EXTS:
+            if os.path.exists(p + ext):
+                return p + ext
+        return None
+
     if os.path.isabs(clean_path):
-        if os.path.exists(clean_path):
-            set_last_path(clean_path)
+        chk = _check_cand(clean_path)
+        if chk:
+            set_last_path(chk)
+            return chk
         return clean_path
 
     known = get_user_known_folders()
@@ -172,23 +190,26 @@ def resolve_path(target_path: str) -> str:
         if key in known:
             if lower_p.startswith(f"{key}/") or lower_p.startswith(f"{key}\\"):
                 rel = clean_path[len(key) + 1:]
+                cand_res = _check_cand(os.path.join(known[key], rel))
+                if cand_res:
+                    return cand_res
                 return os.path.join(known[key], rel)
 
     # 1. Try workspace and Kiraht's project first
-    ws_candidate = os.path.abspath(os.path.join(WORKSPACE_DIR, clean_path))
-    if os.path.exists(ws_candidate):
-        return ws_candidate
+    ws_cand = _check_cand(os.path.abspath(os.path.join(WORKSPACE_DIR, clean_path)))
+    if ws_cand:
+        return ws_cand
 
-    ws_clean_cand = os.path.abspath(os.path.join(WORKSPACE_DIR, lower_clean))
-    if os.path.exists(ws_clean_cand):
+    ws_clean_cand = _check_cand(os.path.abspath(os.path.join(WORKSPACE_DIR, lower_clean)))
+    if ws_clean_cand:
         return ws_clean_cand
 
-    proj_candidate = os.path.abspath(os.path.join(KIRAHT_PROJECTS_DIR, clean_path))
-    if os.path.exists(proj_candidate):
-        return proj_candidate
+    proj_cand = _check_cand(os.path.abspath(os.path.join(KIRAHT_PROJECTS_DIR, clean_path)))
+    if proj_cand:
+        return proj_cand
 
-    proj_clean_cand = os.path.abspath(os.path.join(KIRAHT_PROJECTS_DIR, lower_clean))
-    if os.path.exists(proj_clean_cand):
+    proj_clean_cand = _check_cand(os.path.abspath(os.path.join(KIRAHT_PROJECTS_DIR, lower_clean)))
+    if proj_clean_cand:
         return proj_clean_cand
 
     # 2. Search root directories, user home, and known folders
@@ -207,12 +228,12 @@ def resolve_path(target_path: str) -> str:
     for root in search_roots:
         if not root or not os.path.exists(root):
             continue
-        cand = os.path.join(root, clean_path)
-        if os.path.exists(cand):
-            return cand
-        cand_clean = os.path.join(root, lower_clean)
-        if os.path.exists(cand_clean):
-            return cand_clean
+        c1 = _check_cand(os.path.join(root, clean_path))
+        if c1:
+            return c1
+        c2 = _check_cand(os.path.join(root, lower_clean))
+        if c2:
+            return c2
 
         # Entry-level matching inside root (case-insensitive and emoji-tolerant)
         try:
@@ -225,7 +246,7 @@ def resolve_path(target_path: str) -> str:
         except Exception:
             pass
 
-    return ws_candidate
+    return os.path.abspath(os.path.join(WORKSPACE_DIR, clean_path))
 
 
 def format_size(size_bytes: int) -> str:
@@ -398,10 +419,14 @@ def list_workspace_files(folder_path: str = WORKSPACE_DIR, call_me: str = "Sir")
 def read_file_content(filepath: str, max_lines: int = 50, call_me: str = "Sir") -> str:
     """
     Safely reads file content up to max_lines.
+    If the target is a directory, gracefully lists its directory contents.
     """
     full_path = resolve_path(filepath)
     if not os.path.exists(full_path):
         return f"{call_me}, file '{filepath}' was not found."
+
+    if os.path.isdir(full_path):
+        return list_workspace_files(full_path, call_me)
 
     try:
         with open(full_path, "r", encoding="utf-8", errors="replace") as f:

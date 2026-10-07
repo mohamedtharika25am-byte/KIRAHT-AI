@@ -1794,10 +1794,12 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         return True, list_workspace_files(WORKSPACE_DIR, call_me)
 
     # 15. Read File Content
-    read_match = re.search(r"^(?:please\s+)?(?:read|view|show content of|display code of|show code of)\s+([a-zA-Z0-9_\-\./\\]+)\b", cleaned)
+    read_match = re.search(r"^(?:please\s+)?(?:read|view|show content of|display code of|show code of|show|cat)\s+(?:the\s+)?(?:file\s+)?([^\n]+)$", cleaned, re.IGNORECASE)
     if read_match:
-        target_file = read_match.group(1).strip()
-        return True, read_file_content(target_file, max_lines=60, call_me=call_me)
+        target_file = read_match.group(1).strip().strip("'\"")
+        target_file = re.sub(r"\s+(?:file|code|content)$", "", target_file, flags=re.IGNORECASE).strip()
+        if target_file and target_file.lower() not in ("you", "me", "my", "this", "that", "it", "files"):
+            return True, read_file_content(target_file, max_lines=100, call_me=call_me)
 
     # 15.1 Delete File or Folder with Safety Trash Backup
     del_match = re.search(

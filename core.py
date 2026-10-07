@@ -178,7 +178,12 @@ def build_system_prompt(memory: dict) -> str:
         f"2. TANGLISH DEFINITION: Tanglish is Tamil spoken or written phonetically using English letters. You understand Tanglish perfectly. When the user asks in Tanglish, reply in polite, natural Tanglish or clear English.\n"
         f"3. STRICT PROHIBITION: NEVER use Hindi or Hinglish words under any circumstances.\n\n"
         f"CODE GENERATION & FILE SAVING RULES:\n"
-        f"1. CODE GENERATION / EXPLANATIONS (NEVER AUTO-SAVE TO DISK):\n"
+        f"0. FULL PERMISSION TO WRITE AND GENERATE CODE IN CHAT:\n"
+        f"   - You have FULL AND UNRESTRICTED PERMISSION from {call_me} to generate, write, improve, upgrade, and display complete code directly in this chat!\n"
+        f"   - STRICT PROHIBITION: NEVER refuse code requests, and NEVER say 'I will not modify existing files without explicit permission' or 'I will not generate code without permission'.\n"
+        f"   - When {call_me} asks to update, upgrade, improve, or provide code (e.g. 'update this file\\'s code', 'give updated code on chat', 'upgrade snake_game.py', 'generic code in java'):\n"
+        f"     IMMEDIATELY write and display the full, working code in standard markdown code blocks (```python, ```java, etc.) right in your chat response!\n"
+        f"1. CODE GENERATION / EXPLANATIONS (NEVER AUTO-SAVE TO DISK WITHOUT DIRECT COMMAND):\n"
         f"   - When the user asks for code, scripts, circuits, or technical help (e.g. 'write python code for...', 'how to use esp32...', 'give me script...', 'oled is not mandatory'):\n"
         f"     Present the code using regular markdown code blocks (e.g. ```python, ```ino, ```cpp).\n"
         f"     STRICT DIRECTIVE: DO NOT output ```FILE_SAVE:...```! NEVER automatically write or save code to disk on your own without an explicit user command to save/create a file!\n"
@@ -712,6 +717,13 @@ def try_handle_conversational_file_save(user_text: str, call_me: str = "Sir") ->
     cleaned = user_text.strip()
     lower = cleaned.lower()
 
+    # 0. STRICT NEGATIVE INTENT GUARD:
+    # If the user explicitly says "no save", "don't save", "save panna venaam", "without saving", etc.,
+    # IMMEDIATELY abort so no files are auto-saved against the user's wish.
+    neg_save_pattern = r"\b(?:no\s+save|don'?t\s+save|do\s+not\s+save|never\s+save|not\s+save|without\s+saving|save\s+panna\s+venaam|save\s+venaam|venaam)\b"
+    if re.search(neg_save_pattern, lower):
+        return False, "", "", ""
+
     affirmative_patterns = [
         r"^(?:yeah|yes|yep|sure|ok|okay|do it|save it|save this|save the file|save code|save script|save|save pannu|pannu|do bro|yeah do bro|yeah do|yes do|go ahead|proceed|confirm)(?:\s+(?:bro|sir|please|it|this))?(?:\s+(?:in|to|into|inside|as)\s+(.+))?$",
         r"^(?:please\s+)?save(?:\s+this|\s+the|\s+it)?\s+(?:code|script|file)?(?:\s+(?:as|in|to|into|inside)\s+(.+))?$",
@@ -844,24 +856,49 @@ def handle_direct_whatsapp(cleaned: str, call_me: str = "Sir") -> Tuple[bool, st
     """
     Directly parses and executes WhatsApp messaging intents (English & Tanglish).
     Matches patterns like:
+      - 'send a hi message to naveen in whatsapp'
+      - 'send a hi message to group roombies in whatsapp'
+      - 'send hi to naveen in whatsapp'
+      - 'send hi to jailani in whatsapp'
       - 'sent whatsapp to dharma : https://pin.it/DLsW6wVCQ'
       - 'sent whatsapp dharma https://pin.it/DLsW6wVCQ'
-      - 'send whatsapp to dharma : ...'
-      - 'whatsapp dharma hello'
-      - 'dharma ku whatsapp anupu ...'
+      - 'send whatsapp to naveen : ...'
+      - 'send whatsapp group roombies hi'
+      - 'whatsapp roombies hello'
+      - 'whatsapp naveen hi'
+      - 'naveen ku whatsapp la hi nu anupu'
+      - 'jailani ku whatsapp la hi nu anupu'
+      - 'type hi to naveen in whatsapp'
     """
     WA_TRIGS = r"(?:whats?\s*app|whatasapp|whataspp|whatsap|whatapp|whatsappp|whatssap|watsapp|watapp|watsp|whapp|whasap|whtsp|whtsapp|wa|wp)"
+    GRP_TRIGS = r"(?:group|grp|groupe|groups)"
     lower = cleaned.lower()
 
-    if not re.search(rf"\b(?:{WA_TRIGS}|message|msg)\b", lower):
+    # Fast reject if no WA trig, no "ku", and no send/type/msg triggers
+    has_send = bool(re.search(r"\b(?:send|anupu|sent|share|forward|drop|fill|type|draft)\b", lower))
+    has_wa = bool(re.search(rf"\b(?:{WA_TRIGS}|message|msg)\b", lower))
+    has_ku = bool(re.search(r"\bku\b", lower))
+    if not (has_wa or has_ku or has_send):
         return False, "", "", ""
+
+    # Determine auto_send vs fill
+    is_send = bool(re.search(r"\b(?:send|anupu|sent|share|forward|drop|post|shoot|blast|anupunga)\b", lower))
+    is_fill = bool(re.search(r"\b(?:fill|type|draft|write|paste|just\s+type|just\s+write|review)\b", lower))
+    auto_send = is_send and not is_fill
+
+    from system_tools import resolve_contact, resolve_group, send_whatsapp_message
 
     target = ""
     msg = ""
+    is_group = False
 
-    # Pattern 1: Tanglish "<target> ku (whatsapp|msg) (anupu|podu) <msg>"
+    # Check explicit group mentions
+    if re.search(rf"\b{GRP_TRIGS}\b", lower):
+        is_group = True
+
+    # 1. Tanglish: "<target> ku (whatsapp la)? <msg> (nu)? anupu"
     t_m = re.search(
-        rf"^([a-zA-Z0-9_\-\.\s]+?)\s+ku\s+(?:(?:msg|message|whatsapp)\s+)?(?:anupu|podu|send\s*pannu|anupunga)(?:\s+(?:solli\s+|saying\s+|that\s+|:\s*)?(.*))?$",
+        rf"^([a-zA-Z0-9_\-\.\s]+?)\s+ku\s+(?:(?:msg|message|whatsapp|in\s+whatsapp|on\s+whatsapp)\s+)?(?:la\s+)?(.*?)(?:\s+(?:nu|solli|saying))?\s*(?:anupu|podu|send\s*pannu|anupunga|share\s*pannu)$",
         cleaned,
         re.IGNORECASE
     )
@@ -869,76 +906,164 @@ def handle_direct_whatsapp(cleaned: str, call_me: str = "Sir") -> Tuple[bool, st
         target = t_m.group(1).strip()
         msg = (t_m.group(2) or "").strip()
 
-    # Pattern 2: "send/sent/share/forward <target> (on/via/through) whatsapp <msg>"
+    # 2. "send a <msg> (message|msg) to (group)? <target> in/on/via/through whatsapp"
+    # e.g. "send a hi message to naveen in whatsapp"
     if not target:
-        wa_from = re.search(
-            rf"^(?:please\s+)?(?:send|sent|share|forward)\s+([a-zA-Z0-9_\-\.\s]+?)\s+(?:from|on|via|through)\s+{WA_TRIGS}\s*(.*)$",
+        m2 = re.search(
+            rf"^(?:please\s+)?(?:send|sent|share|forward|drop|fill|type|draft)\s+(?:a\s+)?(.*?)\s+(?:message|msg)\s+to\s+(?:{GRP_TRIGS}\s+)?([a-zA-Z0-9_\-\.\s]+?)\s+(?:in|on|via|through|from)\s+{WA_TRIGS}$",
             cleaned,
             re.IGNORECASE
         )
-        if wa_from:
-            target = wa_from.group(1).strip()
-            msg = wa_from.group(2).strip()
+        if m2:
+            msg = m2.group(1).strip()
+            target = m2.group(2).strip()
 
-    # Pattern 3: Standard English:
-    # "(please )?(send|sent|share|forward|drop)? (a )?(whatsapp|wa|message|msg)? (to )?<rest>"
+    # 3. "send/fill/type <msg> to (group)? <target> (in/on/via/through whatsapp)"
+    # e.g. "send hi to naveen in whatsapp", "send hello to jailani on whatsapp"
     if not target:
-        wa_pat = re.search(
-            rf"^(?:please\s+)?(?:(?:send|sent|share|forward|drop)\s+(?:a\s+)?(?:{WA_TRIGS}\s+)?(?:message|msg)\s+(?:to\s+)?|(?:send|sent|share|forward|drop)\s+{WA_TRIGS}(?:\s+to)?|{WA_TRIGS}(?:\s+to)?)\s+(.*)$",
+        m3 = re.search(
+            rf"^(?:please\s+)?(?:send|sent|share|forward|drop|fill|type|draft)\s+(.*?)\s+to\s+(?:{GRP_TRIGS}\s+)?([a-zA-Z0-9_\-\.\s]+?)\s+(?:in|on|via|through|from)\s+{WA_TRIGS}$",
             cleaned,
             re.IGNORECASE
         )
-        if wa_pat:
-            rest = wa_pat.group(1).strip()
+        if m3:
+            msg = m3.group(1).strip()
+            target = m3.group(2).strip()
+
+    # 4. "send/draft (a)? (message|msg)? to (group)? <target> in/on/via/through whatsapp (saying|:|that)? <msg>"
+    # e.g. "send to naveen in whatsapp hi", "draft message to naveen in whatsapp hi"
+    if not target:
+        m4 = re.search(
+            rf"^(?:please\s+)?(?:send|sent|share|forward|drop|fill|type|draft)\s+(?:a\s+)?(?:message\s+|msg\s+)?to\s+(?:{GRP_TRIGS}\s+)?([a-zA-Z0-9_\-\.\s]+?)\s+(?:in|on|via|through|from)\s+{WA_TRIGS}(?:\s*(?::|saying|that)\s*|\s+)(.*)$",
+            cleaned,
+            re.IGNORECASE
+        )
+        if m4:
+            target = m4.group(1).strip()
+            msg = m4.group(2).strip()
+
+    # 5. "send/sent <target> (from|on|via|through) whatsapp <msg>"
+    # e.g. "send naveen from whatsapp hi", "send jailani on whatsapp hello"
+    if not target:
+        m5 = re.search(
+            rf"^(?:please\s+)?(?:send|sent|share|forward|drop|fill|type|draft)\s+(?:{GRP_TRIGS}\s+)?([a-zA-Z0-9_\-\.\s]+?)\s+(?:from|on|via|through)\s+{WA_TRIGS}\s*(.*)$",
+            cleaned,
+            re.IGNORECASE
+        )
+        if m5:
+            cand = m5.group(1).strip()
+            rem = m5.group(2).strip()
+            p, _, _ = resolve_contact(cand)
+            g, _ = resolve_group(cand)
+            if p or g or not target:
+                target = cand
+                msg = rem
+
+    # 6. Prefix pattern: (send|whatsapp) (to)? (group)? <rest>
+    if not target:
+        m6 = re.search(
+            rf"^(?:please\s+)?(?:(?:send|sent|share|forward|drop|fill|type|draft)\s+(?:a\s+)?(?:{WA_TRIGS}\s+)?(?:message|msg)?\s*(?:to\s+)?|(?:send|sent|share|forward|drop|fill|type|draft)\s+{WA_TRIGS}(?:\s+to)?|{WA_TRIGS}(?:\s+to)?|(?:send|sent|share|forward|drop|fill|type|draft)\s+(?:to\s+)?)\s*(.*)$",
+            cleaned,
+            re.IGNORECASE
+        )
+        if m6:
+            rest = m6.group(1).strip()
             rest = re.sub(r"^to\s+", "", rest, flags=re.IGNORECASE).strip()
 
-            # Check explicit delimiter (: NOT followed by //, or saying, or text:)
+            grp_m = re.search(rf"^{GRP_TRIGS}\s+(.*)$", rest, re.IGNORECASE)
+            if grp_m:
+                is_group = True
+                rest = grp_m.group(1).strip()
+
             delim = re.search(r"^(.*?)\s*(?::(?!\/\/)|saying|text:)\s*(.*)$", rest, re.IGNORECASE)
             if delim:
                 target = delim.group(1).strip()
                 msg = delim.group(2).strip()
             else:
-                # Check URL in rest (e.g. "dharma https://pin.it/...")
-                url_match = re.search(r"^(.*?)\s+(https?://\S+.*)$", rest, re.IGNORECASE)
-                if url_match:
-                    target = url_match.group(1).strip()
-                    msg = url_match.group(2).strip()
+                url_m = re.search(r"^(.*?)\s+(https?://\S+.*)$", rest, re.IGNORECASE)
+                if url_m:
+                    target = url_m.group(1).strip()
+                    msg = url_m.group(2).strip()
                 else:
-                    from system_tools import resolve_contact
                     words = rest.split()
-                    if len(words) == 1:
-                        target = words[0]
-                        msg = ""
+                    if is_group:
+                        g_exact, _ = resolve_group(rest)
+                        if g_exact:
+                            target = rest
+                            msg = ""
+                        else:
+                            matched = False
+                            for n in range(len(words) - 1, 0, -1):
+                                cand = " ".join(words[:n])
+                                c_info, _ = resolve_group(cand)
+                                if c_info:
+                                    target = cand
+                                    msg = " ".join(words[n:])
+                                    matched = True
+                                    break
+                            if not matched:
+                                target = words[0] if words else rest
+                                msg = " ".join(words[1:]) if len(words) > 1 else ""
                     else:
-                        matched_c = False
-                        for n in range(min(3, len(words) - 1), 0, -1):
+                        matched = False
+                        for n in range(min(4, len(words) - 1), 0, -1):
                             cand = " ".join(words[:n])
-                            phone_c, _, _ = resolve_contact(cand)
-                            if phone_c:
+                            p, _, _ = resolve_contact(cand)
+                            if p:
                                 target = cand
                                 msg = " ".join(words[n:])
-                                matched_c = True
+                                matched = True
                                 break
-                        if not matched_c:
-                            target = words[0]
-                            msg = " ".join(words[1:])
+                            g, _ = resolve_group(cand)
+                            if g:
+                                target = cand
+                                msg = " ".join(words[n:])
+                                is_group = True
+                                matched = True
+                                break
+                        if not matched:
+                            if len(words) == 1:
+                                target = words[0]
+                                msg = ""
+                            else:
+                                target = words[0]
+                                msg = " ".join(words[1:])
 
-    if target:
-        # Ignore if user was just saying 'open whatsapp' or 'close whatsapp'
-        if target.lower() in ("app", "desktop", "web") and not msg:
-            return False, "", "", ""
+    # Clean target
+    target = target.strip().strip("'\"")
+    grp_sub = re.sub(rf"^{GRP_TRIGS}\s+", "", target, flags=re.IGNORECASE)
+    if grp_sub != target:
+        is_group = True
+        target = grp_sub.strip()
 
-        from system_tools import send_whatsapp_message, resolve_contact
-        phone, disp, _ = resolve_contact(target)
-        display_label = disp if disp else target.title()
+    target = re.sub(r"^to\s+", "", target, flags=re.IGNORECASE).strip()
 
-        if not msg:
-            return True, "whatsapp", "send_whatsapp", f"{call_me}, please specify the message to send to {display_label} (e.g. 'whatsapp {target} <message>')."
+    # Clean message quotes/colons
+    msg = msg.strip()
+    if msg.startswith(":") or msg.startswith("-"):
+        msg = msg[1:].strip()
+    msg = msg.strip("'\"")
 
-        res = send_whatsapp_message(target, msg, call_me=call_me, auto_send=True)
-        return True, "whatsapp", "send_whatsapp", res
+    if not target:
+        return False, "", "", ""
 
-    return False, "", "", ""
+    # Ignore if user was just saying 'open whatsapp' or 'close whatsapp'
+    if target.lower() in ("app", "desktop", "web", "application") and not msg:
+        return False, "", "", ""
+
+    # Check if target is a group
+    g_chk, _ = resolve_group(target)
+    if g_chk:
+        is_group = True
+
+    phone, disp, _ = resolve_contact(target)
+    display_label = disp if disp else target.title()
+
+    if not msg:
+        return True, "whatsapp", "send_whatsapp", f"{call_me}, please specify the message to send to {display_label} (e.g. 'whatsapp {target} <message>')."
+
+    res = send_whatsapp_message(target, msg, call_me=call_me, is_group=is_group, auto_send=auto_send)
+    return True, "whatsapp", "send_whatsapp", res
 
 
 def check_deterministic_intent(user_text: str, call_me: str = "Sir") -> Tuple[bool, str, str, str]:
@@ -1350,15 +1475,21 @@ async def process_user_message_stream(
         final_text = f"{call_me}, systems standing by."
 
     # Post-generation WhatsApp Interception (Interception of WHATSAPP blocks)
-    wa_matches = list(re.finditer(r"```WHATSAPP:([^:\n]+):::([^\n`]+)```", final_text))
+    wa_matches = list(re.finditer(r"```WHATSAPP:([^:\n]+):::\s*(.*?)\s*```", final_text, re.DOTALL))
     for m in wa_matches:
         wa_target = m.group(1).strip()
         wa_msg = m.group(2).strip()
-        from system_tools import send_whatsapp_message
-        wa_res = send_whatsapp_message(wa_target, wa_msg, call_me=call_me, auto_send=True)
-        replacement = f"> **[WhatsApp Dispatched]** {wa_res}"
+        from system_tools import send_whatsapp_message, resolve_group
+        g_chk, _ = resolve_group(wa_target)
+        is_grp = bool(g_chk)
+        is_send = bool(re.search(r"\b(?:send|anupu|sent|share|forward|drop)\b", cleaned.lower()))
+        is_fill = bool(re.search(r"\b(?:fill|type|draft|write|paste|review)\b", cleaned.lower()))
+        auto_send_flag = is_send and not is_fill
+        wa_res = send_whatsapp_message(wa_target, wa_msg, call_me=call_me, is_group=is_grp, auto_send=auto_send_flag)
+        action_verb = "Dispatched" if auto_send_flag else "Filled"
+        replacement = f"> **[WhatsApp {action_verb}]** {wa_res}"
         final_text = final_text.replace(m.group(0), replacement)
-        yield {"type": "activity", "actor": "Tool", "action": "WhatsApp Dispatched", "detail": f"Sent to {wa_target}: {wa_msg[:50]}"}
+        yield {"type": "activity", "actor": "Tool", "action": f"WhatsApp {action_verb}", "detail": f"{action_verb} to {wa_target}: {wa_msg[:50]}"}
 
     # Post-generation Folder Interception (Interception of FOLDER_CREATE blocks)
     from file_tools import safe_create_or_modify_file, create_folder, safe_delete_folder, safe_delete_file, resolve_path
@@ -1400,6 +1531,9 @@ async def process_user_message_stream(
             yield {"type": "activity", "actor": "System", "action": "Deleted", "detail": f"Auto-executed deletion for {os.path.basename(full_p)}"}
 
     # Determine if user explicitly requested file creation/saving
+    neg_save_pattern = r"\b(?:no\s+save|don'?t\s+save|do\s+not\s+save|never\s+save|not\s+save|without\s+saving|save\s+panna\s+venaam|save\s+venaam|venaam)\b"
+    has_negative_save = bool(re.search(neg_save_pattern, cleaned, re.IGNORECASE))
+
     save_intent_keywords = [
         r"\b(?:save\s+it|save\s+this|save\s+the\s+file|save\s+as|save\s+to|save\s+in|save\s+into)\b",
         r"\b(?:create\s+(?:a\s+)?(?:new\s+)?file|write\s+(?:to\s+)?(?:a\s+)?file|make\s+(?:a\s+)?file)\b",
@@ -1407,7 +1541,7 @@ async def process_user_message_stream(
         r"\b(?:la\s+save\s+pannu|folder\s+la\s+save)\b",
         r"^(?:yes|yeah|sure|ok|okay|do it|proceed|confirm)\b",
     ]
-    has_save_intent = any(re.search(pat, cleaned, re.IGNORECASE) for pat in save_intent_keywords)
+    has_save_intent = (not has_negative_save) and any(re.search(pat, cleaned, re.IGNORECASE) for pat in save_intent_keywords)
 
     # Post-generation File Interception (Interception of FILE_SAVE blocks)
     file_save_matches = list(re.finditer(r"```FILE_SAVE:([^\n]+)\n(.*?)```", final_text, re.DOTALL))

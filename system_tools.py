@@ -1367,6 +1367,33 @@ def _delayed_press_enter(initial_delay: float = 2.0, attempts: int = 8, interval
         _send_whatsapp_enter_keystrokes(ensure_focus=True)
         time.sleep(interval)
 
+def is_whatsapp_focused() -> bool:
+    """
+    Verifies if the current foreground window belongs to WhatsApp Desktop.
+    Prevents leaking Ctrl+F, Ctrl+V, or Enter keystrokes into browsers or code editors.
+    """
+    try:
+        user32 = ctypes.windll.user32
+        fg = user32.GetForegroundWindow()
+        if not fg:
+            return False
+        length = user32.GetWindowTextLengthW(fg)
+        if length > 0:
+            buff = ctypes.create_unicode_buffer(length + 1)
+            user32.GetWindowTextW(fg, buff, length + 1)
+            title = buff.value.lower()
+            if "whatsapp" in title:
+                return True
+        pid = ctypes.wintypes.DWORD()
+        user32.GetWindowThreadProcessId(fg, ctypes.byref(pid))
+        if pid.value:
+            for p in psutil.process_iter(['pid', 'name']):
+                if p.info['pid'] == pid.value:
+                    return 'what' in p.info['name'].lower()
+    except Exception:
+        pass
+    return False
+
 def dispatch_whatsapp_desktop(search_term: str, message: str, auto_send: bool = True):
     """
     Opens/activates WhatsApp Desktop, searches for contact or group name in search bar,
@@ -1383,12 +1410,23 @@ def dispatch_whatsapp_desktop(search_term: str, message: str, auto_send: bool = 
             os.startfile("whatsapp:")
         except Exception:
             pass
-        for _ in range(12):
+        for _ in range(10):
             time.sleep(0.3)
             if _activate_whatsapp_window():
                 break
 
-    time.sleep(0.4)
+    time.sleep(0.35)
+
+    # SAFETY GUARANTEE: Never send keystrokes if WhatsApp is not the focused window!
+    if not is_whatsapp_focused():
+        _activate_whatsapp_window()
+        time.sleep(0.3)
+        if not is_whatsapp_focused():
+            try:
+                os.startfile(f"whatsapp://send?text={urllib.parse.quote(message)}")
+            except Exception:
+                pass
+            return
 
     # 2. Press Escape twice to dismiss any open search query, menu, or dialog
     _press_key_hardware(VK_ESCAPE)
@@ -1455,6 +1493,11 @@ def _safe_paste_into_chat(message: str, auto_send: bool = False, delay: float = 
     time.sleep(delay)
     _activate_whatsapp_window()
     time.sleep(0.25)
+    if not is_whatsapp_focused():
+        time.sleep(0.35)
+        _activate_whatsapp_window()
+        if not is_whatsapp_focused():
+            return
     _set_clipboard_text(message)
     # Select all text in the message input box to replace any existing prefilled text
     _hotkey_ctrl(VK_A)
@@ -1494,17 +1537,19 @@ def sanitize_whatsapp_phone(raw_phone: str) -> str:
 def send_whatsapp_message(target: str, message: str, call_me: str = "Sir", is_group: bool = False, auto_send: bool = True) -> str:
     """
     Opens WhatsApp desktop or web with prefilled message directed to a contact or group.
-    - If is_group: searches group in WhatsApp desktop, pastes message, and leaves cursor ready (fill only).
+    - If is_group: searches group in WhatsApp desktop, pastes message, and sends or fills based on auto_send.
     - If individual with contact name: opens direct URI and actively pastes message into the chat box!
     """
-    # 1. GROUP MESSAGING (Fill only! Strictly never auto-send to groups)
+    # 1. GROUP MESSAGING (Direct send when auto_send=True, or fill when auto_send=False)
     if is_group:
         g_info, related_groups = resolve_group(target)
         search_term = g_info["raw_name"] if g_info else target
         display = g_info["display"] if g_info else target.title()
-        # Strictly review mode: paste message only, never auto-press Enter on groups
-        dispatch_whatsapp_desktop(search_term, message, auto_send=False)
-        return f"{call_me}, opened WhatsApp group '{display}' with your message pre-filled. Please review and press Enter to send."
+        dispatch_whatsapp_desktop(search_term, message, auto_send=auto_send)
+        if auto_send:
+            return f"{call_me}, dispatched WhatsApp message to group '{display}': '{message}'."
+        else:
+            return f"{call_me}, opened WhatsApp group '{display}' with your message pre-filled. Please review and press Enter to send."
 
     # 2. INDIVIDUAL CONTACT MESSAGING (Direct, guaranteed deep-link URI to exact contact)
     phone_number, display_name, related = resolve_contact(target)
