@@ -560,7 +560,7 @@
       avatar.appendChild(userImg);
     } else {
       const avatarImg = document.createElement('img');
-      avatarImg.src = '/static/img/kiraht_ai_logo.png?v=3.0';
+      avatarImg.src = '/static/img/kiraht_ai_logo.png?v=4.0';
       avatarImg.className = 'message-avatar-img assistant-avatar-img';
       avatarImg.alt = 'K';
       avatar.appendChild(avatarImg);
@@ -628,7 +628,7 @@
     const avatar = document.createElement('div');
     avatar.className = 'message-avatar';
     const avatarImg = document.createElement('img');
-    avatarImg.src = '/static/img/kiraht_ai_logo.png?v=3.0';
+    avatarImg.src = '/static/img/kiraht_ai_logo.png?v=4.0';
     avatarImg.className = 'message-avatar-img assistant-avatar-img';
     avatarImg.alt = 'K';
     avatar.appendChild(avatarImg);
@@ -734,7 +734,7 @@
       const avatar = document.createElement('div');
       avatar.className = 'message-avatar';
       const avatarImg = document.createElement('img');
-      avatarImg.src = '/static/img/kiraht_ai_logo.png?v=3.0';
+      avatarImg.src = '/static/img/kiraht_ai_logo.png?v=4.0';
       avatarImg.className = 'message-avatar-img assistant-avatar-img';
       avatarImg.alt = 'K';
       avatar.appendChild(avatarImg);
@@ -869,7 +869,7 @@
     chatViewport.innerHTML = `
       <div class="message-card assistant-card">
         <div class="message-avatar">
-          <img src="/static/img/kiraht_ai_logo.png?v=3.0" class="message-avatar-img assistant-avatar-img" alt="K">
+          <img src="/static/img/kiraht_ai_logo.png?v=4.0" class="message-avatar-img assistant-avatar-img" alt="K">
         </div>
         <div class="message-body">
           <div class="message-header">
