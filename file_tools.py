@@ -129,6 +129,11 @@ def resolve_path(target_path: str) -> str:
     # Strip workspace folder prefixes e.g. "kiraht ai/chat_history" -> "chat_history"
     clean_path = re.sub(r"^kiraht\s*ai[\\/]", "", clean_path, flags=re.IGNORECASE).strip()
 
+    # Strip conversational preposition prefixes e.g. "in C:\CODINGS\DBMS" -> "C:\CODINGS\DBMS"
+    clean_path = re.sub(r"^(?:in|into|to|inside|as)\s+", "", clean_path, flags=re.IGNORECASE).strip().strip('"').strip("'")
+    # Strip trailing folder suffixes e.g. "C:\CODINGS\DBMS\DBMS_EXE10 folder" -> "C:\CODINGS\DBMS\DBMS_EXE10"
+    clean_path = re.sub(r"\s+(?:folder|foler|floder|fldr|dir|directory)$", "", clean_path, flags=re.IGNORECASE).strip().strip('"').strip("'")
+
     lower_p = clean_path.lower().strip()
 
     # Coreference / pronoun resolution for follow-ups ("that folder", "that", "it", "this")
@@ -218,6 +223,7 @@ def resolve_path(target_path: str) -> str:
         WORKSPACE_DIR,
         KIRAHT_PROJECTS_DIR,
         "D:\\",
+        "C:\\",
         home,
         known.get("downloads", ""),
         known.get("desktop", ""),

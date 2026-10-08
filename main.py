@@ -1668,34 +1668,20 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                 print(f"\nkiraht AI: Scanned and indexed {len(apps)} installed desktop apps into apps_cache.json, {call_me}.")
                 continue
 
-            # Intent: Conversational Follow-up File Saving ("yeah do bro", "save it", etc.)
-            from core import try_handle_conversational_file_save
+            # Intent: Conversational Follow-up File Saving & Direct Code Save
+            from core import try_handle_conversational_file_save, handle_direct_file_create
+            is_create, f_cat, f_tool, f_res = handle_direct_file_create(user_input, call_me)
+            if is_create:
+                print(f"\nkiraht AI: {f_res}")
+                messages.append({"role": "user", "content": user_input})
+                messages.append({"role": "assistant", "content": f_res})
+                continue
+
             is_save, s_cat, s_tool, s_res = try_handle_conversational_file_save(user_input, call_me)
             if is_save:
                 print(f"\nkiraht AI: {s_res}")
                 messages.append({"role": "user", "content": user_input})
                 messages.append({"role": "assistant", "content": s_res})
-                continue
-
-            # Intent: Create file with content (gated by Security Permission Gate)
-            create_file_match = re.search(
-                r"^(?:please\s+)?create\s+(?:a\s+)?(?:new\s+)?file\s+([a-zA-Z0-9_\-\./\\]+)\s+with(?:\s+content)?\s+(.+)$",
-                user_input,
-                re.DOTALL | re.IGNORECASE,
-            )
-            if create_file_match:
-                target_name = create_file_match.group(1).strip()
-                new_code = create_file_match.group(2).strip()
-                from security import request_permission
-                if request_permission("file_write", f"Create or overwrite file '{target_name}'", call_me=call_me):
-                    from file_tools import safe_create_or_modify_file, resolve_path
-                    res = safe_create_or_modify_file(target_name, new_code, call_me=call_me)
-                    full_p = resolve_path(target_name)
-                    print(f"\nkiraht AI: {res} (Location: {full_p})")
-                    messages.append({"role": "user", "content": user_input})
-                    messages.append({"role": "assistant", "content": f"{res} (Location: {full_p})"})
-                else:
-                    print(f"\nkiraht AI: Operation cancelled, {call_me}. '{target_name}' was not modified.")
                 continue
 
             # Check for laptop / OS operation commands (Desktop Apps, Files, Hardware)
@@ -1866,7 +1852,7 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                             messages=messages,
                             stream=True,
                             options={
-                                "temperature": 0.35,
+                                "temperature": 0.85,
                                 "num_thread": 8,
                                 "num_ctx": 2048,
                             },
@@ -1917,7 +1903,7 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                         messages=messages,
                         stream=True,
                         options={
-                            "temperature": 0.35,
+                            "temperature": 0.85,
                             "num_thread": 8,
                             "num_ctx": 2048,
                         },

@@ -623,12 +623,17 @@ def get_gemini_client():
 # Pre-checks user query to avoid slow LLM calls for deterministic tasks
 
 def handle_direct_file_create(cleaned: str, call_me: str = "Sir") -> Tuple[bool, str, str, str]:
-    """
+    r"""
     Handles explicit file creation commands:
     e.g. 'create file add_numbers.py with content ...'
          'save file <path> with content ...'
          'write file <path> with ...'
+         'save as ValidateXML.java in C:\CODINGS\DBMS\DBMS_EXE10 folder: ...'
+         '<code...> save as ValidateXML.java in C:\CODINGS\DBMS\DBMS_EXE10 folder'
     """
+    from file_tools import safe_create_or_modify_file, resolve_path, KIRAHT_PROJECTS_DIR
+
+    # 1. Standard "create/save file <name> with content ..."
     create_match = re.search(
         r"^(?:please\s+)?(?:create|make|write|save)\s+(?:a\s+)?(?:new\s+)?file\s+([^\s:]+)\s+(?:with(?:\s+content)?|content|as)\s*[:\n]?\s*(.+)$",
         cleaned,
@@ -637,13 +642,78 @@ def handle_direct_file_create(cleaned: str, call_me: str = "Sir") -> Tuple[bool,
     if create_match:
         target_name = create_match.group(1).strip().strip("'\"")
         new_content = create_match.group(2).strip()
-        from file_tools import safe_create_or_modify_file, resolve_path, KIRAHT_PROJECTS_DIR
         if not os.path.dirname(target_name) and not os.path.isabs(target_name):
             target_name = os.path.join(KIRAHT_PROJECTS_DIR, target_name)
         full_p = resolve_path(target_name)
         res = safe_create_or_modify_file(full_p, new_content, call_me=call_me)
         return True, "file_system", "safe_create_or_modify_file", f"{res}\nLocation: {full_p}"
 
+    # 2. Direct code + save directive (directive anywhere: end, start, or middle)
+    # e.g. "<code> \nsave as \nValidateXML.java\nin C:\CODINGS\DBMS\DBMS_EXE10 folder"
+    # e.g. "save as ValidateXML.java in C:\CODINGS\DBMS\DBMS_EXE10: <code>"
+    save_patterns = [
+        # save as <fn> [in <folder>] (supporting multi-line whitespace between words)
+        r"\bsave\s+(?:this\s+)?(?:code\s+|script\s+|file\s+)?as\s*[\r\n\s]+[`'\"]?([a-zA-Z0-9_\-\.]+\.[a-zA-Z0-9]+)[`'\"]?(?:[\r\n\s]+(?:in|to|into|inside)\s+([a-zA-Z]:[\\/][^\n\r`\"\'<>]+|[^\n\r`\"\'<>]+))?",
+        # save (in|to|into|inside) <folder> as <fn>
+        r"\bsave\s+(?:this\s+)?(?:code\s+|script\s+|file\s+)?(?:in|to|into|inside)\s+([a-zA-Z]:[\\/][^\n\r`\"\'<>]+|[^\n\r`\"\'<>]+?)(?:\s+(?:folder|foler|directory|dir))?[\r\n\s]+as\s+[`'\"]?([a-zA-Z0-9_\-\.]+\.[a-zA-Z0-9]+)[`'\"]?",
+        # save to <path_with_ext>
+        r"\bsave\s+(?:this\s+)?(?:code\s+|script\s+|file\s+)?to\s+[`'\"]?([a-zA-Z]:[\\/][^\s`\"\'<>]+|[a-zA-Z0-9_\-\.\\/]+\.[a-zA-Z0-9]+)[`'\"]?",
+    ]
+
+    matched_dir_info = None
+    for pat in save_patterns:
+        m = re.search(pat, cleaned, re.IGNORECASE)
+        if m:
+            groups = m.groups()
+            fn = ""
+            fld = ""
+            if len(groups) == 2:
+                if groups[0] and "." in groups[0] and not (":" in groups[0] or "\\" in groups[0] or "/" in groups[0]):
+                    fn = groups[0].strip()
+                    fld = (groups[1] or "").strip()
+                elif groups[1] and "." in groups[1] and not (":" in groups[1] or "\\" in groups[1] or "/" in groups[1]):
+                    fld = (groups[0] or "").strip()
+                    fn = groups[1].strip()
+            elif len(groups) == 1:
+                val = groups[0].strip()
+                if ":" in val or "\\" in val or "/" in val:
+                    fn = os.path.basename(val)
+                    fld = os.path.dirname(val)
+                else:
+                    fn = val
+            if fld:
+                fld = re.sub(r"\s+(?:folder|foler|directory|dir)$", "", fld, flags=re.IGNORECASE).strip()
+            matched_dir_info = (m.span(), fn, fld)
+            break
+
+    if matched_dir_info:
+        span, parsed_fn, parsed_fld = matched_dir_info
+        remaining_code = (cleaned[:span[0]] + "\n" + cleaned[span[1]:]).strip()
+        if not parsed_fld:
+            in_fld_m = re.search(r"\b(?:in|to|into|inside)\s+([a-zA-Z]:[\\/][^\s`\"\'<>]+|[a-zA-Z0-9_\-\.\\/]+)(?:\s+(?:folder|foler|directory|dir))?", remaining_code, re.IGNORECASE)
+            if in_fld_m:
+                parsed_fld = in_fld_m.group(1).strip()
+                remaining_code = (remaining_code[:in_fld_m.start()] + "\n" + remaining_code[in_fld_m.end():]).strip()
+
+        c_blocks = re.findall(r"```(?:[a-zA-Z0-9_\-\+]+)?\s*\n(.*?)```", remaining_code, re.DOTALL)
+        if c_blocks:
+            code_payload = c_blocks[-1].strip()
+        else:
+            code_payload = remaining_code.strip()
+
+        has_code_keywords = any(kw in code_payload for kw in (
+            "import ", "class ", "def ", "public ", "private ", "void ", "int ", "return ",
+            "#include", "function", "var ", "const ", "let ", "System.out", "print(", "try {"
+        )) or len(code_payload.splitlines()) >= 2
+
+        if code_payload and (has_code_keywords or len(code_payload) >= 15):
+            t_dir = resolve_path(parsed_fld) if parsed_fld else KIRAHT_PROJECTS_DIR
+            full_path = os.path.join(t_dir, parsed_fn) if not os.path.isabs(parsed_fn) else parsed_fn
+            full_path = resolve_path(full_path)
+            res = safe_create_or_modify_file(full_path, code_payload, call_me=call_me)
+            return True, "file_system", "safe_create_or_modify_file", f"{res}\nLocation: {full_path}"
+
+    # 3. Simple empty starter file creation: "create file hello.py in desktop"
     create_simple = re.search(
         r"^(?:please\s+)?(?:create|make|write)\s+(?:a\s+)?(?:new\s+)?file\s+([a-zA-Z0-9_\-\./\\]+)(?:\s+(?:in|inside|to)\s+(?:the\s+)?([a-zA-Z0-9_\-\./\\:'\s]+))?$",
         cleaned,
@@ -652,7 +722,6 @@ def handle_direct_file_create(cleaned: str, call_me: str = "Sir") -> Tuple[bool,
     if create_simple:
         fname = create_simple.group(1).strip().strip("'\"")
         folder = create_simple.group(2).strip().strip("'\"") if create_simple.group(2) else ""
-        from file_tools import safe_create_or_modify_file, resolve_path, KIRAHT_PROJECTS_DIR
         target_dir = resolve_path(folder) if folder else KIRAHT_PROJECTS_DIR
         full_p = os.path.join(target_dir, fname) if not os.path.isabs(fname) else fname
         starter = f"// {fname} - Created by KIRAHT AI\n" if fname.endswith((".ino", ".cpp", ".c", ".js")) else f"# {fname} - Created by KIRAHT AI\n"
@@ -806,7 +875,7 @@ def try_handle_conversational_file_save(user_text: str, call_me: str = "Sir") ->
     from file_tools import resolve_path, safe_create_or_modify_file, WORKSPACE_DIR, KIRAHT_PROJECTS_DIR
 
     filename = ""
-    target_folder = KIRAHT_PROJECTS_DIR  # Default recommendation and destination!
+    target_folder = ""
 
     if specified_dest:
         dest_clean = specified_dest.strip().strip("'\"")
@@ -829,9 +898,60 @@ def try_handle_conversational_file_save(user_text: str, call_me: str = "Sir") ->
             else:
                 target_folder = resolve_path(dest_clean)
 
+    # 1. Search for explicit 'save as <filename>' across recent conversation turns (user & assistant)
+    if not filename:
+        for msg in reversed(history[-6:]):
+            c_text = msg.get("content", "")
+            save_as_m = re.search(r"\b(?:save\s+as|saved\s+as|as)\s+[`'\"]?([a-zA-Z0-9_\-]+\.[a-zA-Z0-9]+)[`'\"]?", c_text, re.IGNORECASE)
+            if save_as_m:
+                filename = save_as_m.group(1)
+                break
+
+    # 2. Check for public class <Name> in Java code
+    if not filename:
+        for msg in reversed(history[-6:]):
+            c_text = msg.get("content", "")
+            class_m = re.search(r"\bpublic\s+class\s+([A-Za-z0-9_]+)\b", c_text)
+            if class_m:
+                filename = f"{class_m.group(1)}.java"
+                break
+
+    # 3. Search recent conversation turns for destination path / folder if not yet specified
+    if not target_folder:
+        for msg in reversed(history[-6:]):
+            c_text = msg.get("content", "")
+            if not c_text:
+                continue
+
+            # Drive path like C:\CODINGS\DBMS\DBMS_EXE10
+            drive_m = re.search(r"([a-zA-Z]:[\\/][a-zA-Z0-9_\-\.\\/]+)", c_text)
+            if drive_m:
+                cand = drive_m.group(1).rstrip(".,;:'\"`")
+                cand = re.sub(r"\s+(?:folder|foler|directory|dir)$", "", cand, flags=re.IGNORECASE).strip()
+                if re.search(r"\.[a-zA-Z0-9]+$", cand):
+                    target_folder = resolve_path(os.path.dirname(cand))
+                    if not filename:
+                        filename = os.path.basename(cand)
+                else:
+                    target_folder = resolve_path(cand)
+                if target_folder:
+                    break
+
+            # Explicit 'in <folder> folder'
+            in_f_m = re.search(r"\b(?:in|to|into|inside)\s+([a-zA-Z]:[\\/][^\s`\"\'<>]+|[a-zA-Z0-9_\-\.\\/]+)(?:\s+(?:folder|foler|dir|directory))?", c_text, re.IGNORECASE)
+            if in_f_m:
+                cand = in_f_m.group(1).rstrip(".,;:'\"`")
+                if cand.lower() not in ("the", "a", "this", "that", "chat", "project", "code", "file", "it", "folder"):
+                    target_folder = resolve_path(cand)
+                    break
+
+    # Fallback to KIRAHT_PROJECTS_DIR only if no destination was mentioned anywhere in conversation
+    if not target_folder:
+        target_folder = KIRAHT_PROJECTS_DIR
+
     if not filename:
         fn_in_ast = re.search(r"\b([a-zA-Z0-9_\-]+\.(?:py|ino|cpp|c|h|hpp|js|ts|html|css|json|txt|md|java|sh|bat))\b", target_assistant_msg, re.IGNORECASE)
-        if fn_in_ast:
+        if fn_in_ast and fn_in_ast.group(1).lower() not in ("students.xml", "students.xsd"):
             filename = fn_in_ast.group(1)
 
     if not filename:
@@ -1344,11 +1464,19 @@ def check_deterministic_intent(user_text: str, call_me: str = "Sir") -> Tuple[bo
                 code_blocks = re.findall(r"```(?:[a-zA-Z0-9_\-\+]+)?\s*\n(.*?)```", last_ast, re.DOTALL)
                 if code_blocks:
                     from file_tools import resolve_path, safe_create_or_modify_file, KIRAHT_PROJECTS_DIR
-                    if not os.path.dirname(cand_file) and not os.path.isabs(cand_file):
-                        cand_file = os.path.join(KIRAHT_PROJECTS_DIR, cand_file)
-                    full_p = resolve_path(cand_file)
+                    dest_cand = ""
+                    drive_m = re.search(r"([a-zA-Z]:[\\/][a-zA-Z0-9_\-\.\\/]+)", last_ast)
+                    if drive_m:
+                        dest_cand = drive_m.group(1).rstrip(".,;:'\"`")
+                        dest_cand = re.sub(r"\s+(?:folder|foler|directory|dir)$", "", dest_cand, flags=re.IGNORECASE).strip()
+                    if dest_cand and os.path.isdir(resolve_path(dest_cand)):
+                        full_p = os.path.join(resolve_path(dest_cand), os.path.basename(cand_file))
+                    elif not os.path.dirname(cand_file) and not os.path.isabs(cand_file):
+                        full_p = resolve_path(os.path.join(KIRAHT_PROJECTS_DIR, cand_file))
+                    else:
+                        full_p = resolve_path(cand_file)
                     safe_create_or_modify_file(full_p, code_blocks[0].strip(), call_me=call_me)
-                    return True, "file_system", "safe_create_or_modify_file", f"{call_me}, executed save for '{os.path.basename(full_p)}'."
+                    return True, "file_system", "safe_create_or_modify_file", f"{call_me}, executed save for '{os.path.basename(full_p)}' in {full_p}."
 
     # 1. Built-in Slash & System Commands
     if lower in ("/clear", "clear chat", "clear conversation"):
@@ -1660,7 +1788,7 @@ async def process_user_message_stream(
                 messages=messages,
                 stream=True,
                 options={
-                    "temperature": 0.35,
+                    "temperature": 0.85,
                     "num_thread": 8,
                     "num_ctx": 2048,
                 },
