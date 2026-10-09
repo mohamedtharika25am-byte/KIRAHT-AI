@@ -158,6 +158,16 @@ async def handle_quick_action(req: QuickActionRequest):
         _, res_text = execute_system_command("open task manager", call_me=call_me)
         activity_action = "Open Task Manager"
 
+    elif action == "minimize_window":
+        from system_tools import minimize_window
+        res_text = minimize_window("active", call_me=call_me)
+        activity_action = "Minimize Window"
+
+    elif action == "maximize_window":
+        from system_tools import maximize_window
+        res_text = maximize_window("active", call_me=call_me)
+        activity_action = "Maximize Window"
+
     elif action == "clear_chat":
         clear_chat_history()
         res_text = f"{call_me}, chat history cleared."

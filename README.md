@@ -199,3 +199,76 @@ python main.py
   Run `ollama serve` in a separate terminal or verify Ollama desktop application is active.
 - **Microphone / Audio issues**:
   Ensure Windows Audio service is active. Master volume and media keys use native `user32.dll` and Windows Core Audio COM endpoints.
+
+---
+
+## 🔮 Future Implementation & GitHub JARVIS Architectural Roadmap
+
+### 1. Comparative Analysis: Open-Source JARVIS Projects vs. KIRAHT AI
+
+| Tier | Representative Repositories | Core Architecture | Strengths | Limitations |
+| :--- | :--- | :--- | :--- | :--- |
+| **Tier 1: Beginner / Script-based** (80% of GitHub repos) | `Jarvis-Desktop-Voice-Assistant`, `Iron-Man-Jarvis` | `while True` loop, Google SpeechRecognition, `if/elif` regex, `pyttsx3`, `pywhatkit` | Fast for 5 hardcoded commands, easy to run | Fragile: No LLM reasoning, robotic 1990s voice, freezes on unexpected phrasing, mouse hijacking during automation. |
+| **Tier 2: Modern Local LLM Assistants** | `BranchingBad/ollama-STT-TTS`, `officialuditpandey/JARVIS-`, `Jm7997/JARVIS` | `openWakeWord` + `faster-whisper` + Ollama (`Llama 3` / `Qwen`) + `edge-tts` / `Piper` + PyQt6 HUD | 100% offline, privacy-first, natural conversational reasoning | Often lacks deep Windows OS automation; limited contact resolution; heavy RAM consumption if unquantized. |
+| **Tier 3: Enterprise & Agentic Automators** | `OpenInterpreter`, `microsoft/JARVIS` (HuggingGPT), AutoGen Desktop | LLM Agent with Tool Calling (ReAct), Dynamic PowerShell/Python execution, Windows UIA | Can accomplish arbitrary computer tasks, self-corrects on errors | High token usage, latency, potential safety risks without strict permission gating. |
+| **KIRAHT AI (Current Architecture)** | **KIRAHT AI** | **Hybrid Brain** (`qwen2.5:3b` + `gemini-3.1-flash-lite`) + Deterministic Pre-Router + **3D Web HUD** + Native Windows API Automation | Sub-millisecond pre-routing, zero token waste on deterministic tools, persistent memory vs chat history separation, enterprise permission gate. | Real-time wake-word and token-to-voice streaming in active development. |
+
+---
+
+### 2. Architectural Pipeline Upgrades (Implemented)
+
+#### A. Window Management & "Bring-to-Front" App Switcher
+- **Duplicate Window Prevention**: When user says *"open chrome"*, *"open vs code"*, or *"open notepad"*, KIRAHT AI now inspects active visible windows via Win32 `EnumWindows` and brings the existing instance to the foreground instead of spawning redundant windows.
+- **Windows 11 Foreground Restriction Bypass**: Uses the Win32 `AttachThreadInput` trick with `SW_RESTORE` and `SetForegroundWindow` to ensure background workers can bring windows to the top without flashing orange on the taskbar.
+- **Window State Directives**:
+  - `minimize window` / `minimize <app>`
+  - `maximize window` / `maximize <app>`
+  - `restore window` / `unminimize <app>`
+  - `switch to <app>` / `focus <app>`
+  - `close window` / `close active window` (graceful `WM_CLOSE` without killing process trees)
+
+#### B. Windows Registry "App Paths" Indexing
+- Scans both `HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths` and `HKCU\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths` plus `%LOCALAPPDATA%\Microsoft\WindowsApps`.
+- Directly indexes developer tools, editors, and utilities (`code.exe`, `chrome.exe`, `brave.exe`, `notepad++.exe`, `vlc.exe`, `7zFM.exe`, `wt.exe`) that do not always create Start Menu shortcuts.
+
+#### C. Zero-Drop WhatsApp Automation Pipeline
+- Replaced fixed delays with dynamic active window polling (`wait_for_window_active`) up to 3.5s timeout.
+- Instant process-name checking via `psutil.Process(pid)` replacing whole-system iteration loops.
+- Active clipboard and selection verification (`Ctrl+A` -> `Ctrl+V` -> multi-pulse Enter) preventing duplicate characters or missed deliveries under high system load.
+
+#### D. Tactical Web HUD Voice Engine
+- **Voice Input (Speech-to-Text)**: Tactical microphone button (`🎙️`) in the chat input bar utilizing Web Speech Recognition (`webkitSpeechRecognition`) with real-time transcript streaming.
+- **Voice Output (Text-to-Speech)**: High-speed vocal speech synthesis (`🔊 VOICE MODE`) reading assistant responses aloud with natural cadence and Markdown stripping.
+- **Reactive Equalizer Frequency Spectrum**: Real-time wave harmonic animations in the 32-bar audio spectrum while KIRAHT is speaking.
+
+---
+
+### 3. Future Roadmap Phases
+
+```text
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       KIRAHT AI UPCOMING ROADMAP                            │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Phase 1: Real-Time Sentence-Level Neural Voice (Edge-TTS / Piper)           │
+│   • As tokens stream from Ollama/Gemini, buffer until punctuation (. ! ?)   │
+│   • Stream audio chunks over WebSocket to Web HUD audio buffer               │
+│   • Time-to-first-voice drops to <300ms with ultra-realistic human cadence  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Phase 2: Ultra-Low-Power Wake-Word Engine (openWakeWord)                    │
+│   • 100% offline local ONNX model listening for "Hey Kiraht" or "Jarvis"     │
+│   • Consumes <1% CPU with Silero Voice Activity Detection (VAD)             │
+│   • Hands-free activation from across the room without cloud dependencies    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Phase 3: Proactive Hardware Watchdog & System Alerts                        │
+│   • Background daemon monitoring battery (<20%), RAM (>90%), and CPU (>95%) │
+│   • Pushes tactical HUD alerts and audio chimes before system degradation    │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Phase 4: Headless Background Browser Worker (Playwright)                    │
+│   • Silent WhatsApp dispatch and background web research                    │
+│   • Executes tasks without stealing screen focus when user is gaming/coding  │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ Phase 5: Autonomous Multi-Step Agentic Planning                             │
+│   • ReAct / plan-and-solve execution loops for multi-stage PC directives    │
+│   • Self-correction and retry loops on unexpected file or process errors    │
+└─────────────────────────────────────────────────────────────────────────────┘
+```

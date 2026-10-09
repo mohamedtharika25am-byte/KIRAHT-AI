@@ -613,6 +613,9 @@
     card.appendChild(body);
 
     chatViewport.appendChild(card);
+    if (!isUser && typeof isVoiceModeEnabled !== 'undefined' && isVoiceModeEnabled && content) {
+      speakAloud(content);
+    }
     return contentEl;
   }
 
@@ -837,6 +840,10 @@
     const engineTag = (meta && meta.engine) ? meta.engine.toUpperCase() : 'AI';
     const sourceLabel = (meta && meta.source_label) ? meta.source_label : `Delivered via ${engineTag}`;
     logActivity('KIRAHT', 'Response Done', sourceLabel);
+
+    if (typeof isVoiceModeEnabled !== 'undefined' && isVoiceModeEnabled && textToRender) {
+      speakAloud(textToRender);
+    }
 
     currentStreamingCard = null;
     currentStreamingContentEl = null;
@@ -1070,12 +1077,157 @@
     });
   }
 
-  // Load history navbar button
-  const btnLoadHistory = document.getElementById('btn-load-history');
-  if (btnLoadHistory) {
-    btnLoadHistory.addEventListener('click', function () {
-      displayLoadedHistory();
-    });
+  // =========================================================================
+  // 7.1 VOICE SYSTEM: SPEECH RECOGNITION (MIC) & SPEECH SYNTHESIS (VOICE)
+  // =========================================================================
+  const btnMic = document.getElementById('btn-mic');
+  const btnVoiceMode = document.getElementById('btn-voice-mode');
+  const navVoiceText = document.getElementById('nav-voice-text');
+  const equalizerBars = document.getElementById('equalizer-bars');
+
+  let isVoiceModeEnabled = localStorage.getItem('kiraht_voice_mode') === 'true';
+  let recognition = null;
+  let isListening = false;
+
+  function updateVoiceModeUI() {
+    if (navVoiceText) {
+      navVoiceText.textContent = isVoiceModeEnabled ? 'VOICE: ON' : 'VOICE: OFF';
+    }
+    if (btnVoiceMode) {
+      if (isVoiceModeEnabled) {
+        btnVoiceMode.classList.add('voice-active');
+      } else {
+        btnVoiceMode.classList.remove('voice-active');
+      }
+    }
+  }
+
+  function toggleVoiceMode() {
+    isVoiceModeEnabled = !isVoiceModeEnabled;
+    localStorage.setItem('kiraht_voice_mode', isVoiceModeEnabled ? 'true' : 'false');
+    updateVoiceModeUI();
+    logActivity('System', 'Voice Mode', isVoiceModeEnabled ? 'JARVIS vocal speech enabled' : 'Vocal speech muted');
+    if (!isVoiceModeEnabled && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+      if (equalizerBars) equalizerBars.classList.remove('speaking');
+    }
+  }
+
+  if (btnVoiceMode) {
+    btnVoiceMode.addEventListener('click', toggleVoiceMode);
+  }
+  updateVoiceModeUI();
+
+  // Speech Synthesis Helper (Vocal Speech Output)
+  function cleanTextForSpeech(text) {
+    if (!text) return '';
+    return text
+      .replace(/```[\s\S]*?```/g, 'Code block omitted.')
+      .replace(/`([^`]+)`/g, '$1')
+      .replace(/!\[[^\]]*\]\([^)]+\)/g, '')
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+      .replace(/[*_#~>]/g, '')
+      .replace(/https?:\/\/\S+/g, 'link')
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+
+  function speakAloud(text) {
+    if (!window.speechSynthesis || !isVoiceModeEnabled) return;
+    const clean = cleanTextForSpeech(text);
+    if (!clean) return;
+
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(clean);
+    utterance.rate = 1.05;
+    utterance.pitch = 1.0;
+
+    const voices = window.speechSynthesis.getVoices();
+    const englishVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('David') || v.name.includes('Mark') || v.name.includes('Samantha'))) || voices.find(v => v.lang.startsWith('en'));
+    if (englishVoice) {
+      utterance.voice = englishVoice;
+    }
+
+    utterance.onstart = function () {
+      if (equalizerBars) equalizerBars.classList.add('speaking');
+    };
+    utterance.onend = function () {
+      if (equalizerBars) equalizerBars.classList.remove('speaking');
+    };
+    utterance.onerror = function () {
+      if (equalizerBars) equalizerBars.classList.remove('speaking');
+    };
+
+    window.speechSynthesis.speak(utterance);
+  }
+
+  // Web Speech Recognition Helper (Microphone Input)
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (SpeechRecognition) {
+    recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = function () {
+      isListening = true;
+      if (btnMic) btnMic.classList.add('listening');
+      if (chatInput) chatInput.placeholder = 'Listening to your voice... Speak now.';
+      logActivity('User', 'Voice Input', 'Microphone active — listening...');
+    };
+
+    recognition.onresult = function (event) {
+      let interim = '';
+      let final = '';
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          final += event.results[i][0].transcript;
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+      if (chatInput) {
+        chatInput.value = final || interim;
+      }
+    };
+
+    recognition.onerror = function (event) {
+      isListening = false;
+      if (btnMic) btnMic.classList.remove('listening');
+      if (chatInput) chatInput.placeholder = 'Type a message, system command, QR link, calculation, or question...';
+      logActivity('System', 'Mic Notice', event.error || 'Recognition ended');
+    };
+
+    recognition.onend = function () {
+      isListening = false;
+      if (btnMic) btnMic.classList.remove('listening');
+      if (chatInput) chatInput.placeholder = 'Type a message, system command, QR link, calculation, or question...';
+      if (chatInput && chatInput.value.trim()) {
+        chatInput.focus();
+      }
+    };
+  }
+
+  function toggleMicListening() {
+    if (!recognition) {
+      logActivity('System', 'Mic Notice', 'Web Speech Recognition not supported in this browser.');
+      alert('Speech Recognition is not supported by your current browser. Please open in Google Chrome, Microsoft Edge, or Brave Browser.');
+      return;
+    }
+
+    if (isListening) {
+      recognition.stop();
+    } else {
+      try {
+        recognition.start();
+      } catch (err) {
+        recognition.stop();
+      }
+    }
+  }
+
+  if (btnMic) {
+    btnMic.addEventListener('click', toggleMicListening);
   }
 
   // Large Tactical Quick Action Tiles
@@ -1444,7 +1596,7 @@
         return;
       }
 
-      // 8. Alt + H (Load History), Alt + T (Telemetry), and Alt + Q (Actions)
+      // 8. Alt + H (Load History), Alt + T (Telemetry), Alt + Q (Actions), Alt + V (Voice Mic), Alt + S (Voice Mode)
       if (e.altKey && (e.key === 'h' || e.key === 'H')) {
         e.preventDefault();
         displayLoadedHistory();
@@ -1454,6 +1606,12 @@
       } else if (e.altKey && (e.key === 'q' || e.key === 'Q')) {
         e.preventDefault();
         toggleActions();
+      } else if (e.altKey && (e.key === 'v' || e.key === 'V')) {
+        e.preventDefault();
+        toggleMicListening();
+      } else if (e.altKey && (e.key === 's' || e.key === 'S')) {
+        e.preventDefault();
+        toggleVoiceMode();
       }
     });
 

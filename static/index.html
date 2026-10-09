@@ -62,6 +62,9 @@
           <button id="toggle-actions-btn" class="hud-nav-toggle-btn active" title="Toggle Quick Actions Sidebar (Alt+Q)">
             <span class="toggle-dot">●</span> ACTIONS
           </button>
+          <button id="btn-voice-mode" class="hud-nav-toggle-btn" title="Toggle JARVIS Voice Output (Speaks Responses Aloud)">
+            🔊 <span id="nav-voice-text">VOICE: OFF</span>
+          </button>
           <button id="btn-load-history" class="hud-nav-toggle-btn" title="Load Previous Chat History (Alt+H)">
             📜 <span id="nav-history-text">LOAD HISTORY</span> <span class="nav-badge" id="nav-history-count" style="display:none; margin-left:4px; font-size:10px; background:rgba(0,243,255,0.2); padding:1px 5px; border-radius:10px; border:1px solid #00f3ff;">0</span>
           </button>
@@ -317,6 +320,9 @@
             placeholder="Type a message, system command, QR link, calculation, or question..."
             rows="1"
           ></textarea>
+          <button id="btn-mic" class="btn-mic" title="Voice Input / Speech Recognition (Click to speak)">
+            <span class="mic-icon">🎙️</span>
+          </button>
           <button id="btn-send" class="btn-send" title="Send (Enter)">
             <span class="send-text">TRANSMIT</span>
             <span class="send-arrow">➔</span>
@@ -418,7 +424,29 @@
             </div>
           </button>
 
-          <!-- Tile 8: Workspace Files -->
+          <!-- Tile 8: Minimize Window -->
+          <button class="tactical-action-tile" data-action="minimize_window">
+            <div class="tile-icon-wrap">
+              <span class="tile-icon">🗕</span>
+            </div>
+            <div class="tile-content">
+              <span class="tile-title">MINIMIZE</span>
+              <span class="tile-desc">Minimize window</span>
+            </div>
+          </button>
+
+          <!-- Tile 9: Maximize Window -->
+          <button class="tactical-action-tile" data-action="maximize_window">
+            <div class="tile-icon-wrap">
+              <span class="tile-icon">🗖</span>
+            </div>
+            <div class="tile-content">
+              <span class="tile-title">MAXIMIZE</span>
+              <span class="tile-desc">Maximize window</span>
+            </div>
+          </button>
+
+          <!-- Tile 10: Workspace Files -->
           <button class="tactical-action-tile" data-action="file_manager">
             <div class="tile-icon-wrap">
               <span class="tile-icon">📁</span>
@@ -562,6 +590,14 @@
           <div class="shortcut-item">
             <span class="shortcut-keys"><kbd>Alt</kbd> + <kbd>Q</kbd></span>
             <span class="shortcut-desc">Toggle Right Quick Actions Sidebar</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="shortcut-keys"><kbd>Alt</kbd> + <kbd>V</kbd></span>
+            <span class="shortcut-desc">Voice Input / Speech Recognition (Mic)</span>
+          </div>
+          <div class="shortcut-item">
+            <span class="shortcut-keys"><kbd>Alt</kbd> + <kbd>S</kbd></span>
+            <span class="shortcut-desc">Toggle JARVIS Voice Mode (Vocal Speech Output)</span>
           </div>
         </div>
 

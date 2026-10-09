@@ -1523,6 +1523,61 @@ body.cyber-hud {
   100% { box-shadow: 0 0 18px rgba(239, 68, 68, 0.85); }
 }
 
+/* Tactical Mic Button */
+.btn-mic {
+  background: rgba(0, 243, 255, 0.1);
+  border: 1px solid var(--accent-cyan);
+  color: var(--accent-cyan);
+  border-radius: 6px;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+  box-shadow: 0 0 8px rgba(0, 243, 255, 0.2);
+}
+
+.btn-mic:hover {
+  background: rgba(0, 243, 255, 0.25);
+  box-shadow: 0 0 16px rgba(0, 243, 255, 0.6);
+  transform: translateY(-1px);
+}
+
+.btn-mic.listening {
+  background: rgba(239, 68, 68, 0.25) !important;
+  border-color: #ef4444 !important;
+  color: #ff3366 !important;
+  box-shadow: 0 0 20px rgba(239, 68, 68, 0.7) !important;
+  animation: micListenPulse 1s infinite alternate;
+}
+
+@keyframes micListenPulse {
+  0% { transform: scale(0.96); box-shadow: 0 0 8px rgba(239, 68, 68, 0.4); }
+  100% { transform: scale(1.06); box-shadow: 0 0 22px rgba(239, 68, 68, 0.9); }
+}
+
+/* Voice Output Toggle Button Active State */
+.hud-nav-toggle-btn.voice-active {
+  background: rgba(0, 243, 255, 0.22) !important;
+  border-color: var(--accent-cyan) !important;
+  color: var(--accent-cyan) !important;
+  box-shadow: 0 0 14px rgba(0, 243, 255, 0.5) !important;
+}
+
+/* Equalizer Speaking Wave Reactive Animation */
+.equalizer-bars.speaking .bar {
+  animation: eq-speaking 0.35s ease-in-out infinite alternate !important;
+}
+
+@keyframes eq-speaking {
+  0% { height: 20%; filter: brightness(0.9); }
+  50% { height: 85%; filter: brightness(1.4); }
+  100% { height: 100%; filter: brightness(1.8); }
+}
+
 /* ==================== RIGHT: LARGE TACTICAL ACTION TILES ==================== */
 .right-panel {
   width: var(--actions-width, 220px);

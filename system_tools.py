@@ -19,6 +19,7 @@ import win32clipboard
 import threading
 import time
 import psutil
+from typing import Optional, List, Dict, Tuple
 
 NOTES_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "notes.json")
 CONTACTS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contacts.json")
@@ -1296,23 +1297,7 @@ def _activate_whatsapp_window() -> bool:
     user32.EnumWindows(WNDENUMPROC(enum_cb), 0)
 
     if target_hwnd:
-        try:
-            cur_thread = kernel32.GetCurrentThreadId()
-            target_pid = ctypes.wintypes.DWORD()
-            target_thread = user32.GetWindowThreadProcessId(target_hwnd, ctypes.byref(target_pid))
-            user32.AttachThreadInput(cur_thread, target_thread, True)
-            if user32.IsIconic(target_hwnd):
-                user32.ShowWindow(target_hwnd, win32con.SW_RESTORE)
-            user32.ShowWindow(target_hwnd, win32con.SW_SHOW)
-            user32.SetForegroundWindow(target_hwnd)
-            user32.BringWindowToTop(target_hwnd)
-            # Intentionally do NOT call user32.SetFocus(target_hwnd):
-            # Calling SetFocus on the top-level container window strips focus
-            # away from the child message input box in WinUI 3.
-            user32.AttachThreadInput(cur_thread, target_thread, False)
-            return True
-        except Exception:
-            pass
+        return force_foreground_window(target_hwnd)
 
     # Fallback to WScript.Shell
     try:
@@ -1326,6 +1311,243 @@ def _activate_whatsapp_window() -> bool:
                     return True
     except Exception:
         pass
+    return False
+
+def force_foreground_window(hwnd: int) -> bool:
+    """
+    Forces a window to the foreground, bypassing Windows 11 SetForegroundWindow lockouts
+    using Win32 AttachThreadInput and SW_RESTORE.
+    """
+    import ctypes
+    import ctypes.wintypes
+    import win32con
+
+    user32 = ctypes.windll.user32
+    kernel32 = ctypes.windll.kernel32
+
+    if not hwnd or not user32.IsWindow(hwnd):
+        return False
+
+    try:
+        cur_thread = kernel32.GetCurrentThreadId()
+        fg_hwnd = user32.GetForegroundWindow()
+        fg_pid = ctypes.wintypes.DWORD()
+        fg_thread = user32.GetWindowThreadProcessId(fg_hwnd, ctypes.byref(fg_pid)) if fg_hwnd else 0
+
+        target_pid = ctypes.wintypes.DWORD()
+        target_thread = user32.GetWindowThreadProcessId(hwnd, ctypes.byref(target_pid))
+
+        attached_cur = False
+        attached_fg = False
+
+        if cur_thread != target_thread:
+            attached_cur = bool(user32.AttachThreadInput(cur_thread, target_thread, True))
+        if fg_thread and fg_thread != target_thread:
+            attached_fg = bool(user32.AttachThreadInput(fg_thread, target_thread, True))
+
+        if user32.IsIconic(hwnd):
+            user32.ShowWindow(hwnd, win32con.SW_RESTORE)
+        user32.ShowWindow(hwnd, win32con.SW_SHOW)
+        user32.SetForegroundWindow(hwnd)
+        user32.BringWindowToTop(hwnd)
+
+        if attached_cur:
+            user32.AttachThreadInput(cur_thread, target_thread, False)
+        if attached_fg:
+            user32.AttachThreadInput(fg_thread, target_thread, False)
+        return True
+    except Exception:
+        return False
+
+def find_window_by_app_query(app_query: str) -> Optional[int]:
+    """
+    Finds a top-level visible window matching an application name or process.
+    Supports title matching and executable process matching.
+    """
+    import ctypes
+    import ctypes.wintypes
+
+    user32 = ctypes.windll.user32
+    clean = (app_query or "").strip().lower()
+    if not clean:
+        return None
+
+    # Common window title and alias normalization
+    alias_map = {
+        "vscode": "visual studio code",
+        "vs code": "visual studio code",
+        "code": "visual studio code",
+        "taskmgr": "task manager",
+        "task manager": "task manager",
+        "chrome": "chrome",
+        "google chrome": "chrome",
+        "brave": "brave",
+        "brave browser": "brave",
+        "whatsapp": "whatsapp",
+        "spotify": "spotify",
+        "notepad": "notepad",
+        "calc": "calculator",
+        "calculator": "calculator",
+        "terminal": "windows terminal",
+        "cmd": "command prompt",
+        "powershell": "powershell",
+        "explorer": "file explorer",
+    }
+    match_term = alias_map.get(clean, clean)
+    matched_hwnd = None
+
+    def enum_cb(hwnd, extra):
+        nonlocal matched_hwnd
+        if not user32.IsWindowVisible(hwnd):
+            return True
+
+        length = user32.GetWindowTextLengthW(hwnd)
+        if length <= 0:
+            return True
+
+        buff = ctypes.create_unicode_buffer(length + 1)
+        user32.GetWindowTextW(hwnd, buff, length + 1)
+        title = buff.value.lower()
+
+        # Ignore tiny tooltip or framework windows
+        rect = ctypes.wintypes.RECT()
+        user32.GetWindowRect(hwnd, ctypes.byref(rect))
+        if (rect.right - rect.left) < 100 or (rect.bottom - rect.top) < 60:
+            return True
+
+        # 1. Direct title search
+        if match_term in title:
+            matched_hwnd = hwnd
+            return False
+
+        # 2. Check process name for the window
+        pid = ctypes.wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+        if pid.value:
+            try:
+                proc = psutil.Process(pid.value)
+                pname = proc.name().lower()
+                if match_term in pname or clean in pname:
+                    matched_hwnd = hwnd
+                    return False
+            except Exception:
+                pass
+        return True
+
+    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_int, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
+    user32.EnumWindows(WNDENUMPROC(enum_cb), 0)
+    return matched_hwnd
+
+def switch_to_app_window(app_query: str, call_me: str = "Sir") -> tuple[bool, str]:
+    """
+    Brings an existing application window to the active foreground.
+    Returns (True, message) if successfully switched, or (False, "") if no window found.
+    """
+    hwnd = find_window_by_app_query(app_query)
+    if hwnd and force_foreground_window(hwnd):
+        return True, f"{call_me}, switched to active {app_query.title()} window."
+    return False, ""
+
+def minimize_window(target: str = "active", call_me: str = "Sir") -> str:
+    """
+    Minimizes the active window or a specified application window.
+    """
+    import ctypes
+    import win32con
+
+    user32 = ctypes.windll.user32
+    clean = (target or "active").strip().lower()
+
+    if clean in ("active", "this", "current", "here", "window", "the window", "this window", ""):
+        hwnd = user32.GetForegroundWindow()
+        disp = "current"
+    else:
+        hwnd = find_window_by_app_query(clean)
+        disp = clean.title()
+
+    if hwnd and user32.IsWindow(hwnd):
+        user32.ShowWindow(hwnd, win32con.SW_MINIMIZE)
+        return f"{call_me}, minimized {disp} window."
+    return f"{call_me}, no active window found to minimize."
+
+def maximize_window(target: str = "active", call_me: str = "Sir") -> str:
+    """
+    Maximizes the active window or a specified application window.
+    """
+    import ctypes
+    import win32con
+
+    user32 = ctypes.windll.user32
+    clean = (target or "active").strip().lower()
+
+    if clean in ("active", "this", "current", "here", "window", "the window", "this window", ""):
+        hwnd = user32.GetForegroundWindow()
+        disp = "current"
+    else:
+        hwnd = find_window_by_app_query(clean)
+        disp = clean.title()
+
+    if hwnd and user32.IsWindow(hwnd):
+        force_foreground_window(hwnd)
+        user32.ShowWindow(hwnd, win32con.SW_MAXIMIZE)
+        return f"{call_me}, maximized {disp} window."
+    return f"{call_me}, no window found to maximize."
+
+def restore_window(target: str = "active", call_me: str = "Sir") -> str:
+    """
+    Restores a minimized or maximized window to its normal state.
+    """
+    import ctypes
+    import win32con
+
+    user32 = ctypes.windll.user32
+    clean = (target or "active").strip().lower()
+
+    if clean in ("active", "this", "current", "here", "window", "the window", "this window", ""):
+        hwnd = user32.GetForegroundWindow()
+        disp = "current"
+    else:
+        hwnd = find_window_by_app_query(clean)
+        disp = clean.title()
+
+    if hwnd and user32.IsWindow(hwnd):
+        user32.ShowWindow(hwnd, win32con.SW_RESTORE)
+        force_foreground_window(hwnd)
+        return f"{call_me}, restored {disp} window."
+    return f"{call_me}, no window found to restore."
+
+def close_active_window(target: str = "active", call_me: str = "Sir") -> str:
+    """
+    Gracefully closes the active window or target window by posting WM_CLOSE (0x0010).
+    Unlike taskkill, this prompts for unsaved changes and closes cleanly.
+    """
+    import ctypes
+
+    user32 = ctypes.windll.user32
+    clean = (target or "active").strip().lower()
+
+    if clean in ("active", "this", "current", "here", "window", "the window", "this window", ""):
+        hwnd = user32.GetForegroundWindow()
+        disp = "active window"
+    else:
+        hwnd = find_window_by_app_query(clean)
+        disp = f"{clean.title()} window"
+
+    if hwnd and user32.IsWindow(hwnd):
+        # WM_CLOSE = 0x0010
+        user32.PostMessageW(hwnd, 0x0010, 0, 0)
+        return f"{call_me}, closed {disp}."
+    return f"{call_me}, no active window found to close."
+
+def wait_for_window_active(title_sub: str = "whatsapp", timeout: float = 3.5) -> bool:
+    """
+    Polls active window handle to verify readiness before sending keystrokes.
+    """
+    start = time.time()
+    while time.time() - start < timeout:
+        if is_whatsapp_focused():
+            return True
+        time.sleep(0.08)
     return False
 
 def _send_whatsapp_enter_keystrokes(ensure_focus: bool = False):
@@ -1371,6 +1593,7 @@ def is_whatsapp_focused() -> bool:
     """
     Verifies if the current foreground window belongs to WhatsApp Desktop.
     Prevents leaking Ctrl+F, Ctrl+V, or Enter keystrokes into browsers or code editors.
+    Optimized with direct process lookup to prevent system CPU lag.
     """
     try:
         user32 = ctypes.windll.user32
@@ -1387,9 +1610,11 @@ def is_whatsapp_focused() -> bool:
         pid = ctypes.wintypes.DWORD()
         user32.GetWindowThreadProcessId(fg, ctypes.byref(pid))
         if pid.value:
-            for p in psutil.process_iter(['pid', 'name']):
-                if p.info['pid'] == pid.value:
-                    return 'what' in p.info['name'].lower()
+            try:
+                proc = psutil.Process(pid.value)
+                return 'what' in proc.name().lower()
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
     except Exception:
         pass
     return False
@@ -1410,17 +1635,17 @@ def dispatch_whatsapp_desktop(search_term: str, message: str, auto_send: bool = 
             os.startfile("whatsapp:")
         except Exception:
             pass
-        for _ in range(10):
-            time.sleep(0.3)
+        for _ in range(12):
+            time.sleep(0.25)
             if _activate_whatsapp_window():
                 break
 
-    time.sleep(0.35)
+    time.sleep(0.3)
 
     # SAFETY GUARANTEE: Never send keystrokes if WhatsApp is not the focused window!
     if not is_whatsapp_focused():
         _activate_whatsapp_window()
-        time.sleep(0.3)
+        time.sleep(0.25)
         if not is_whatsapp_focused():
             try:
                 os.startfile(f"whatsapp://send?text={urllib.parse.quote(message)}")
@@ -1430,13 +1655,13 @@ def dispatch_whatsapp_desktop(search_term: str, message: str, auto_send: bool = 
 
     # 2. Press Escape twice to dismiss any open search query, menu, or dialog
     _press_key_hardware(VK_ESCAPE)
-    time.sleep(0.15)
+    time.sleep(0.12)
     _press_key_hardware(VK_ESCAPE)
-    time.sleep(0.2)
+    time.sleep(0.15)
 
     # 3. Focus search bar (Ctrl + F)
     _hotkey_ctrl(VK_F)
-    time.sleep(0.35)
+    time.sleep(0.3)
 
     # 4. Clear any existing text in the search bar (Ctrl + A, Backspace)
     try:
@@ -1445,38 +1670,38 @@ def dispatch_whatsapp_desktop(search_term: str, message: str, auto_send: bool = 
         wscript.SendKeys("^a{BACKSPACE}")
     except Exception:
         pass
-    time.sleep(0.15)
+    time.sleep(0.12)
 
     # 5. Type/paste the search term (contact name, group name, or raw search query)
     _set_clipboard_text(search_term)
     _hotkey_ctrl(VK_V)
-    time.sleep(1.2)  # Allow WhatsApp search engine to query SQLite and render results list
+    time.sleep(1.0)  # Allow WhatsApp search engine to query SQLite and render results list
 
     # 6. Navigate to top search result (Down Arrow) and open it (Enter)
     _press_key_hardware(VK_DOWN)
-    time.sleep(0.25)
+    time.sleep(0.2)
     _press_key_hardware(VK_RETURN)
-    time.sleep(1.2)  # Wait for conversation to load, history to render, and message box to gain focus
+    time.sleep(1.0)  # Wait for conversation to load, history to render, and message box to gain focus
 
     # 7. Paste message into chat input field (select all first to prevent duplicates)
     _set_clipboard_text(message)
     _hotkey_ctrl(VK_A)
     time.sleep(0.06)
     _hotkey_ctrl(VK_V)
-    time.sleep(0.45)  # Allow WhatsApp UI to process the paste and enable the send state
+    time.sleep(0.35)  # Allow WhatsApp UI to process the paste and enable the send state
 
     # 8. If auto_send requested, dispatch multi-stage Enter keystrokes
     if auto_send:
         # Immediate multi-layered pulse directly into the active focused input box
         _send_whatsapp_enter_keystrokes(ensure_focus=False)
-        time.sleep(0.3)
+        time.sleep(0.25)
         _send_whatsapp_enter_keystrokes(ensure_focus=False)
-        time.sleep(0.4)
+        time.sleep(0.35)
         _send_whatsapp_enter_keystrokes(ensure_focus=False)
 
         # Background watchdog thread to guarantee delivery even under heavy system load
         def _bg_enter_watchdog():
-            for delay in (0.8, 1.8, 3.0):
+            for delay in (0.6, 1.5, 2.8):
                 time.sleep(delay)
                 _send_whatsapp_enter_keystrokes(ensure_focus=True)
 
@@ -1487,23 +1712,28 @@ def _safe_paste_into_chat(message: str, auto_send: bool = False, delay: float = 
     Ensures message is actively filled into WhatsApp chat input box,
     working around the Windows WhatsApp Desktop (UWP) bug where
     'whatsapp://send?phone=...&text=...' opens the chat but ignores the &text= parameter.
-    Selects all text (Ctrl+A) before pasting (Ctrl+V) so that any existing or prefilled
-    text is replaced cleanly, preventing double duplication (e.g. 'byebye', 'hihi').
+    Uses dynamic window polling with AttachThreadInput instead of a blind sleep.
     """
-    time.sleep(delay)
-    _activate_whatsapp_window()
-    time.sleep(0.25)
-    if not is_whatsapp_focused():
-        time.sleep(0.35)
+    start = time.time()
+    # Wait dynamically for WhatsApp to become focused/ready (up to 3.5s timeout)
+    while time.time() - start < 3.5:
+        if is_whatsapp_focused():
+            break
         _activate_whatsapp_window()
+        time.sleep(0.12)
+
+    if not is_whatsapp_focused():
+        _activate_whatsapp_window()
+        time.sleep(0.2)
         if not is_whatsapp_focused():
             return
+
     _set_clipboard_text(message)
     # Select all text in the message input box to replace any existing prefilled text
     _hotkey_ctrl(VK_A)
     time.sleep(0.06)
     _hotkey_ctrl(VK_V)
-    time.sleep(0.35)
+    time.sleep(0.3)
     if auto_send:
         _send_whatsapp_enter_keystrokes(ensure_focus=False)
 

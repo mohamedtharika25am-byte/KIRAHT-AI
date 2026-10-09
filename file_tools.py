@@ -332,22 +332,39 @@ def get_folder_info(folder_path: str, call_me: str = "Sir") -> str:
 def open_file_in_editor(filepath: str, call_me: str = "Sir") -> str:
     """
     Opens target file directly in VS Code if available, or system default editor.
+    Uses high-speed non-blocking launch to avoid UI freezes.
     """
     full_path = resolve_path(filepath)
     if not os.path.exists(full_path):
         return f"{call_me}, file '{filepath}' does not exist."
 
     base_name = os.path.basename(full_path)
+    set_last_path(full_path)
 
-    # Try opening in VS Code first
-    try:
-        res = subprocess.run(["code", full_path], shell=True, capture_output=True, timeout=3)
-        if res.returncode == 0:
+    # 1. Try launching via VS Code executable directly
+    vscode_paths = [
+        os.path.expandvars(r"%LOCALAPPDATA%\Programs\Microsoft VS Code\Code.exe"),
+        os.path.expandvars(r"%PROGRAMFILES%\Microsoft VS Code\Code.exe"),
+        os.path.expandvars(r"%PROGRAMFILES(X86)%\Microsoft VS Code\Code.exe"),
+    ]
+    for vpath in vscode_paths:
+        if os.path.exists(vpath):
+            try:
+                subprocess.Popen([vpath, full_path])
+                return f"{call_me}, opened '{base_name}' in Visual Studio Code."
+            except Exception:
+                pass
+
+    # 2. Try code command on PATH
+    code_path = shutil.which("code") or shutil.which("code.cmd")
+    if code_path:
+        try:
+            subprocess.Popen([code_path, full_path], shell=True)
             return f"{call_me}, opened '{base_name}' in Visual Studio Code."
-    except Exception:
-        pass
+        except Exception:
+            pass
 
-    # Fallback to default Windows program
+    # 3. Fallback to default Windows program
     try:
         os.startfile(full_path)
         return f"{call_me}, opened '{base_name}' in default editor."
@@ -599,7 +616,6 @@ def safe_delete_file(filepath: str, call_me: str = "Sir") -> str:
         bak_path = os.path.join(bak_dir, f"{base_name}_{timestamp}.bak")
         shutil.copy2(full_path, bak_path)
 
-        shutil.remove = os.remove
         os.remove(full_path)
         return f"{call_me}, successfully deleted '{base_name}'. (Safety backup saved in .kiraht_trash/)"
     except Exception as err:

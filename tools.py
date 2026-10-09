@@ -93,6 +93,11 @@ from system_tools import (
     resolve_contact,
     resolve_group,
     send_whatsapp_message,
+    switch_to_app_window,
+    minimize_window,
+    maximize_window,
+    restore_window,
+    close_active_window,
 )
 
 # Virtual-Key codes for Windows user32 keybd_event fallback
@@ -546,6 +551,51 @@ def scan_installed_apps() -> dict:
     except Exception:
         pass
 
+    # 3. Windows Registry App Paths (HKLM & HKCU)
+    try:
+        import winreg
+        for root in (winreg.HKEY_LOCAL_MACHINE, winreg.HKEY_CURRENT_USER):
+            try:
+                key = winreg.OpenKey(root, r"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths")
+                num_subkeys = winreg.QueryInfoKey(key)[0]
+                for i in range(num_subkeys):
+                    try:
+                        sub_name = winreg.EnumKey(key, i)
+                        sub_key = winreg.OpenKey(key, sub_name)
+                        exe_path, _ = winreg.QueryValueEx(sub_key, "")
+                        if exe_path and os.path.exists(exe_path):
+                            clean_k = os.path.splitext(sub_name)[0].lower().strip()
+                            display_n = os.path.splitext(sub_name)[0].replace(".exe", "").title()
+                            if clean_k not in apps:
+                                apps[clean_k] = {
+                                    "name": display_n,
+                                    "type": "exe",
+                                    "target": exe_path,
+                                }
+                    except Exception:
+                        continue
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+    # 4. WindowsApps execution aliases (%LOCALAPPDATA%\Microsoft\WindowsApps)
+    local_app_data = os.environ.get("LOCALAPPDATA", "")
+    winapps_dir = os.path.join(local_app_data, "Microsoft", "WindowsApps")
+    if os.path.exists(winapps_dir):
+        try:
+            for item in os.listdir(winapps_dir):
+                if item.lower().endswith(".exe"):
+                    name_k = os.path.splitext(item)[0].lower()
+                    if name_k not in apps and name_k not in ("winget", "python", "python3"):
+                        apps[name_k] = {
+                            "name": name_k.title(),
+                            "type": "exe",
+                            "target": os.path.join(winapps_dir, item),
+                        }
+        except Exception:
+            pass
+
     try:
         with open(APPS_CACHE_FILE, "w", encoding="utf-8") as f:
             json.dump(apps, f, indent=2, ensure_ascii=False)
@@ -628,9 +678,10 @@ def find_installed_app(app_query: str) -> dict | None:
     return None
 
 
-def launch_desktop_app(app_name: str, call_me: str = "Sir") -> tuple[bool, str]:
+def launch_desktop_app(app_name: str, call_me: str = "Sir", force_new: bool = False) -> tuple[bool, str]:
     """
     Launches a native installed application directly on Windows.
+    Includes "Bring-to-Front" focus for already running applications to prevent duplicate windows.
     Includes automatic browser fallback for services like ChatGPT.
     Supports pronoun resolution ('open it', 'launch that') to the last referenced application.
     """
@@ -651,6 +702,18 @@ def launch_desktop_app(app_name: str, call_me: str = "Sir") -> tuple[bool, str]:
 
     if not clean_name:
         return False, f"{call_me}, which application would you like me to open?"
+
+    # Check for "new window" requests (e.g. "open new chrome", "new vs code")
+    if clean_name.startswith("new "):
+        force_new = True
+        clean_name = clean_name[4:].strip()
+
+    # 0. "Bring-to-Front" check: If app is already open and running, switch to its active window!
+    if not force_new and clean_name not in ("cmd", "terminal", "powershell", "python"):
+        switched, switch_msg = switch_to_app_window(clean_name, call_me=call_me)
+        if switched:
+            set_last_app(clean_name)
+            return True, switch_msg
 
     # Dedicated launcher for Tharik's Atomic Boom Game project
     if clean_name in ("atomic boom", "atomic game", "atomic boom game", "atomic", "kiraht project", "kirahts project", "kiraht's project"):
@@ -2136,10 +2199,53 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
         launched, msg = launch_desktop_app(app_target, call_me=call_me)
         return True, f"{call_me}, closed {app_target.title()} and reopened it."
 
-    # 21. Close Application
+    # 20.5 Window Management Controls (Minimize, Maximize, Restore, Switch, Close Active Window)
+    # 20.5.1 Minimize Window / App
+    min_match = re.search(r"^(?:please\s+)?(?:minimize|minimise)\s*(?:the\s+)?(window|this\s+window|active\s+window|current\s+window|this|[a-zA-Z0-9\s\-]+)?$", cleaned)
+    if min_match:
+        target_win = (min_match.group(1) or "active").strip()
+        if target_win in ("window", "this window", "active window", "current window", "this", ""):
+            return True, minimize_window("active", call_me=call_me)
+        return True, minimize_window(target_win, call_me=call_me)
+
+    # 20.5.2 Maximize Window / App
+    max_match = re.search(r"^(?:please\s+)?(?:maximize|maximise)\s*(?:the\s+)?(window|this\s+window|active\s+window|current\s+window|this|[a-zA-Z0-9\s\-]+)?$", cleaned)
+    if max_match:
+        target_win = (max_match.group(1) or "active").strip()
+        if target_win in ("window", "this window", "active window", "current window", "this", ""):
+            return True, maximize_window("active", call_me=call_me)
+        return True, maximize_window(target_win, call_me=call_me)
+
+    # 20.5.3 Restore / Unminimize Window / App
+    rest_match = re.search(r"^(?:please\s+)?(?:restore|unminimize|unminimise)\s*(?:the\s+)?(window|this\s+window|active\s+window|current\s+window|this|[a-zA-Z0-9\s\-]+)?$", cleaned)
+    if rest_match:
+        target_win = (rest_match.group(1) or "active").strip()
+        if target_win in ("window", "this window", "active window", "current window", "this", ""):
+            return True, restore_window("active", call_me=call_me)
+        return True, restore_window(target_win, call_me=call_me)
+
+    # 20.5.4 Switch To / Focus Application Window
+    switch_match = re.search(r"^(?:please\s+)?(?:switch\s+to|bring\s+(?:to\s+front\s+)?|focus\s+on|focus)\s+([a-zA-Z0-9\s\-]+)$", cleaned)
+    if switch_match:
+        target_app = switch_match.group(1).strip()
+        switched, s_msg = switch_to_app_window(target_app, call_me=call_me)
+        if switched:
+            set_last_app(target_app)
+            return True, s_msg
+        # If no existing window is open, launch it
+        launched, l_msg = launch_desktop_app(target_app, call_me=call_me)
+        return True, l_msg
+
+    # 20.5.5 Close Active Window Gracefully
+    if re.search(r"^(?:please\s+)?close\s+(?:the\s+)?(?:active\s+window|current\s+window|this\s+window|window)$", cleaned):
+        return True, close_active_window("active", call_me=call_me)
+
+    # 21. Close Application (Process termination)
     close_match = re.search(r"^(?:please\s+)?(?:close|kill|quit|terminate)\s+([a-zA-Z0-9\s]+)\b", cleaned)
     if close_match:
         app_to_close = close_match.group(1).strip()
+        if app_to_close in ("window", "the window", "this window", "active window", "current window", "this"):
+            return True, close_active_window("active", call_me=call_me)
         return True, close_app(app_to_close, call_me=call_me)
 
     # 22. Open File or Folder (e.g. "open main.py", "open file contacts.json", "open movie.mp4")

@@ -1618,6 +1618,18 @@ async def process_user_message_stream(
             elif "task manager" in lower_res or "taskmgr" in lower_cmd:
                 display_tool = "task_manager"
                 source_lbl = "APP: TASK MANAGER"
+            elif "minimized" in lower_res:
+                display_tool = "minimize_window"
+                source_lbl = "WINDOW: MINIMIZE"
+            elif "maximized" in lower_res:
+                display_tool = "maximize_window"
+                source_lbl = "WINDOW: MAXIMIZE"
+            elif "restored" in lower_res:
+                display_tool = "restore_window"
+                source_lbl = "WINDOW: RESTORE"
+            elif "switched to" in lower_res:
+                display_tool = "switch_window"
+                source_lbl = "WINDOW: SWITCH"
             elif "closed" in lower_res and "reopened" in lower_res:
                 display_tool = "reopen_app"
                 source_lbl = "TOOL: REOPEN"
