@@ -1,6 +1,6 @@
 """
 KIRAHT AI - Web HUD Server
-FastAPI & WebSocket backend providing a local, futuristic JARVIS-style dashboard.
+FastAPI & WebSocket backend providing a local, futuristic KIRAHT AI dashboard.
 Runs locally at http://127.0.0.1:8000.
 """
 

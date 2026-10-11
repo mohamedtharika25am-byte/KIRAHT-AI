@@ -184,7 +184,9 @@
       case 'chat_history':
         cachedChatHistory = packet.messages || [];
         updateHistoryButtonBadge(cachedChatHistory.length);
-        // Clean launch mode: History is cached, not auto-rendered, to keep the startup fresh!
+        if (typeof syncTranscriptWithHistory === 'function') {
+          syncTranscriptWithHistory();
+        }
         break;
 
       case 'chat_message':
@@ -616,6 +618,15 @@
     card.appendChild(body);
 
     chatViewport.appendChild(card);
+
+    // Synchronize to Voice Transcript Sidebar
+    if (typeof appendTranscriptEntry === 'function' && content) {
+      appendTranscriptEntry(role, content, timestamp, meta);
+    }
+    if (!isUser && typeof updateVoiceResponseCard === 'function' && content) {
+      updateVoiceResponseCard(content);
+    }
+
     if (!isUser && typeof isVoiceModeEnabled !== 'undefined' && isVoiceModeEnabled && content) {
       speakAloud(content);
     }
@@ -844,6 +855,14 @@
     const sourceLabel = (meta && meta.source_label) ? meta.source_label : `Delivered via ${engineTag}`;
     logActivity('KIRAHT', 'Response Done', sourceLabel);
 
+    // Synchronize to Voice Transcript Sidebar
+    if (typeof appendTranscriptEntry === 'function' && textToRender) {
+      appendTranscriptEntry('assistant', textToRender, getCurrentTime(), meta);
+    }
+    if (typeof updateVoiceResponseCard === 'function' && textToRender) {
+      updateVoiceResponseCard(textToRender);
+    }
+
     if (typeof isVoiceModeEnabled !== 'undefined' && isVoiceModeEnabled && textToRender) {
       speakAloud(textToRender);
     }
@@ -892,6 +911,12 @@
         </div>
       </div>
     `;
+    if (typeof voiceTranscriptList !== 'undefined' && voiceTranscriptList) {
+      voiceTranscriptList.innerHTML = '';
+    }
+    if (typeof transcriptCountTag !== 'undefined' && transcriptCountTag) {
+      transcriptCountTag.textContent = '0 EXCHANGES';
+    }
     scrollToBottom();
   }
 
@@ -1022,6 +1047,7 @@
     setGeneratingState(false);
     updateStatus('READY', 'Ready for command');
     if (typeof setReactorState === 'function') setReactorState('idle');
+    if (typeof setVoicePipelineState === 'function') setVoicePipelineState('idle');
     scrollToBottom();
   }
 
@@ -1053,6 +1079,16 @@
     // Show thinking indicator & switch button to STOP (Point 8)
     showThinkingIndicator();
     setGeneratingState(true);
+
+    // Update live voice readout card and pipeline state
+    if (voiceUserText) {
+      voiceUserText.textContent = `"${text}"`;
+    }
+    if (userSpeechStatus) {
+      userSpeechStatus.textContent = 'DISPATCHED';
+      userSpeechStatus.className = 'speech-live-tag';
+    }
+    setVoicePipelineState('processing', 'TACTICAL SYNAPSE • DISPATCHING');
 
     logActivity('User', 'Transmit', text.length > 50 ? text.substring(0, 47) + '...' : text);
     sendWebSocket({ type: 'chat', message: text });
@@ -1096,18 +1132,197 @@
   }
 
   // =========================================================================
-  // 7.1 ADVANCED JARVIS VOICE ENGINE: AUDIO-REACTIVE ARC REACTOR & BARGE-IN
+  // 7.1 KIRAHT AI VOICE & TACTICAL INTERFACE ENGINE: AUDIO-REACTIVE ARC REACTOR & BARGE-IN
   // =========================================================================
   const btnMic = document.getElementById('btn-mic');
   const btnVoiceMode = document.getElementById('btn-voice-mode');
   const navVoiceText = document.getElementById('nav-voice-text');
   const equalizerBars = document.getElementById('equalizer-bars');
 
+  // Central Voice Interface elements
+  const centralVoiceInterface = document.getElementById('central-voice-interface');
+  const voiceAudioStatus = document.getElementById('voice-audio-status');
+  const pipelineIdle = document.getElementById('pipeline-idle');
+  const pipelineListening = document.getElementById('pipeline-listening');
+  const pipelineProcessing = document.getElementById('pipeline-processing');
+  const pipelineSpeaking = document.getElementById('pipeline-speaking');
+  const userSpeechCard = document.getElementById('user-speech-card');
+  const kirahtSpeechCard = document.getElementById('kiraht-speech-card');
+  const userSpeechStatus = document.getElementById('user-speech-status');
+  const kirahtSpeechStatus = document.getElementById('kiraht-speech-status');
+  const voiceUserText = document.getElementById('voice-user-text');
+  const voiceKirahtText = document.getElementById('voice-kiraht-text');
+  const btnCentralMic = document.getElementById('btn-central-mic');
+  const centralMicText = document.getElementById('central-mic-text');
+  const btnCentralInterrupt = document.getElementById('btn-central-interrupt');
+  const btnReturnChat = document.getElementById('btn-return-chat');
+
+  // Adaptive Right Panel Tabs & Voice Transcript elements
+  const tabBtnTranscript = document.getElementById('tab-btn-transcript');
+  const tabBtnActions = document.getElementById('tab-btn-actions');
+  const voiceTranscriptWrapper = document.getElementById('voice-transcript-wrapper');
+  const voiceTranscriptList = document.getElementById('voice-transcript-list');
+  const transcriptCountTag = document.getElementById('transcript-count-tag');
+  const actionTilesGrid = document.getElementById('action-tiles-grid');
+  const chatInputBar = document.getElementById('chat-input-bar');
+
   let isVoiceModeEnabled = localStorage.getItem('kiraht_voice_mode') === 'true';
+  let currentHudMode = localStorage.getItem('kiraht_hud_mode') || (isVoiceModeEnabled ? 'voice' : 'chat');
   let recognition = null;
   let isListening = false;
   let speechDebounceTimer = null;
   let activeReactorState = 'idle';
+  let currentVoiceStage = 'idle';
+
+  // Helper: Append a message to the Voice Transcript Sidebar
+  function appendTranscriptEntry(role, content, timestamp, meta) {
+    if (!voiceTranscriptList) return;
+    const isUser = role === 'user';
+    const clean = isUser ? content : (cleanTextForSpeech(content) || content);
+    if (!clean || !clean.trim()) return;
+
+    const entry = document.createElement('div');
+    entry.className = `transcript-entry ${isUser ? 'user-entry' : 'assistant-entry'}`;
+
+    const metaDiv = document.createElement('div');
+    metaDiv.className = 'transcript-entry-meta';
+
+    const roleTag = document.createElement('span');
+    roleTag.className = 'transcript-role-tag';
+    roleTag.textContent = isUser ? 'OPERATOR' : 'KIRAHT AI';
+
+    const timeSpan = document.createElement('span');
+    timeSpan.className = 'transcript-time';
+    timeSpan.textContent = timestamp || getCurrentTime();
+
+    metaDiv.appendChild(roleTag);
+    metaDiv.appendChild(timeSpan);
+    entry.appendChild(metaDiv);
+
+    const textDiv = document.createElement('div');
+    textDiv.className = 'transcript-entry-text';
+    textDiv.textContent = clean;
+    entry.appendChild(textDiv);
+
+    if (meta && meta.tool) {
+      const toolBadge = document.createElement('div');
+      toolBadge.className = 'transcript-tool-badge';
+      toolBadge.textContent = `⚡ TOOL: ${meta.tool}`;
+      entry.appendChild(toolBadge);
+    }
+
+    voiceTranscriptList.appendChild(entry);
+    voiceTranscriptList.scrollTop = voiceTranscriptList.scrollHeight;
+
+    if (transcriptCountTag) {
+      const count = voiceTranscriptList.querySelectorAll('.transcript-entry').length;
+      transcriptCountTag.textContent = `${count} EXCHANGES`;
+    }
+  }
+
+  // Helper: Synchronize entire conversation history into Voice Transcript
+  function syncTranscriptWithHistory() {
+    if (!voiceTranscriptList) return;
+    voiceTranscriptList.innerHTML = '';
+    const cards = chatViewport ? chatViewport.querySelectorAll('.msg-card') : [];
+    cards.forEach(card => {
+      const isUser = card.classList.contains('user');
+      const textEl = card.querySelector('.msg-text');
+      const timeEl = card.querySelector('.msg-timestamp');
+      if (textEl && textEl.textContent.trim()) {
+        const text = textEl.textContent.trim();
+        const time = timeEl ? timeEl.textContent.trim() : getCurrentTime();
+        appendTranscriptEntry(isUser ? 'user' : 'assistant', text, time);
+      }
+    });
+  }
+
+  // Helper: Switch Right Panel Tab (Transcript vs Actions)
+  function switchRightTab(tabName) {
+    if (tabName === 'transcript') {
+      if (tabBtnTranscript) tabBtnTranscript.classList.add('active');
+      if (tabBtnActions) tabBtnActions.classList.remove('active');
+      if (voiceTranscriptWrapper) voiceTranscriptWrapper.style.display = 'flex';
+      if (actionTilesGrid) actionTilesGrid.style.display = 'none';
+    } else {
+      if (tabBtnActions) tabBtnActions.classList.add('active');
+      if (tabBtnTranscript) tabBtnTranscript.classList.remove('active');
+      if (actionTilesGrid) actionTilesGrid.style.display = 'grid';
+      if (voiceTranscriptWrapper) voiceTranscriptWrapper.style.display = 'none';
+    }
+  }
+
+  // Helper: Update Central Voice Readout Cards
+  function updateVoiceResponseCard(text) {
+    if (voiceKirahtText) {
+      const clean = cleanTextForSpeech(text) || text;
+      voiceKirahtText.textContent = `"${clean}"`;
+    }
+    if (kirahtSpeechStatus) {
+      kirahtSpeechStatus.textContent = isVoiceModeEnabled ? 'SPEAKING' : 'DELIVERED';
+      kirahtSpeechStatus.className = isVoiceModeEnabled ? 'speech-live-tag tag-speaking' : 'speech-live-tag';
+    }
+  }
+
+  // Helper: Set Voice State Pipeline (IDLE -> LISTENING -> PROCESSING -> SPEAKING)
+  function setVoicePipelineState(stage, detailText) {
+    currentVoiceStage = stage;
+    const stages = ['idle', 'listening', 'processing', 'speaking'];
+    const elMap = {
+      idle: pipelineIdle,
+      listening: pipelineListening,
+      processing: pipelineProcessing,
+      speaking: pipelineSpeaking
+    };
+
+    stages.forEach(s => {
+      const el = elMap[s];
+      if (el) {
+        if (s === stage) {
+          el.classList.add('active');
+        } else {
+          el.classList.remove('active');
+        }
+      }
+    });
+
+    if (voiceAudioStatus) {
+      if (detailText) {
+        voiceAudioStatus.textContent = detailText;
+      } else {
+        const defaults = {
+          idle: 'VOICE ENGINE READY • STANDBY',
+          listening: 'MICROPHONE ACTIVE • LISTENING...',
+          processing: 'TACTICAL SYNAPSE • EXECUTING...',
+          speaking: 'AUDIO TRANSMISSION ACTIVE'
+        };
+        voiceAudioStatus.textContent = defaults[stage] || 'STANDBY';
+      }
+    }
+
+    if (btnCentralMic) {
+      if (stage === 'listening') {
+        btnCentralMic.classList.add('active');
+        if (centralMicText) centralMicText.textContent = 'MIC ACTIVE';
+      } else {
+        btnCentralMic.classList.remove('active');
+        if (centralMicText) centralMicText.textContent = 'MIC STANDBY';
+      }
+    }
+
+    // Synchronize Arc Reactor state
+    if (stage === 'listening') {
+      setReactorState('listening');
+    } else if (stage === 'processing') {
+      setReactorState('thinking');
+    } else if (stage === 'speaking') {
+      setReactorState('speaking');
+    } else {
+      if (!isGenerating && !isListening) {
+        setReactorState('idle');
+      }
+    }
+  }
 
   // 1. Web Audio API Context & Sci-Fi SFX Synthesizer (0 external audio files needed)
   let audioCtx = null;
@@ -1217,7 +1432,7 @@
     } else if (state === 'speaking') {
       reactorCore.classList.add('state-speaking');
       if (coreStatusText) {
-        coreStatusText.textContent = statusOverride || '[JARVIS: SPEAKING]';
+        coreStatusText.textContent = statusOverride || '[KIRAHT: SPEAKING]';
         coreStatusText.style.color = '#00aaff';
       }
     } else if (state === 'thinking') {
@@ -1414,8 +1629,15 @@
       }
     }, 1200);
 
+    // 5. Update pipeline
+    setVoicePipelineState('idle', 'INTERRUPTED BY OPERATOR');
+    if (kirahtSpeechStatus) {
+      kirahtSpeechStatus.textContent = 'INTERRUPTED';
+      kirahtSpeechStatus.className = 'speech-live-tag';
+    }
+
     // 6. Log
-    logActivity('User', 'Voice Interrupted', `Halted by voice command: "${phrase || 'stop'}"`);
+    logActivity('User', 'Voice Interrupted', `Halted by command: "${phrase || 'stop'}"`);
 
     // 7. Clear chat input
     if (chatInput) {
@@ -1424,29 +1646,57 @@
     }
   }
 
-  // 6. Voice Mode Toggler & UI
-  function updateVoiceModeUI() {
-    if (navVoiceText) {
-      navVoiceText.textContent = isVoiceModeEnabled ? 'VOICE: ON' : 'VOICE: OFF';
-    }
-    if (btnVoiceMode) {
-      if (isVoiceModeEnabled) {
+  // 6. Mode Switcher (Chat Mode vs Voice Mode)
+  function setHudMode(mode, autoListen = false) {
+    currentHudMode = mode;
+    localStorage.setItem('kiraht_hud_mode', mode);
+    const hudMain = document.getElementById('hud-main');
+
+    if (mode === 'voice') {
+      isVoiceModeEnabled = true;
+      localStorage.setItem('kiraht_voice_mode', 'true');
+      if (hudMain) {
+        hudMain.classList.remove('mode-chat');
+        hudMain.classList.add('mode-voice');
+      }
+      if (centralVoiceInterface) {
+        centralVoiceInterface.style.display = 'flex';
+      }
+      if (btnVoiceMode) {
         btnVoiceMode.classList.add('voice-active');
-      } else {
+      }
+      if (navVoiceText) {
+        navVoiceText.textContent = 'VOICE: ACTIVE';
+      }
+      switchRightTab('transcript');
+      setVoicePipelineState(isListening ? 'listening' : 'idle', 'VOICE ENGINE ARMED • LISTENING');
+      logActivity('System', 'HUD Mode', 'Engaged KIRAHT VOICE COMMAND INTERFACE');
+
+      if (autoListen || !isListening) {
+        playSciFiTone('activate');
+        startMicListening();
+      }
+    } else {
+      // Chat mode
+      isVoiceModeEnabled = false;
+      localStorage.setItem('kiraht_voice_mode', 'false');
+      if (hudMain) {
+        hudMain.classList.remove('mode-voice');
+        hudMain.classList.add('mode-chat');
+      }
+      if (centralVoiceInterface) {
+        centralVoiceInterface.style.display = 'none';
+      }
+      if (btnVoiceMode) {
         btnVoiceMode.classList.remove('voice-active');
       }
-    }
-  }
+      if (navVoiceText) {
+        navVoiceText.textContent = 'VOICE: OFF';
+      }
+      switchRightTab('actions');
+      setVoicePipelineState('idle', 'CHAT INTERFACE READY');
+      logActivity('System', 'HUD Mode', 'Switched to CHAT INTERFACE');
 
-  function toggleVoiceMode() {
-    isVoiceModeEnabled = !isVoiceModeEnabled;
-    localStorage.setItem('kiraht_voice_mode', isVoiceModeEnabled ? 'true' : 'false');
-    updateVoiceModeUI();
-    logActivity('System', 'Voice Mode', isVoiceModeEnabled ? 'JARVIS vocal speech & continuous hands-free armed' : 'Voice output & hands-free muted');
-    if (isVoiceModeEnabled) {
-      playSciFiTone('activate');
-      startMicListening();
-    } else {
       if (window.speechSynthesis) window.speechSynthesis.cancel();
       stopSpeakingModulation();
       stopMicListening();
@@ -1454,10 +1704,30 @@
     }
   }
 
+  function toggleVoiceMode() {
+    if (currentHudMode === 'voice') {
+      setHudMode('chat', false);
+    } else {
+      setHudMode('voice', true);
+    }
+  }
+
+  function updateVoiceModeUI() {
+    if (navVoiceText) {
+      navVoiceText.textContent = currentHudMode === 'voice' ? 'VOICE: ACTIVE' : 'VOICE: OFF';
+    }
+    if (btnVoiceMode) {
+      if (currentHudMode === 'voice') {
+        btnVoiceMode.classList.add('voice-active');
+      } else {
+        btnVoiceMode.classList.remove('voice-active');
+      }
+    }
+  }
+
   if (btnVoiceMode) {
     btnVoiceMode.addEventListener('click', toggleVoiceMode);
   }
-  updateVoiceModeUI();
 
   // 7. Speech Synthesis Output
   function cleanTextForSpeech(text) {
@@ -1492,6 +1762,14 @@
     utterance.onstart = function () {
       if (equalizerBars) equalizerBars.classList.add('speaking');
       startSpeakingModulation();
+      setVoicePipelineState('speaking', 'KIRAHT AUDIO TRANSMISSION ACTIVE');
+      if (voiceKirahtText) {
+        voiceKirahtText.textContent = `"${clean}"`;
+      }
+      if (kirahtSpeechStatus) {
+        kirahtSpeechStatus.textContent = 'SPEAKING';
+        kirahtSpeechStatus.className = 'speech-live-tag tag-speaking';
+      }
       // Ensure barge-in recognition is listening concurrently so user can interrupt anytime!
       ensureRecognitionForBargeIn();
     };
@@ -1500,21 +1778,33 @@
       if (equalizerBars) equalizerBars.classList.remove('speaking');
       stopSpeakingModulation();
       playSciFiTone('complete');
+      if (kirahtSpeechStatus) {
+        kirahtSpeechStatus.textContent = 'READY';
+        kirahtSpeechStatus.className = 'speech-live-tag';
+      }
 
       // Hands-free conversational loop:
       // If Voice Mode is ON, automatically re-arm the mic to listen for the user's next sentence!
       if (isVoiceModeEnabled && !isGenerating) {
+        setVoicePipelineState('listening', 'CONTINUOUS LISTENING ARMED');
         setTimeout(function () {
           if (!isListening) {
             startMicListening();
           }
         }, 450);
+      } else {
+        setVoicePipelineState('idle', 'SYSTEM IDLE & READY');
       }
     };
 
     utterance.onerror = function () {
       if (equalizerBars) equalizerBars.classList.remove('speaking');
       stopSpeakingModulation();
+      if (kirahtSpeechStatus) {
+        kirahtSpeechStatus.textContent = 'READY';
+        kirahtSpeechStatus.className = 'speech-live-tag';
+      }
+      setVoicePipelineState('idle');
     };
 
     window.speechSynthesis.speak(utterance);
@@ -1533,8 +1823,12 @@
     rec.onstart = function () {
       isListening = true;
       if (btnMic) btnMic.classList.add('listening');
-      if (chatInput) chatInput.placeholder = 'JARVIS Listening... Speak your command or say "Stop"';
-      setReactorState('listening');
+      if (chatInput) chatInput.placeholder = 'KIRAHT Listening... Speak your command or say "Stop"';
+      setVoicePipelineState('listening', 'MICROPHONE ACTIVE • LISTENING...');
+      if (userSpeechStatus) {
+        userSpeechStatus.textContent = 'LISTENING';
+        userSpeechStatus.className = 'speech-live-tag tag-listening';
+      }
       startMicAudioAnalysis();
       logActivity('User', 'Voice Input', 'Microphone active — audio analysis engaged');
     };
@@ -1553,6 +1847,19 @@
       const spoken = (final || interim).trim();
       if (!spoken) return;
 
+      if (voiceUserText) {
+        voiceUserText.textContent = `"${spoken}"`;
+      }
+      if (userSpeechStatus) {
+        if (final) {
+          userSpeechStatus.textContent = 'VERIFIED';
+          userSpeechStatus.className = 'speech-live-tag';
+        } else {
+          userSpeechStatus.textContent = 'STREAMING';
+          userSpeechStatus.className = 'speech-live-tag tag-listening';
+        }
+      }
+
       const isAssistantSpeaking = window.speechSynthesis && window.speechSynthesis.speaking;
       const isBusy = isAssistantSpeaking || isGenerating;
 
@@ -1569,7 +1876,7 @@
         if (isGenerating) cancelGeneration();
         logActivity('User', 'Barge-In', `Interrupting with new prompt: "${spoken}"`);
         playSciFiTone('interrupt');
-        setReactorState('listening');
+        setVoicePipelineState('listening', 'BARGE-IN DETECTED');
       }
 
       if (chatInput) {
@@ -1580,6 +1887,12 @@
       if (final && final.trim()) {
         const finalText = final.trim();
         if (isStopPhrase(finalText)) return;
+
+        setVoicePipelineState('processing', 'COMMAND VERIFIED • DISPATCHING');
+        if (userSpeechStatus) {
+          userSpeechStatus.textContent = 'DISPATCHED';
+          userSpeechStatus.className = 'speech-live-tag tag-processing';
+        }
 
         if (speechDebounceTimer) clearTimeout(speechDebounceTimer);
         speechDebounceTimer = setTimeout(function () {
@@ -1610,13 +1923,21 @@
           isListening = false;
           if (btnMic) btnMic.classList.remove('listening');
           stopMicAudioAnalysis();
-          if (!isGenerating) setReactorState('idle');
+          if (!isGenerating && (!window.speechSynthesis || !window.speechSynthesis.speaking)) {
+            setVoicePipelineState('idle');
+          }
         }
       } else {
         if (btnMic) btnMic.classList.remove('listening');
         stopMicAudioAnalysis();
-        if (!isGenerating) setReactorState('idle');
+        if (!isGenerating && (!window.speechSynthesis || !window.speechSynthesis.speaking)) {
+          setVoicePipelineState('idle');
+        }
         if (chatInput) chatInput.placeholder = 'Type a message, system command, QR link, calculation, or question...';
+        if (userSpeechStatus) {
+          userSpeechStatus.textContent = 'IDLE';
+          userSpeechStatus.className = 'speech-live-tag';
+        }
       }
     };
 
@@ -1678,6 +1999,34 @@
     btnMic.addEventListener('click', toggleMicListening);
   }
 
+  if (btnCentralMic) {
+    btnCentralMic.addEventListener('click', toggleMicListening);
+  }
+
+  if (btnCentralInterrupt) {
+    btnCentralInterrupt.addEventListener('click', function () {
+      triggerVoiceInterruption('Manual button halt');
+    });
+  }
+
+  if (btnReturnChat) {
+    btnReturnChat.addEventListener('click', function () {
+      setHudMode('chat', false);
+    });
+  }
+
+  if (tabBtnTranscript) {
+    tabBtnTranscript.addEventListener('click', function () {
+      switchRightTab('transcript');
+    });
+  }
+
+  if (tabBtnActions) {
+    tabBtnActions.addEventListener('click', function () {
+      switchRightTab('actions');
+    });
+  }
+
   // Large Tactical Quick Action Tiles
   document.querySelectorAll('.tactical-action-tile').forEach(function (tile) {
     tile.addEventListener('click', function () {
@@ -1728,6 +2077,15 @@
     }
     if (statusDetail) {
       statusDetail.textContent = detail ? `— ${detail}` : '';
+    }
+
+    // Synchronize Voice Pipeline State with backend
+    if (state === 'PROCESSING' || state === 'SEARCHING' || state === 'USING TOOL') {
+      setVoicePipelineState('processing', detail ? `${state}: ${detail}` : 'SYNAPSE COMPUTING...');
+    } else if (state === 'READY') {
+      if (!isListening && (!window.speechSynthesis || !window.speechSynthesis.speaking)) {
+        setVoicePipelineState('idle', 'STANDBY • READY');
+      }
     }
 
     // 3D Arc Reactor dynamic speed controller
@@ -2268,6 +2626,14 @@
 
     initWebSocket();
     initPanelResizersAndCollapsing();
+
+    // Restore Saved HUD Mode (Chat vs Voice Mode)
+    if (currentHudMode === 'voice') {
+      setHudMode('voice', false);
+    } else {
+      setHudMode('chat', false);
+    }
+
     if (reactorCore) {
       reactorCore.classList.remove('boot-spin-in');
       void reactorCore.offsetWidth; // Force CSS reflow

@@ -1404,7 +1404,10 @@ def check_deterministic_intent(user_text: str, call_me: str = "Sir") -> Tuple[bo
     Checks if user text can be answered with a 100% deterministic local tool.
     Returns: (is_handled, category, tool_name, result_string)
     """
-    cleaned = user_text.strip()
+    from tools import clean_voice_command
+    raw = user_text.strip()
+    voice_cleaned = clean_voice_command(raw)
+    cleaned = voice_cleaned if voice_cleaned else raw
     lower = cleaned.lower()
 
     # 0.00 Contextual WhatsApp Follow-up (Options, phone numbers, or message replies)

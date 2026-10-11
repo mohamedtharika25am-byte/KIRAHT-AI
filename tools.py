@@ -425,6 +425,9 @@ APP_ALIASES = {
 APP_COMMANDS = {
     "chrome": "start chrome",
     "google chrome": "start chrome",
+    "whatsapp": "start whatsapp:",
+    "brave": "start brave",
+    "edge": "start msedge",
     "notepad": "notepad.exe",
     "calculator": "calc.exe",
     "calc": "calc.exe",
@@ -1601,13 +1604,32 @@ def translate_text(query: str, call_me: str = "Sir") -> tuple[bool, str]:
         return True, f"{call_me}, translation service error: {err}"
 
 
+def clean_voice_command(text: str) -> str:
+    """
+    Strips conversational prefixes, polite phrases, and assistant wake-words
+    (e.g., 'hey kiraht', 'kiraht', 'can you please open chrome' -> 'open chrome').
+    Preserves essential command structure for deterministic tool matching.
+    Strictly KIRAHT AI identity.
+    """
+    raw = (text or "").strip()
+    raw = re.sub(r"^[\s,.:;!?-]+", "", raw)
+    # Strictly KIRAHT, never Jarvis
+    raw = re.sub(r"^(?:hey\s+|hi\s+|hello\s+)?(?:kiraht|kirath|kira)(?:\s+ai)?(?:\s*[,:]|\s+)?", "", raw, flags=re.IGNORECASE)
+    raw = re.sub(r"^(?:can\s+you\s+(?:please\s+)?|could\s+you\s+(?:please\s+)?|would\s+you\s+(?:please\s+)?|please\s+|kindly\s+|i\s+want\s+you\s+to\s+|tell\s+me\s+to\s+|just\s+)", "", raw, flags=re.IGNORECASE)
+    raw = re.sub(r"(?:,\s*)?(?:please|kiraht|kirath|ai)?[?!.,;]*$", "", raw, flags=re.IGNORECASE).strip()
+    return raw
+
+
 def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, str]:
     """
     Matches user intent against desktop apps, file operations, audio, screen capture,
     and hardware automation tools. Returns (handled, response_string).
     """
-    cleaned = user_text.strip().lower()
-    cleaned = re.sub(r"[?!.,;]+$", "", cleaned).strip()
+    raw_cleaned = user_text.strip().lower()
+    raw_cleaned = re.sub(r"[?!.,;]+$", "", raw_cleaned).strip()
+    cleaned = clean_voice_command(raw_cleaned)
+    if not cleaned:
+        cleaned = raw_cleaned
     # Media Playback Controls
     is_media, media_res = control_media(cleaned, call_me)
     if is_media:
@@ -1883,26 +1905,36 @@ def execute_system_command(user_text: str, call_me: str = "Sir") -> tuple[bool, 
             else:
                 return True, f"{call_me}, file deletion for '{target_item}' was cancelled."
 
-    # 16. YouTube Search with Query
+    # 16. YouTube Search with Query (Voice & Desktop Action)
     yt_match = (
-        re.search(r"^(?:open\s+)?youtube\s+(?:and\s+)?search\s+(.+)$", cleaned)
-        or re.search(r"^search\s+(.+)\s+(?:on|in)\s+youtube$", cleaned)
+        re.search(r"^(?:please\s+)?(?:open\s+)?youtube\s+(?:and\s+)?search(?:\s+for)?\s+(.+)$", cleaned)
+        or re.search(r"^(?:please\s+)?search\s+(?:on\s+|in\s+)?youtube\s+(?:for\s+)?(.+)$", cleaned)
+        or re.search(r"^(?:please\s+)?search\s+(.+)\s+(?:on|in)\s+youtube$", cleaned)
+        or re.search(r"^(?:please\s+)?play\s+(.+)\s+(?:on|in)\s+youtube$", cleaned)
+        or re.search(r"^(?:please\s+)?youtube\s+search(?:\s+for)?\s+(.+)$", cleaned)
     )
     if yt_match:
         query = yt_match.group(1).strip()
+        query = re.sub(r"^(?:for|about)\s+", "", query, flags=re.IGNORECASE).strip()
         return True, open_web("youtube", search_query=query, call_me=call_me)
 
-    # 17. Google Search with Query
+    # 17. Google Search with Query (Voice & Desktop Action)
     google_match = (
-        re.search(r"^(?:open\s+)?google\s+(?:and\s+)?search\s+(.+)$", cleaned)
-        or re.search(r"^search\s+(.+)\s+(?:on|in)\s+google$", cleaned)
+        re.search(r"^(?:please\s+)?(?:open\s+)?google\s+(?:and\s+)?search(?:\s+for)?\s+(.+)$", cleaned)
+        or re.search(r"^(?:please\s+)?search\s+(?:on\s+|in\s+)?google\s+(?:for\s+)?(.+)$", cleaned)
+        or re.search(r"^(?:please\s+)?search\s+(.+)\s+(?:on|in)\s+google$", cleaned)
+        or re.search(r"^(?:please\s+)?google\s+search(?:\s+for)?\s+(.+)$", cleaned)
     )
     if google_match:
         query = google_match.group(1).strip()
+        query = re.sub(r"^(?:for|about)\s+", "", query, flags=re.IGNORECASE).strip()
         return True, open_web("google", search_query=query, call_me=call_me)
 
-    # 18. Open Web Destinations
-    web_match = re.search(r"^(?:please\s+)?(?:open|go to|launch)\s+(youtube|github|gmail|linkedin|twitter)\b", cleaned)
+    # 18. Open Web Destinations & Websites (Voice & Desktop Action)
+    web_match = (
+        re.search(r"^(?:please\s+)?(?:open|go to|launch)\s+(?:the\s+)?(?:website\s+|site\s+|web\s+)?(youtube|google|github|gmail|linkedin|twitter|reddit|instagram|facebook|netflix|spotify|chatgpt|wikipedia|amazon|canva|pinterest|flipkart)\b", cleaned)
+        or re.search(r"^(?:please\s+)?(?:open|go to|launch)\s+(?:the\s+)?(?:website\s+|site\s+|web\s+)?([a-zA-Z0-9\-]+\.(?:com|org|net|io|in|edu|gov))\b", cleaned)
+    )
     if web_match:
         site = web_match.group(1).strip()
         return True, open_web(site, call_me=call_me)

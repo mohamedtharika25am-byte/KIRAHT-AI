@@ -1092,7 +1092,7 @@ body.cyber-hud {
   100% { transform: scale(2.6); opacity: 0; border-color: rgba(0, 119, 254, 0); }
 }
 
-/* State: Speaking (JARVIS Voice Active Output) */
+/* State: Speaking (KIRAHT Voice Active Output) */
 .kiraht-reactor-core.state-speaking {
   opacity: 0.92;
   filter: drop-shadow(0 0 50px rgba(0, 136, 255, 0.9)) brightness(1.3);
@@ -2502,4 +2502,562 @@ body.cyber-hud {
 
 .tile-history:hover .tile-icon {
   transform: scale(1.1) rotate(-6deg);
+}
+
+/* ==========================================================================
+   KIRAHT AI - VOICE MODE INTERFACE & TRANSCRIPT SIDEBAR SYSTEM
+   ========================================================================== */
+
+/* 1. Mode Transitions on #hud-main */
+#hud-main.mode-voice .chat-viewport {
+  display: none !important;
+}
+
+#hud-main.mode-voice .chat-input-bar {
+  display: none !important;
+}
+
+#hud-main.mode-voice #central-voice-interface {
+  display: flex !important;
+}
+
+#hud-main.mode-chat #central-voice-interface {
+  display: none !important;
+}
+
+#hud-main.mode-chat .chat-viewport {
+  display: flex !important;
+}
+
+#hud-main.mode-chat .chat-input-bar {
+  display: flex !important;
+}
+
+/* 2. Central Voice Interface Container */
+.central-voice-interface {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 24px 32px;
+  z-index: 10;
+  pointer-events: auto;
+  background: radial-gradient(circle at center, rgba(0, 243, 255, 0.03) 0%, rgba(2, 6, 18, 0.6) 70%, transparent 100%);
+  animation: voice-ui-fade-in 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes voice-ui-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* 3. Top Voice HUD Header */
+.voice-hud-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  max-width: 720px;
+  padding: 8px 16px;
+  border: 1px solid rgba(0, 243, 255, 0.2);
+  background: rgba(3, 12, 28, 0.65);
+  backdrop-filter: blur(8px);
+  border-radius: 4px;
+  box-shadow: 0 0 15px rgba(0, 243, 255, 0.08);
+}
+
+.voice-mode-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--accent-cyan);
+  font-family: var(--font-header);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+}
+
+.voice-audio-status {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent-green);
+  letter-spacing: 1px;
+}
+
+/* 4. Voice State Pipeline: IDLE -> LISTENING -> PROCESSING -> SPEAKING */
+.voice-state-pipeline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  max-width: 680px;
+  margin: 12px 0;
+  padding: 10px 18px;
+  background: rgba(2, 8, 22, 0.8);
+  border: 1px solid rgba(0, 243, 255, 0.25);
+  border-radius: 6px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5), inset 0 0 12px rgba(0, 243, 255, 0.05);
+}
+
+.pipeline-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+  transition: all 0.25s ease-out;
+  opacity: 0.45;
+}
+
+.step-indicator-ring {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid currentColor;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.step-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.6;
+}
+
+.step-meta {
+  display: flex;
+  flex-direction: column;
+}
+
+.step-number {
+  font-family: var(--font-mono);
+  font-size: 8px;
+  color: var(--text-dim);
+  line-height: 1;
+}
+
+.step-label {
+  font-family: var(--font-header);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  line-height: 1.2;
+}
+
+.pipeline-flow-arrow {
+  color: rgba(0, 243, 255, 0.3);
+  font-size: 12px;
+  font-weight: bold;
+}
+
+/* Pipeline Active States */
+.pipeline-step.active {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+/* Step IDLE Active */
+.pipeline-step.step-idle.active {
+  color: var(--accent-cyan);
+  border-color: rgba(0, 243, 255, 0.5);
+  background: rgba(0, 243, 255, 0.08);
+  box-shadow: 0 0 14px rgba(0, 243, 255, 0.25);
+}
+
+/* Step LISTENING Active (Bright Cyan / Emerald Pulse) */
+.pipeline-step.step-listening.active {
+  color: #00ffaa;
+  border-color: #00ffaa;
+  background: rgba(0, 255, 170, 0.12);
+  box-shadow: 0 0 18px rgba(0, 255, 170, 0.35);
+  animation: listening-border-pulse 1.4s ease-in-out infinite alternate;
+}
+
+.pipeline-step.step-listening.active .step-dot {
+  background: #00ffaa;
+  animation: dot-ping 1.2s ease-in-out infinite;
+}
+
+@keyframes listening-border-pulse {
+  0% { box-shadow: 0 0 10px rgba(0, 255, 170, 0.25); }
+  100% { box-shadow: 0 0 24px rgba(0, 255, 170, 0.55); }
+}
+
+@keyframes dot-ping {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.6); opacity: 1; }
+}
+
+/* Step PROCESSING Active (Amber Spin/Glow) */
+.pipeline-step.step-processing.active {
+  color: var(--accent-amber);
+  border-color: var(--accent-amber);
+  background: rgba(255, 170, 0, 0.12);
+  box-shadow: 0 0 18px rgba(255, 170, 0, 0.35);
+  animation: processing-border-pulse 1.2s ease-in-out infinite alternate;
+}
+
+.pipeline-step.step-processing.active .step-indicator-ring {
+  animation: rotate-cw 2s linear infinite;
+}
+
+@keyframes processing-border-pulse {
+  0% { box-shadow: 0 0 10px rgba(255, 170, 0, 0.25); }
+  100% { box-shadow: 0 0 24px rgba(255, 170, 0, 0.55); }
+}
+
+/* Step SPEAKING Active (Electric Blue Acoustic Halo) */
+.pipeline-step.step-speaking.active {
+  color: #00aaff;
+  border-color: #00aaff;
+  background: rgba(0, 170, 255, 0.14);
+  box-shadow: 0 0 22px rgba(0, 170, 255, 0.45);
+  animation: speaking-border-pulse 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes speaking-border-pulse {
+  0% { box-shadow: 0 0 12px rgba(0, 170, 255, 0.3); }
+  100% { box-shadow: 0 0 26px rgba(0, 170, 255, 0.65); }
+}
+
+/* 5. Dynamic Voice Live Readout Cards */
+.voice-live-readout {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  max-width: 680px;
+  margin-top: auto;
+  margin-bottom: 16px;
+  z-index: 12;
+}
+
+.live-speech-card {
+  padding: 12px 18px;
+  border-radius: 6px;
+  background: rgba(3, 11, 26, 0.88);
+  border: 1px solid rgba(0, 243, 255, 0.2);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(12px);
+  transition: all 0.25s ease;
+}
+
+.live-speech-card:hover {
+  border-color: rgba(0, 243, 255, 0.4);
+}
+
+.user-speech-card {
+  border-left: 4px solid var(--accent-cyan);
+}
+
+.kiraht-speech-card {
+  border-left: 4px solid #00aaff;
+}
+
+.speech-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-family: var(--font-header);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+.user-speech-card .speech-card-header {
+  color: var(--accent-cyan);
+}
+
+.kiraht-speech-card .speech-card-header {
+  color: #00aaff;
+}
+
+.speech-actor-icon {
+  margin-right: 6px;
+}
+
+.speech-live-tag {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text-dim);
+}
+
+.speech-live-tag.tag-listening {
+  color: #00ffaa;
+  border-color: #00ffaa;
+  background: rgba(0, 255, 170, 0.15);
+}
+
+.speech-live-tag.tag-speaking {
+  color: #00aaff;
+  border-color: #00aaff;
+  background: rgba(0, 170, 255, 0.15);
+}
+
+.speech-live-tag.tag-processing {
+  color: var(--accent-amber);
+  border-color: var(--accent-amber);
+  background: rgba(255, 170, 0, 0.15);
+}
+
+.speech-card-body {
+  font-family: var(--font-body);
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-bright);
+  min-height: 22px;
+  word-break: break-word;
+}
+
+/* 6. Central Voice Tactical Control Bar */
+.voice-tactical-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  width: 100%;
+  max-width: 680px;
+  z-index: 12;
+}
+
+.voice-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 22px;
+  border-radius: 4px;
+  font-family: var(--font-header);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  cursor: pointer;
+  background: rgba(3, 14, 34, 0.85);
+  border: 1px solid rgba(0, 243, 255, 0.35);
+  color: var(--text-bright);
+  backdrop-filter: blur(8px);
+  transition: all 0.2s ease-out;
+  position: relative;
+  overflow: hidden;
+}
+
+.voice-action-btn:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 16px rgba(0, 243, 255, 0.3);
+}
+
+.voice-action-btn:active {
+  transform: translateY(0);
+}
+
+/* Central Mic Toggle Button */
+.btn-mic-toggle {
+  background: linear-gradient(135deg, rgba(0, 243, 255, 0.2) 0%, rgba(0, 102, 255, 0.2) 100%);
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+  box-shadow: 0 0 20px rgba(0, 243, 255, 0.25);
+}
+
+.btn-mic-toggle.active {
+  border-color: #00ffaa;
+  color: #00ffaa;
+  box-shadow: 0 0 22px rgba(0, 255, 170, 0.4);
+}
+
+.btn-voice-interrupt {
+  border-color: rgba(255, 23, 68, 0.4);
+  color: #ff5252;
+}
+
+.btn-voice-interrupt:hover {
+  border-color: #ff1744;
+  box-shadow: 0 0 16px rgba(255, 23, 68, 0.4);
+  color: #ffffff;
+  background: rgba(255, 23, 68, 0.2);
+}
+
+.btn-return-chat {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: var(--text-dim);
+}
+
+.btn-return-chat:hover {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+
+/* 7. Adaptive Right Panel Tab Header */
+.tabbed-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: rgba(3, 10, 24, 0.85);
+  border-bottom: 1px solid rgba(0, 243, 255, 0.15);
+}
+
+.panel-header-tabs {
+  display: flex;
+  gap: 6px;
+}
+
+.panel-tab-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 12px;
+  border-radius: 3px;
+  font-family: var(--font-header);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.panel-tab-btn:hover {
+  color: var(--text-bright);
+  background: rgba(0, 243, 255, 0.05);
+}
+
+.panel-tab-btn.active {
+  color: var(--accent-cyan);
+  border-color: rgba(0, 243, 255, 0.45);
+  background: rgba(0, 243, 255, 0.12);
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
+}
+
+/* 8. Voice Transcript Sidebar */
+.voice-transcript-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: calc(100% - 45px);
+  background: rgba(1, 6, 18, 0.6);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.transcript-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: rgba(2, 8, 20, 0.85);
+  border-bottom: 1px solid rgba(0, 243, 255, 0.15);
+}
+
+.transcript-live-pill {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent-green);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.transcript-count-tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.voice-transcript-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  scroll-behavior: smooth;
+}
+
+.transcript-entry {
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px;
+  border-radius: 4px;
+  background: rgba(4, 14, 34, 0.75);
+  border: 1px solid rgba(0, 243, 255, 0.15);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+  animation: transcript-entry-in 0.25s ease-out;
+}
+
+@keyframes transcript-entry-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.transcript-entry.user-entry {
+  border-left: 3px solid var(--accent-cyan);
+}
+
+.transcript-entry.assistant-entry {
+  border-left: 3px solid #00aaff;
+  background: rgba(2, 10, 28, 0.85);
+}
+
+.transcript-entry-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--text-dim);
+}
+
+.transcript-role-tag {
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.user-entry .transcript-role-tag {
+  color: var(--accent-cyan);
+}
+
+.assistant-entry .transcript-role-tag {
+  color: #00aaff;
+}
+
+.transcript-entry-text {
+  font-family: var(--font-body);
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--text-bright);
+  word-break: break-word;
+}
+
+.transcript-tool-badge {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  background: rgba(0, 243, 255, 0.12);
+  border: 1px solid rgba(0, 243, 255, 0.3);
+  color: var(--accent-cyan);
 }

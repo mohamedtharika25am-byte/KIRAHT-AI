@@ -29,7 +29,7 @@
           </div>
           <div class="logo-text">
             <h1 class="logo-title">KIRAHT <span class="accent-text">AI</span></h1>
-            <span class="logo-subtitle">JARVIS TACTICAL COMMAND • V2.1</span>
+            <span class="logo-subtitle">KIRAHT TACTICAL COMMAND • V2.2</span>
           </div>
         </div>
       </div>
@@ -62,8 +62,8 @@
           <button id="toggle-actions-btn" class="hud-nav-toggle-btn active" title="Toggle Quick Actions Sidebar (Alt+Q)">
             <span class="toggle-dot">●</span> ACTIONS
           </button>
-          <button id="btn-voice-mode" class="hud-nav-toggle-btn" title="Toggle JARVIS Voice Output & Continuous Loop (Alt+S)">
-            🔊 <span id="nav-voice-text">VOICE: OFF</span>
+          <button id="btn-voice-mode" class="hud-nav-toggle-btn" title="Toggle KIRAHT Voice Mode (Alt+S)">
+            <span class="mode-icon">🎙️</span> <span id="nav-voice-text">VOICE: OFF</span>
             <span class="equalizer-bars" id="equalizer-bars">
               <span class="bar bar-1"></span>
               <span class="bar bar-2"></span>
@@ -321,10 +321,107 @@
               </div>
             </div>
           </div>
+
+          <!-- ==================== CENTRAL VOICE INTERFACE (VOICE MODE) ==================== -->
+          <div class="central-voice-interface" id="central-voice-interface" style="display:none;">
+            <!-- Top Voice HUD Tag -->
+            <div class="voice-hud-header">
+              <div class="voice-mode-badge">
+                <span class="voice-badge-icon">🎙️</span>
+                <span class="voice-badge-text">KIRAHT VOICE SYSTEM</span>
+              </div>
+              <div class="voice-audio-status" id="voice-audio-status">VOICE ENGINE READY</div>
+            </div>
+
+            <!-- Voice State Pipeline: IDLE -> LISTENING -> PROCESSING -> SPEAKING -->
+            <div class="voice-state-pipeline" id="voice-state-pipeline">
+              <div class="pipeline-step step-idle active" id="pipeline-idle">
+                <div class="step-indicator-ring">
+                  <span class="step-dot"></span>
+                </div>
+                <div class="step-meta">
+                  <span class="step-number">01</span>
+                  <span class="step-label">IDLE</span>
+                </div>
+              </div>
+              <div class="pipeline-flow-arrow">➔</div>
+              <div class="pipeline-step step-listening" id="pipeline-listening">
+                <div class="step-indicator-ring">
+                  <span class="step-dot"></span>
+                </div>
+                <div class="step-meta">
+                  <span class="step-number">02</span>
+                  <span class="step-label">LISTENING</span>
+                </div>
+              </div>
+              <div class="pipeline-flow-arrow">➔</div>
+              <div class="pipeline-step step-processing" id="pipeline-processing">
+                <div class="step-indicator-ring">
+                  <span class="step-dot"></span>
+                </div>
+                <div class="step-meta">
+                  <span class="step-number">03</span>
+                  <span class="step-label">PROCESSING</span>
+                </div>
+              </div>
+              <div class="pipeline-flow-arrow">➔</div>
+              <div class="pipeline-step step-speaking" id="pipeline-speaking">
+                <div class="step-indicator-ring">
+                  <span class="step-dot"></span>
+                </div>
+                <div class="step-meta">
+                  <span class="step-number">04</span>
+                  <span class="step-label">SPEAKING</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Dynamic Voice Live Readout Cards (Holographic user speech & KIRAHT response) -->
+            <div class="voice-live-readout" id="voice-live-readout">
+              <div class="live-speech-card user-speech-card" id="user-speech-card">
+                <div class="speech-card-header">
+                  <span class="speech-actor-icon">👤</span>
+                  <span class="speech-actor-name">YOU SPOKE</span>
+                  <span class="speech-live-tag" id="user-speech-status">IDLE</span>
+                </div>
+                <div class="speech-card-body" id="voice-user-text">
+                  "Say 'Open WhatsApp', 'Open Chrome', or 'Search YouTube for [query]'..."
+                </div>
+              </div>
+
+              <div class="live-speech-card kiraht-speech-card" id="kiraht-speech-card">
+                <div class="speech-card-header">
+                  <span class="speech-actor-icon">⚡</span>
+                  <span class="speech-actor-name">KIRAHT RESPONSE</span>
+                  <span class="speech-live-tag" id="kiraht-speech-status">READY</span>
+                </div>
+                <div class="speech-card-body" id="voice-kiraht-text">
+                  "Online and listening, Sir. Voice interface engaged."
+                </div>
+              </div>
+            </div>
+
+            <!-- Central Voice Tactical Control Bar -->
+            <div class="voice-tactical-controls" id="voice-tactical-controls">
+              <button class="voice-action-btn btn-mic-toggle active" id="btn-central-mic" title="Toggle Microphone (Alt+V)">
+                <span class="action-btn-icon">🎙️</span>
+                <span class="action-btn-text" id="central-mic-text">MIC ACTIVE</span>
+                <span class="btn-ripple-wave"></span>
+              </button>
+              <button class="voice-action-btn btn-voice-interrupt" id="btn-central-interrupt" title="Interrupt KIRAHT / Stop (Esc)">
+                <span class="action-btn-icon">⏹</span>
+                <span class="action-btn-text">INTERRUPT</span>
+              </button>
+              <button class="voice-action-btn btn-return-chat" id="btn-return-chat" title="Switch to Normal Chat Mode">
+                <span class="action-btn-icon">💬</span>
+                <span class="action-btn-text">CHAT MODE</span>
+              </button>
+            </div>
+          </div>
         </div>
 
-        <!-- Chat Input Form -->
-        <div class="chat-input-bar">
+        <!-- Chat Input Form (Shown in Chat Mode, hidden/minimized in Voice Mode) -->
+        <div class="chat-input-bar" id="chat-input-bar">
           <textarea
             id="chat-input"
             class="chat-textarea"
@@ -347,18 +444,33 @@
         <div class="resizer-bar"></div>
       </div>
 
-      <!-- RIGHT: RESIZABLE & COLLAPSIBLE QUICK ACTION TILES -->
+      <!-- RIGHT: RESIZABLE & COLLAPSIBLE QUICK ACTION TILES & VOICE TRANSCRIPT -->
       <aside class="panel right-panel tactical-frame" id="actions-panel">
-        <div class="panel-header compact-header">
-          <div class="panel-header-title-wrap">
-            <span class="panel-icon">⚡</span>
-            <h2 class="panel-title">QUICK ACTIONS</h2>
-            <span class="tools-active-badge">ACTIVE</span>
+        <div class="panel-header compact-header tabbed-panel-header">
+          <div class="panel-header-tabs">
+            <button class="panel-tab-btn" id="tab-btn-transcript" title="Voice & Conversation Transcript">
+              <span class="tab-icon">📜</span> TRANSCRIPT
+            </button>
+            <button class="panel-tab-btn active" id="tab-btn-actions" title="Tactical Quick Action Tiles">
+              <span class="tab-icon">⚡</span> ACTIONS
+            </button>
           </div>
-          <button class="panel-collapse-btn" id="btn-collapse-actions" title="Collapse Quick Actions (Alt+Q)">▶</button>
+          <button class="panel-collapse-btn" id="btn-collapse-actions" title="Collapse Panel (Alt+Q)">▶</button>
         </div>
 
-        <div class="action-tiles-grid">
+        <!-- 1. VOICE TRANSCRIPT SIDEBAR (Auto-activated in Voice Mode) -->
+        <div class="voice-transcript-wrapper" id="voice-transcript-wrapper" style="display:none;">
+          <div class="transcript-top-bar">
+            <span class="transcript-live-pill"><span class="telem-dot-mini green-pulse"></span> LIVE SYNC</span>
+            <span class="transcript-count-tag" id="transcript-count-tag">0 EXCHANGES</span>
+          </div>
+          <div class="voice-transcript-list" id="voice-transcript-list">
+            <!-- Dynamically populated synchronized transcript cards -->
+          </div>
+        </div>
+
+        <!-- 2. QUICK ACTION TILES -->
+        <div class="action-tiles-grid" id="action-tiles-grid">
           <!-- Tile 1: System Status -->
           <button class="tactical-action-tile" data-action="system_status">
             <div class="tile-icon-wrap">
@@ -609,7 +721,7 @@
           </div>
           <div class="shortcut-item">
             <span class="shortcut-keys"><kbd>Alt</kbd> + <kbd>S</kbd></span>
-            <span class="shortcut-desc">Toggle JARVIS Voice Mode (Vocal Speech Output)</span>
+            <span class="shortcut-desc">Toggle KIRAHT Voice Mode (Voice Interface & Speech)</span>
           </div>
         </div>
 
