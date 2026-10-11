@@ -1035,6 +1035,134 @@ body.cyber-hud {
   box-shadow: 0 0 45px rgba(0, 243, 255, 1), inset 0 0 25px rgba(0, 243, 255, 0.8) !important;
 }
 
+/* ==================== AUDIO-REACTIVE VOICE WAVES & RETICLE DYNAMICS ==================== */
+.epicenter-voice-waves {
+  position: absolute;
+  inset: -60px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.voice-wave-ring {
+  position: absolute;
+  width: 124px;
+  height: 124px;
+  border-radius: 50%;
+  border: 1.5px solid var(--accent-cyan);
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* State: Listening (User Speaking / Mic Live) */
+.kiraht-reactor-core.state-listening {
+  opacity: 0.85;
+  filter: drop-shadow(0 0 40px rgba(0, 243, 255, 0.75)) brightness(1.2);
+}
+
+.kiraht-reactor-core.state-listening .epicenter-plasma-core {
+  background: radial-gradient(circle, rgba(0, 243, 255, 0.65) 0%, rgba(0, 255, 170, 0.3) 55%, transparent 100%);
+  border-color: #00f3ff;
+  box-shadow: 0 0 35px rgba(0, 243, 255, 0.8), inset 0 0 20px rgba(0, 255, 170, 0.6);
+}
+
+.kiraht-reactor-core.state-listening .ring-power-segments {
+  animation-duration: 10s !important;
+  stroke: #00f3ff;
+}
+
+.kiraht-reactor-core.state-listening .voice-wave-ring.wave-1 {
+  animation: voice-ripple 1.8s cubic-bezier(0.1, 0.7, 0.1, 1) infinite;
+}
+
+.kiraht-reactor-core.state-listening .voice-wave-ring.wave-2 {
+  animation: voice-ripple 1.8s cubic-bezier(0.1, 0.7, 0.1, 1) infinite 0.6s;
+}
+
+.kiraht-reactor-core.state-listening .voice-wave-ring.wave-3 {
+  animation: voice-ripple 1.8s cubic-bezier(0.1, 0.7, 0.1, 1) infinite 1.2s;
+}
+
+@keyframes voice-ripple {
+  0% { transform: scale(0.95); opacity: 0.85; border-color: rgba(0, 243, 255, 0.95); }
+  60% { opacity: 0.35; border-color: rgba(0, 255, 170, 0.6); }
+  100% { transform: scale(2.6); opacity: 0; border-color: rgba(0, 119, 254, 0); }
+}
+
+/* State: Speaking (JARVIS Voice Active Output) */
+.kiraht-reactor-core.state-speaking {
+  opacity: 0.92;
+  filter: drop-shadow(0 0 50px rgba(0, 136, 255, 0.9)) brightness(1.3);
+}
+
+.kiraht-reactor-core.state-speaking .epicenter-plasma-core {
+  background: radial-gradient(circle, rgba(0, 170, 255, 0.75) 0%, rgba(0, 80, 220, 0.4) 55%, transparent 100%);
+  border-color: #00aaff;
+  box-shadow: 0 0 50px rgba(0, 170, 255, 1), inset 0 0 30px rgba(0, 243, 255, 0.85);
+  animation: core-acoustic-pulse 0.65s ease-in-out infinite alternate;
+}
+
+.kiraht-reactor-core.state-speaking .ring-turbine-teeth {
+  animation-duration: 2.2s !important;
+}
+
+.kiraht-reactor-core.state-speaking .gyro-ring-outer {
+  animation-duration: 4.5s !important;
+  box-shadow: 0 0 40px rgba(0, 136, 255, 0.95) !important;
+}
+
+@keyframes core-acoustic-pulse {
+  0% { transform: scale(0.97); filter: brightness(1); }
+  100% { transform: scale(1.05); filter: brightness(1.4); }
+}
+
+/* State: Thinking (Computing / Searching / Routing) */
+.kiraht-reactor-core.state-thinking {
+  opacity: 0.85;
+  filter: drop-shadow(0 0 45px rgba(255, 170, 0, 0.8)) brightness(1.25);
+}
+
+.kiraht-reactor-core.state-thinking .epicenter-plasma-core {
+  background: radial-gradient(circle, rgba(255, 170, 0, 0.7) 0%, rgba(220, 100, 0, 0.35) 55%, transparent 100%);
+  border-color: #ffaa00;
+  box-shadow: 0 0 45px rgba(255, 170, 0, 0.95), inset 0 0 25px rgba(255, 200, 0, 0.7);
+}
+
+.kiraht-reactor-core.state-thinking .ring-radar-ticks {
+  animation-duration: 2.5s !important;
+  stroke: rgba(255, 170, 0, 0.85);
+}
+
+/* State: Interrupted (Stop Command / Barge-in Cutoff) */
+.kiraht-reactor-core.state-interrupted {
+  opacity: 1 !important;
+  filter: drop-shadow(0 0 65px rgba(255, 23, 68, 1)) brightness(1.4) !important;
+  animation: reactor-glitch-shake 0.45s ease-out !important;
+}
+
+.kiraht-reactor-core.state-interrupted .epicenter-plasma-core {
+  background: radial-gradient(circle, rgba(255, 23, 68, 0.9) 0%, rgba(180, 0, 30, 0.5) 55%, transparent 100%) !important;
+  border-color: #ff1744 !important;
+  box-shadow: 0 0 60px rgba(255, 23, 68, 1), inset 0 0 35px rgba(255, 80, 100, 0.9) !important;
+}
+
+.kiraht-reactor-core.state-interrupted .epicenter-pulse-ring {
+  border-color: #ff1744 !important;
+  box-shadow: 0 0 50px #ff1744 !important;
+}
+
+@keyframes reactor-glitch-shake {
+  0% { transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+  15% { transform: translate(-52%, -48%) rotate(-2deg) scale(1.08); }
+  35% { transform: translate(-47%, -52%) rotate(2.5deg) scale(0.97); }
+  55% { transform: translate(-51%, -49%) rotate(-1.5deg) scale(1.04); }
+  75% { transform: translate(-49%, -51%) rotate(1deg) scale(0.99); }
+  100% { transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+}
+
 /* 3D Animations */
 @keyframes rotate-cw {
   from { transform: rotate(0deg); }
@@ -1525,6 +1653,7 @@ body.cyber-hud {
 
 /* Tactical Mic Button */
 .btn-mic {
+  position: relative;
   background: rgba(0, 243, 255, 0.1);
   border: 1px solid var(--accent-cyan);
   color: var(--accent-cyan);
@@ -1546,12 +1675,30 @@ body.cyber-hud {
   transform: translateY(-1px);
 }
 
+.btn-mic .mic-wave-pulse {
+  position: absolute;
+  inset: -3px;
+  border-radius: 8px;
+  border: 1.5px solid #ff3366;
+  opacity: 0;
+  pointer-events: none;
+}
+
 .btn-mic.listening {
   background: rgba(239, 68, 68, 0.25) !important;
   border-color: #ef4444 !important;
   color: #ff3366 !important;
   box-shadow: 0 0 20px rgba(239, 68, 68, 0.7) !important;
   animation: micListenPulse 1s infinite alternate;
+}
+
+.btn-mic.listening .mic-wave-pulse {
+  animation: mic-wave-burst 1.2s ease-out infinite;
+}
+
+@keyframes mic-wave-burst {
+  0% { transform: scale(0.95); opacity: 0.85; }
+  100% { transform: scale(1.45); opacity: 0; }
 }
 
 @keyframes micListenPulse {
@@ -1568,9 +1715,32 @@ body.cyber-hud {
 }
 
 /* Equalizer Speaking Wave Reactive Animation */
-.equalizer-bars.speaking .bar {
-  animation: eq-speaking 0.35s ease-in-out infinite alternate !important;
+.equalizer-bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 13px;
+  margin-left: 6px;
+  vertical-align: middle;
 }
+
+.equalizer-bars .bar {
+  width: 2.5px;
+  height: 3px;
+  background: var(--text-muted);
+  border-radius: 1px;
+  transition: height 0.15s ease, background 0.2s ease;
+}
+
+.equalizer-bars.speaking .bar {
+  background: var(--accent-cyan) !important;
+  box-shadow: 0 0 6px var(--accent-cyan);
+}
+
+.equalizer-bars.speaking .bar-1 { animation: eq-speaking 0.38s ease-in-out infinite alternate !important; }
+.equalizer-bars.speaking .bar-2 { animation: eq-speaking 0.28s ease-in-out infinite alternate 0.08s !important; }
+.equalizer-bars.speaking .bar-3 { animation: eq-speaking 0.44s ease-in-out infinite alternate 0.16s !important; }
+.equalizer-bars.speaking .bar-4 { animation: eq-speaking 0.32s ease-in-out infinite alternate 0.12s !important; }
 
 @keyframes eq-speaking {
   0% { height: 20%; filter: brightness(0.9); }

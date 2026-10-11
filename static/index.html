@@ -62,8 +62,14 @@
           <button id="toggle-actions-btn" class="hud-nav-toggle-btn active" title="Toggle Quick Actions Sidebar (Alt+Q)">
             <span class="toggle-dot">●</span> ACTIONS
           </button>
-          <button id="btn-voice-mode" class="hud-nav-toggle-btn" title="Toggle JARVIS Voice Output (Speaks Responses Aloud)">
+          <button id="btn-voice-mode" class="hud-nav-toggle-btn" title="Toggle JARVIS Voice Output & Continuous Loop (Alt+S)">
             🔊 <span id="nav-voice-text">VOICE: OFF</span>
+            <span class="equalizer-bars" id="equalizer-bars">
+              <span class="bar bar-1"></span>
+              <span class="bar bar-2"></span>
+              <span class="bar bar-3"></span>
+              <span class="bar bar-4"></span>
+            </span>
           </button>
           <button id="btn-load-history" class="hud-nav-toggle-btn" title="Load Previous Chat History (Alt+H)">
             📜 <span id="nav-history-text">LOAD HISTORY</span> <span class="nav-badge" id="nav-history-count" style="display:none; margin-left:4px; font-size:10px; background:rgba(0,243,255,0.2); padding:1px 5px; border-radius:10px; border:1px solid #00f3ff;">0</span>
@@ -279,15 +285,20 @@
               <div class="gyro-ring gyro-ring-inner"></div>
             </div>
 
-            <!-- Central Arc Reactor Epicenter -->
-            <div class="reactor-epicenter">
-              <div class="epicenter-plasma-core"></div>
-              <div class="epicenter-pulse-ring"></div>
+            <!-- Central Arc Reactor Epicenter (Audio Reactive Core) -->
+            <div class="reactor-epicenter" id="reactor-epicenter">
+              <div class="epicenter-voice-waves" id="epicenter-voice-waves">
+                <div class="voice-wave-ring wave-1"></div>
+                <div class="voice-wave-ring wave-2"></div>
+                <div class="voice-wave-ring wave-3"></div>
+              </div>
+              <div class="epicenter-plasma-core" id="epicenter-plasma-core"></div>
+              <div class="epicenter-pulse-ring" id="epicenter-pulse-ring"></div>
               <div class="epicenter-text-badge">
-                <span class="core-symbol">⚡</span>
+                <span class="core-symbol" id="core-symbol">⚡</span>
                 <span class="core-title">KIRAHT</span>
-                <span class="core-subtitle">ARC REACTOR</span>
-                <span class="core-status">SYS: ONLINE</span>
+                <span class="core-subtitle" id="core-subtitle">ARC REACTOR</span>
+                <span class="core-status" id="core-status-text">SYS: ONLINE</span>
               </div>
             </div>
           </div>
@@ -320,8 +331,9 @@
             placeholder="Type a message, system command, QR link, calculation, or question..."
             rows="1"
           ></textarea>
-          <button id="btn-mic" class="btn-mic" title="Voice Input / Speech Recognition (Click to speak)">
+          <button id="btn-mic" class="btn-mic" title="Voice Input / Speech Recognition (Alt+V or Click to Speak)">
             <span class="mic-icon">🎙️</span>
+            <span class="mic-wave-pulse"></span>
           </button>
           <button id="btn-send" class="btn-send" title="Send (Enter)">
             <span class="send-text">TRANSMIT</span>

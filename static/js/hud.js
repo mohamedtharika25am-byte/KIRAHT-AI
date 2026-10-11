@@ -43,6 +43,9 @@
   const hudUptime = document.getElementById('hud-uptime');
   const headerEngineText = document.getElementById('header-engine-text');
   const reactorCore = document.getElementById('reactor-core');
+  const reactorEpicenter = document.getElementById('reactor-epicenter');
+  const epicenterPlasmaCore = document.getElementById('epicenter-plasma-core');
+  const coreStatusText = document.getElementById('core-status-text');
   const btnShortcutsModal = document.getElementById('btn-shortcuts-modal');
   const shortcutsModal = document.getElementById('shortcuts-modal');
   const btnCloseShortcuts = document.getElementById('btn-close-shortcuts');
@@ -962,17 +965,31 @@
       btnSend.classList.add('btn-cancel');
       btnSend.setAttribute('title', 'Stop Generating (Esc)');
       btnSend.innerHTML = '<span class="btn-cancel-icon" style="font-size:12px;">■</span> <span class="btn-send-text">STOP</span>';
+      if (typeof setReactorState === 'function') setReactorState('thinking');
     } else {
       btnSend.classList.remove('btn-cancel');
       btnSend.setAttribute('title', 'Send Directive (Enter)');
       btnSend.innerHTML = '<span class="btn-send-icon">▲</span> <span class="btn-send-text">TRANSMIT</span>';
+      if (typeof setReactorState === 'function' && typeof isListening !== 'undefined' && !isListening) {
+        setReactorState('idle');
+      }
     }
   }
 
   function cancelGeneration() {
-    if (!isGenerating && !thinkingCard && !currentStreamingCard) return;
-    logActivity('User', 'Stop', 'Generation canceled by user');
+    if (!isGenerating && !thinkingCard && !currentStreamingCard && (!window.speechSynthesis || !window.speechSynthesis.speaking)) return;
+    logActivity('User', 'Stop', 'Generation / speech halted by user');
     sendWebSocket({ type: 'cancel' });
+
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    if (typeof stopSpeakingModulation === 'function') {
+      stopSpeakingModulation();
+    }
+    if (equalizerBars) {
+      equalizerBars.classList.remove('speaking');
+    }
 
     if (wordStreamInterval) {
       clearInterval(wordStreamInterval);
@@ -1004,6 +1021,7 @@
 
     setGeneratingState(false);
     updateStatus('READY', 'Ready for command');
+    if (typeof setReactorState === 'function') setReactorState('idle');
     scrollToBottom();
   }
 
@@ -1078,7 +1096,7 @@
   }
 
   // =========================================================================
-  // 7.1 VOICE SYSTEM: SPEECH RECOGNITION (MIC) & SPEECH SYNTHESIS (VOICE)
+  // 7.1 ADVANCED JARVIS VOICE ENGINE: AUDIO-REACTIVE ARC REACTOR & BARGE-IN
   // =========================================================================
   const btnMic = document.getElementById('btn-mic');
   const btnVoiceMode = document.getElementById('btn-voice-mode');
@@ -1088,7 +1106,325 @@
   let isVoiceModeEnabled = localStorage.getItem('kiraht_voice_mode') === 'true';
   let recognition = null;
   let isListening = false;
+  let speechDebounceTimer = null;
+  let activeReactorState = 'idle';
 
+  // 1. Web Audio API Context & Sci-Fi SFX Synthesizer (0 external audio files needed)
+  let audioCtx = null;
+  function getAudioContext() {
+    if (!audioCtx) {
+      const AudioCtxClass = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtxClass) {
+        audioCtx = new AudioCtxClass();
+      }
+    }
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume();
+    }
+    return audioCtx;
+  }
+
+  function playSciFiTone(type) {
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+
+      if (type === 'activate') {
+        // High-tech ascending chirp (440Hz -> 880Hz)
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(880, now + 0.11);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.13);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.14);
+      } else if (type === 'listen') {
+        // Gentle harmonic listening ping (660Hz -> 880Hz)
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(660, now);
+        osc.frequency.setValueAtTime(880, now + 0.05);
+        gain.gain.setValueAtTime(0.06, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.2);
+      } else if (type === 'transmit') {
+        // Direct uplink transmission pulse (500Hz -> 1100Hz)
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(500, now);
+        osc.frequency.exponentialRampToValueAtTime(1100, now + 0.08);
+        gain.gain.setValueAtTime(0.07, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.1);
+      } else if (type === 'interrupt') {
+        // Tactical cutoff disengage sound (descending 260Hz -> 70Hz sawtooth burst)
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(260, now);
+        osc.frequency.exponentialRampToValueAtTime(70, now + 0.09);
+        gain.gain.setValueAtTime(0.12, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.12);
+      } else if (type === 'complete') {
+        // Positive completion blip (587Hz -> 880Hz)
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(587.33, now);
+        osc.frequency.setValueAtTime(880, now + 0.06);
+        gain.gain.setValueAtTime(0.06, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.18);
+      }
+    } catch (e) {
+      // AudioContext policy handled gracefully
+    }
+  }
+
+  // 2. Arc Reactor Core Tactical State Controller
+  function setReactorState(state, statusOverride) {
+    activeReactorState = state;
+    if (!reactorCore) return;
+
+    reactorCore.classList.remove('state-listening', 'state-speaking', 'state-thinking', 'state-interrupted');
+
+    if (state === 'listening') {
+      reactorCore.classList.add('state-listening');
+      if (coreStatusText) {
+        coreStatusText.textContent = statusOverride || '[VOICE: LISTENING]';
+        coreStatusText.style.color = 'var(--accent-cyan)';
+      }
+    } else if (state === 'speaking') {
+      reactorCore.classList.add('state-speaking');
+      if (coreStatusText) {
+        coreStatusText.textContent = statusOverride || '[JARVIS: SPEAKING]';
+        coreStatusText.style.color = '#00aaff';
+      }
+    } else if (state === 'thinking') {
+      reactorCore.classList.add('state-thinking');
+      if (coreStatusText) {
+        coreStatusText.textContent = statusOverride || '[CORE: PROCESSING]';
+        coreStatusText.style.color = 'var(--accent-amber)';
+      }
+    } else if (state === 'interrupted') {
+      reactorCore.classList.add('state-interrupted');
+      if (coreStatusText) {
+        coreStatusText.textContent = statusOverride || '[ABORT: INTERRUPTED]';
+        coreStatusText.style.color = '#ff1744';
+      }
+    } else {
+      // Idle / Normal
+      if (coreStatusText) {
+        coreStatusText.textContent = 'SYS: ONLINE';
+        coreStatusText.style.color = 'var(--accent-green)';
+      }
+      if (reactorEpicenter) {
+        reactorEpicenter.style.transform = 'translate(-50%, -50%) scale(1)';
+      }
+      if (epicenterPlasmaCore) {
+        epicenterPlasmaCore.style.boxShadow = '';
+      }
+    }
+  }
+
+  // 3. Audio-Reactive Real-Time Microphone Analysis Loop
+  let micStream = null;
+  let micAnalyser = null;
+  let micSource = null;
+  let micFreqData = null;
+  let micRafId = null;
+  let currentAmp = 0;
+
+  function startMicAudioAnalysis() {
+    if (micRafId) return;
+    const ctx = getAudioContext();
+    if (!ctx || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+
+    navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+      .then(function (stream) {
+        micStream = stream;
+        micSource = ctx.createMediaStreamSource(stream);
+        micAnalyser = ctx.createAnalyser();
+        micAnalyser.fftSize = 256;
+        micAnalyser.smoothingTimeConstant = 0.7;
+        micSource.connect(micAnalyser);
+        micFreqData = new Uint8Array(micAnalyser.frequencyBinCount);
+
+        function renderAudioReaction() {
+          if (!isListening && activeReactorState !== 'listening') {
+            stopMicAudioAnalysis();
+            return;
+          }
+
+          if (isListening && micAnalyser && micFreqData) {
+            micAnalyser.getByteFrequencyData(micFreqData);
+            let sum = 0;
+            for (let i = 0; i < micFreqData.length; i++) {
+              sum += micFreqData[i] * micFreqData[i];
+            }
+            const rms = Math.sqrt(sum / micFreqData.length) / 128; // ~0 to 1
+            const targetAmp = Math.min(1.0, rms * 1.6);
+            currentAmp += (targetAmp - currentAmp) * 0.35; // smooth lerp
+
+            // Scale Arc Reactor epicenter based on live voice amplitude!
+            if (reactorEpicenter) {
+              const scale = 1 + currentAmp * 0.42;
+              reactorEpicenter.style.transform = `translate(-50%, -50%) scale(${scale.toFixed(3)})`;
+            }
+            if (epicenterPlasmaCore) {
+              const glow = 20 + currentAmp * 75;
+              const alpha = (0.5 + currentAmp * 0.5).toFixed(2);
+              epicenterPlasmaCore.style.boxShadow = `0 0 ${glow.toFixed(0)}px rgba(0, 243, 255, ${alpha}), inset 0 0 ${(12 + currentAmp * 35).toFixed(0)}px rgba(0, 255, 170, ${alpha})`;
+            }
+            if (coreStatusText && isListening) {
+              if (currentAmp > 0.08) {
+                coreStatusText.textContent = '[VOICE: DETECTING]';
+              } else {
+                coreStatusText.textContent = '[VOICE: LISTENING]';
+              }
+            }
+          }
+
+          micRafId = requestAnimationFrame(renderAudioReaction);
+        }
+
+        micRafId = requestAnimationFrame(renderAudioReaction);
+      })
+      .catch(function (err) {
+        console.warn('[HUD] Audio Analyser mic notice:', err);
+      });
+  }
+
+  function stopMicAudioAnalysis() {
+    if (micRafId) {
+      cancelAnimationFrame(micRafId);
+      micRafId = null;
+    }
+    if (micSource) {
+      try { micSource.disconnect(); } catch (e) {}
+      micSource = null;
+    }
+    if (micStream) {
+      try {
+        micStream.getTracks().forEach(t => t.stop());
+      } catch (e) {}
+      micStream = null;
+    }
+    currentAmp = 0;
+    if (reactorEpicenter && activeReactorState !== 'speaking') {
+      reactorEpicenter.style.transform = 'translate(-50%, -50%) scale(1)';
+    }
+    if (epicenterPlasmaCore && activeReactorState !== 'speaking') {
+      epicenterPlasmaCore.style.boxShadow = '';
+    }
+  }
+
+  // 4. Speech Synthesis Simulated Acoustic Wave Modulation
+  let speakingModTimer = null;
+  function startSpeakingModulation() {
+    if (speakingModTimer) clearInterval(speakingModTimer);
+    let step = 0;
+    setReactorState('speaking');
+    speakingModTimer = setInterval(function () {
+      if (!window.speechSynthesis || !window.speechSynthesis.speaking) {
+        stopSpeakingModulation();
+        return;
+      }
+      step++;
+      const mod = 0.5 + 0.5 * Math.sin(step * 0.45) * (0.8 + 0.2 * Math.cos(step * 0.2));
+      if (reactorEpicenter) {
+        reactorEpicenter.style.transform = `translate(-50%, -50%) scale(${(1 + mod * 0.22).toFixed(3)})`;
+      }
+      if (epicenterPlasmaCore) {
+        const glow = 25 + mod * 55;
+        epicenterPlasmaCore.style.boxShadow = `0 0 ${glow.toFixed(0)}px rgba(0, 170, 255, 0.95), inset 0 0 ${(15 + mod * 25).toFixed(0)}px rgba(0, 243, 255, 0.75)`;
+      }
+    }, 50);
+  }
+
+  function stopSpeakingModulation() {
+    if (speakingModTimer) {
+      clearInterval(speakingModTimer);
+      speakingModTimer = null;
+    }
+    if (!isListening && !isGenerating) {
+      setReactorState('idle');
+    }
+  }
+
+  // 5. Stop Keywords & Interruption Engine
+  const STOP_KEYWORDS = [
+    'stop', 'stop it', 'stop talking', 'shut up', 'quiet', 'be quiet',
+    'silence', 'pause', 'hold on', 'wait', 'enough', 'cancel',
+    'halt', 'terminate', 'neruthu', 'niruthu', 'podhum', 'vaaya moodu', 'iruda'
+  ];
+
+  function isStopPhrase(raw) {
+    if (!raw) return false;
+    const lower = raw.toLowerCase().trim().replace(/[!.,?]/g, '');
+    return STOP_KEYWORDS.some(function (k) {
+      const regex = new RegExp('(?:^|\\s)' + k + '(?:\\s|$)', 'i');
+      return regex.test(lower) || lower === k;
+    });
+  }
+
+  function triggerVoiceInterruption(phrase) {
+    // 1. Immediately cancel vocal speech
+    if (window.speechSynthesis) {
+      window.speechSynthesis.cancel();
+    }
+    stopSpeakingModulation();
+
+    // 2. Cancel active streaming / generation
+    cancelGeneration();
+
+    // 3. Reset equalizer
+    if (equalizerBars) equalizerBars.classList.remove('speaking');
+
+    // 4. Play tactical cutoff sound effect
+    playSciFiTone('interrupt');
+
+    // 5. Visual Crimson Shockwave on Arc Reactor
+    setReactorState('interrupted');
+    setTimeout(function () {
+      if (isListening) {
+        setReactorState('listening');
+      } else {
+        setReactorState('idle');
+      }
+    }, 1200);
+
+    // 6. Log
+    logActivity('User', 'Voice Interrupted', `Halted by voice command: "${phrase || 'stop'}"`);
+
+    // 7. Clear chat input
+    if (chatInput) {
+      chatInput.value = '';
+      chatInput.placeholder = 'Interrupted. Listening for next command...';
+    }
+  }
+
+  // 6. Voice Mode Toggler & UI
   function updateVoiceModeUI() {
     if (navVoiceText) {
       navVoiceText.textContent = isVoiceModeEnabled ? 'VOICE: ON' : 'VOICE: OFF';
@@ -1106,9 +1442,14 @@
     isVoiceModeEnabled = !isVoiceModeEnabled;
     localStorage.setItem('kiraht_voice_mode', isVoiceModeEnabled ? 'true' : 'false');
     updateVoiceModeUI();
-    logActivity('System', 'Voice Mode', isVoiceModeEnabled ? 'JARVIS vocal speech enabled' : 'Vocal speech muted');
-    if (!isVoiceModeEnabled && window.speechSynthesis) {
-      window.speechSynthesis.cancel();
+    logActivity('System', 'Voice Mode', isVoiceModeEnabled ? 'JARVIS vocal speech & continuous hands-free armed' : 'Voice output & hands-free muted');
+    if (isVoiceModeEnabled) {
+      playSciFiTone('activate');
+      startMicListening();
+    } else {
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+      stopSpeakingModulation();
+      stopMicListening();
       if (equalizerBars) equalizerBars.classList.remove('speaking');
     }
   }
@@ -1118,7 +1459,7 @@
   }
   updateVoiceModeUI();
 
-  // Speech Synthesis Helper (Vocal Speech Output)
+  // 7. Speech Synthesis Output
   function cleanTextForSpeech(text) {
     if (!text) return '';
     return text
@@ -1150,33 +1491,55 @@
 
     utterance.onstart = function () {
       if (equalizerBars) equalizerBars.classList.add('speaking');
+      startSpeakingModulation();
+      // Ensure barge-in recognition is listening concurrently so user can interrupt anytime!
+      ensureRecognitionForBargeIn();
     };
+
     utterance.onend = function () {
       if (equalizerBars) equalizerBars.classList.remove('speaking');
+      stopSpeakingModulation();
+      playSciFiTone('complete');
+
+      // Hands-free conversational loop:
+      // If Voice Mode is ON, automatically re-arm the mic to listen for the user's next sentence!
+      if (isVoiceModeEnabled && !isGenerating) {
+        setTimeout(function () {
+          if (!isListening) {
+            startMicListening();
+          }
+        }, 450);
+      }
     };
+
     utterance.onerror = function () {
       if (equalizerBars) equalizerBars.classList.remove('speaking');
+      stopSpeakingModulation();
     };
 
     window.speechSynthesis.speak(utterance);
   }
 
-  // Web Speech Recognition Helper (Microphone Input)
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (SpeechRecognition) {
-    recognition = new SpeechRecognition();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.lang = 'en-US';
+  // 8. Web Speech Recognition Engine (Continuous Barge-In & Auto Submit)
+  function initSpeechRecognition() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) return null;
 
-    recognition.onstart = function () {
+    const rec = new SpeechRecognition();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = 'en-US';
+
+    rec.onstart = function () {
       isListening = true;
       if (btnMic) btnMic.classList.add('listening');
-      if (chatInput) chatInput.placeholder = 'Listening to your voice... Speak now.';
-      logActivity('User', 'Voice Input', 'Microphone active — listening...');
+      if (chatInput) chatInput.placeholder = 'JARVIS Listening... Speak your command or say "Stop"';
+      setReactorState('listening');
+      startMicAudioAnalysis();
+      logActivity('User', 'Voice Input', 'Microphone active — audio analysis engaged');
     };
 
-    recognition.onresult = function (event) {
+    rec.onresult = function (event) {
       let interim = '';
       let final = '';
       for (let i = event.resultIndex; i < event.results.length; ++i) {
@@ -1186,43 +1549,128 @@
           interim += event.results[i][0].transcript;
         }
       }
+
+      const spoken = (final || interim).trim();
+      if (!spoken) return;
+
+      const isAssistantSpeaking = window.speechSynthesis && window.speechSynthesis.speaking;
+      const isBusy = isAssistantSpeaking || isGenerating;
+
+      // 1. Check for STOP / INTERRUPT command
+      if (isStopPhrase(spoken)) {
+        triggerVoiceInterruption(spoken);
+        return;
+      }
+
+      // 2. Barge-in detection while assistant is speaking or computing
+      if (isBusy && spoken.length > 2) {
+        if (window.speechSynthesis) window.speechSynthesis.cancel();
+        stopSpeakingModulation();
+        if (isGenerating) cancelGeneration();
+        logActivity('User', 'Barge-In', `Interrupting with new prompt: "${spoken}"`);
+        playSciFiTone('interrupt');
+        setReactorState('listening');
+      }
+
       if (chatInput) {
-        chatInput.value = final || interim;
+        chatInput.value = spoken;
+      }
+
+      // 3. Hands-free auto transmit on final speech or natural pause
+      if (final && final.trim()) {
+        const finalText = final.trim();
+        if (isStopPhrase(finalText)) return;
+
+        if (speechDebounceTimer) clearTimeout(speechDebounceTimer);
+        speechDebounceTimer = setTimeout(function () {
+          if (chatInput && chatInput.value.trim()) {
+            const promptToSend = chatInput.value.trim();
+            if (!isStopPhrase(promptToSend)) {
+              logActivity('User', 'Voice Transmit', promptToSend);
+              playSciFiTone('transmit');
+              sendMessage();
+            }
+          }
+        }, 650);
       }
     };
 
-    recognition.onerror = function (event) {
-      isListening = false;
-      if (btnMic) btnMic.classList.remove('listening');
-      if (chatInput) chatInput.placeholder = 'Type a message, system command, QR link, calculation, or question...';
-      logActivity('System', 'Mic Notice', event.error || 'Recognition ended');
-    };
-
-    recognition.onend = function () {
-      isListening = false;
-      if (btnMic) btnMic.classList.remove('listening');
-      if (chatInput) chatInput.placeholder = 'Type a message, system command, QR link, calculation, or question...';
-      if (chatInput && chatInput.value.trim()) {
-        chatInput.focus();
+    rec.onerror = function (event) {
+      if (event.error !== 'no-speech') {
+        logActivity('System', 'Mic Notice', event.error || 'Recognition error');
       }
     };
+
+    rec.onend = function () {
+      if (isListening) {
+        // Keep continuous listening armed in voice mode or active listening
+        try {
+          rec.start();
+        } catch (e) {
+          isListening = false;
+          if (btnMic) btnMic.classList.remove('listening');
+          stopMicAudioAnalysis();
+          if (!isGenerating) setReactorState('idle');
+        }
+      } else {
+        if (btnMic) btnMic.classList.remove('listening');
+        stopMicAudioAnalysis();
+        if (!isGenerating) setReactorState('idle');
+        if (chatInput) chatInput.placeholder = 'Type a message, system command, QR link, calculation, or question...';
+      }
+    };
+
+    return rec;
   }
 
-  function toggleMicListening() {
+  function ensureRecognitionForBargeIn() {
+    if (!recognition) recognition = initSpeechRecognition();
+    if (recognition && !isListening) {
+      try {
+        isListening = true;
+        recognition.start();
+        if (btnMic) btnMic.classList.add('listening');
+        startMicAudioAnalysis();
+      } catch (e) {
+        // Already active
+      }
+    }
+  }
+
+  function startMicListening() {
+    if (!recognition) recognition = initSpeechRecognition();
     if (!recognition) {
       logActivity('System', 'Mic Notice', 'Web Speech Recognition not supported in this browser.');
       alert('Speech Recognition is not supported by your current browser. Please open in Google Chrome, Microsoft Edge, or Brave Browser.');
       return;
     }
-
-    if (isListening) {
-      recognition.stop();
-    } else {
+    if (!isListening) {
       try {
+        isListening = true;
         recognition.start();
-      } catch (err) {
-        recognition.stop();
+        playSciFiTone('activate');
+      } catch (e) {
+        // Already running
       }
+    }
+  }
+
+  function stopMicListening() {
+    isListening = false;
+    if (recognition) {
+      try { recognition.stop(); } catch (e) {}
+    }
+    if (btnMic) btnMic.classList.remove('listening');
+    stopMicAudioAnalysis();
+    if (!isGenerating) setReactorState('idle');
+  }
+
+  function toggleMicListening() {
+    if (isListening) {
+      stopMicListening();
+      logActivity('User', 'Voice Paused', 'Microphone deactivated');
+    } else {
+      startMicListening();
     }
   }
 
@@ -1521,11 +1969,16 @@
         return;
       }
 
-      // 2. Esc: Close modal if open, else blur chat input
+      // 2. Esc: Close modal if open, cancel speech/generation, or blur chat input
       if (e.key === 'Escape') {
         if (shortcutsModal && shortcutsModal.style.display === 'flex') {
           e.preventDefault();
           hideShortcutsModal();
+          return;
+        }
+        if (isGenerating || (window.speechSynthesis && window.speechSynthesis.speaking)) {
+          e.preventDefault();
+          triggerVoiceInterruption('Escape key');
           return;
         }
         if (chatInput && document.activeElement === chatInput) {
