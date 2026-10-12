@@ -190,6 +190,89 @@ async def handle_quick_action(req: QuickActionRequest):
     }
 
 
+class VoiceSpeakRequest(BaseModel):
+    text: str
+    voice_index: int = 0
+    rate: int = 175
+
+
+@app.get("/api/voice/status")
+async def get_voice_status():
+    """Returns local Python voice engine status (TTS & STT availability)."""
+    tts_available = False
+    stt_available = False
+    voices_list = []
+    try:
+        import pyttsx3
+        import pythoncom
+        pythoncom.CoInitialize()
+        engine = pyttsx3.init()
+        tts_available = True
+        raw_voices = engine.getProperty("voices") or []
+        for idx, v in enumerate(raw_voices):
+            voices_list.append({
+                "id": str(getattr(v, "id", idx)),
+                "name": str(getattr(v, "name", f"Voice {idx}")),
+                "languages": getattr(v, "languages", [])
+            })
+        engine.stop()
+    except Exception:
+        pass
+
+    try:
+        import speech_recognition as sr
+        stt_available = True
+    except Exception:
+        pass
+
+    return {
+        "status": "online",
+        "tts_available": tts_available,
+        "stt_available": stt_available,
+        "engine": "pyttsx3/sapi5" if tts_available else "none",
+        "voices": voices_list
+    }
+
+
+@app.post("/api/voice/speak")
+async def voice_speak(req: VoiceSpeakRequest):
+    """Speaks text aloud using local Windows SAPI5 / pyttsx3 backend."""
+    import re
+    import threading
+
+    text = (req.text or "").strip()
+    if not text:
+        return {"status": "error", "message": "No text provided"}
+
+    # Strip markdown code blocks, links, formatting
+    clean = re.sub(r"```[\s\S]*?```", "Code block omitted.", text)
+    clean = re.sub(r"[*_#~>`]", "", clean)
+    clean = re.sub(r"https?://\S+", "link", clean).strip()
+    if not clean:
+        return {"status": "error", "message": "Text is empty after markdown cleaning"}
+
+    def _speak_worker(clean_text: str, voice_idx: int, rate: int):
+        try:
+            import pyttsx3
+            import pythoncom
+            pythoncom.CoInitialize()
+            engine = pyttsx3.init()
+            engine.setProperty("rate", rate)
+            voices = engine.getProperty("voices") or []
+            if voices and 0 <= voice_idx < len(voices):
+                engine.setProperty("voice", voices[voice_idx].id)
+            engine.say(clean_text)
+            engine.runAndWait()
+            engine.stop()
+        except Exception as err:
+            print(f"[!] pyttsx3 background speech error: {err}")
+
+    t = threading.Thread(target=_speak_worker, args=(clean, req.voice_index, req.rate), daemon=True)
+    t.start()
+
+    return {"status": "success", "message": "Voice synthesis triggered", "preview": clean[:80]}
+
+
 # WebSocket Manager for Real-Time Streaming & Telemetry Push
 class ConnectionManager:
     def __init__(self):

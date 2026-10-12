@@ -627,8 +627,9 @@
       updateVoiceResponseCard(content);
     }
 
-    if (!isUser && typeof isVoiceModeEnabled !== 'undefined' && isVoiceModeEnabled && content) {
+    if (!isUser && ((typeof isVoiceModeEnabled !== 'undefined' && isVoiceModeEnabled) || isVoiceTriggered) && content) {
       speakAloud(content);
+      isVoiceTriggered = false;
     }
     return contentEl;
   }
@@ -863,8 +864,9 @@
       updateVoiceResponseCard(textToRender);
     }
 
-    if (typeof isVoiceModeEnabled !== 'undefined' && isVoiceModeEnabled && textToRender) {
+    if (((typeof isVoiceModeEnabled !== 'undefined' && isVoiceModeEnabled) || isVoiceTriggered) && textToRender) {
       speakAloud(textToRender);
+      isVoiceTriggered = false;
     }
 
     currentStreamingCard = null;
@@ -1170,6 +1172,9 @@
   let currentHudMode = localStorage.getItem('kiraht_hud_mode') || (isVoiceModeEnabled ? 'voice' : 'chat');
   let recognition = null;
   let isListening = false;
+  let isVoiceTriggered = false;
+  let cachedVoices = [];
+  let synthKeepAlive = null;
   let speechDebounceTimer = null;
   let activeReactorState = 'idle';
   let currentVoiceStage = 'idle';
@@ -1729,7 +1734,52 @@
     btnVoiceMode.addEventListener('click', toggleVoiceMode);
   }
 
-  // 7. Speech Synthesis Output
+  // 7. Speech Synthesis Output & Voice Feedback Engine
+  function showVoiceToast(msg, type = 'info') {
+    let toast = document.getElementById('voice-hud-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'voice-hud-toast';
+      toast.className = 'voice-hud-toast';
+      document.body.appendChild(toast);
+    }
+    toast.textContent = msg;
+    toast.className = `voice-hud-toast show ${type}`;
+    if (window._voiceToastTimer) clearTimeout(window._voiceToastTimer);
+    window._voiceToastTimer = setTimeout(() => {
+      toast.className = 'voice-hud-toast';
+    }, 6000);
+  }
+
+  function loadCachedVoices() {
+    if (window.speechSynthesis) {
+      try {
+        const v = window.speechSynthesis.getVoices();
+        if (v && v.length) {
+          cachedVoices = v;
+        }
+      } catch (e) {}
+    }
+  }
+
+  if (window.speechSynthesis) {
+    loadCachedVoices();
+    window.speechSynthesis.onvoiceschanged = loadCachedVoices;
+  }
+
+  function startSynthKeepAlive() {
+    if (synthKeepAlive) clearInterval(synthKeepAlive);
+    synthKeepAlive = setInterval(() => {
+      if (window.speechSynthesis && window.speechSynthesis.speaking) {
+        window.speechSynthesis.pause();
+        window.speechSynthesis.resume();
+      } else {
+        clearInterval(synthKeepAlive);
+        synthKeepAlive = null;
+      }
+    }, 9000);
+  }
+
   function cleanTextForSpeech(text) {
     if (!text) return '';
     return text
@@ -1743,71 +1793,114 @@
       .trim();
   }
 
+  function speakViaBackend(text) {
+    if (!text) return;
+    const clean = cleanTextForSpeech(text);
+    if (!clean) return;
+    fetch('/api/voice/speak', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: clean, rate: 175 })
+    }).catch(e => console.warn('[HUD] Backend TTS fallback notice:', e));
+  }
+
   function speakAloud(text) {
-    if (!window.speechSynthesis || !isVoiceModeEnabled) return;
     const clean = cleanTextForSpeech(text);
     if (!clean) return;
 
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(clean);
-    utterance.rate = 1.05;
-    utterance.pitch = 1.0;
-
-    const voices = window.speechSynthesis.getVoices();
-    const englishVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('David') || v.name.includes('Mark') || v.name.includes('Samantha'))) || voices.find(v => v.lang.startsWith('en'));
-    if (englishVoice) {
-      utterance.voice = englishVoice;
+    if (!window.speechSynthesis) {
+      speakViaBackend(clean);
+      return;
     }
 
-    utterance.onstart = function () {
-      if (equalizerBars) equalizerBars.classList.add('speaking');
-      startSpeakingModulation();
-      setVoicePipelineState('speaking', 'KIRAHT AUDIO TRANSMISSION ACTIVE');
-      if (voiceKirahtText) {
-        voiceKirahtText.textContent = `"${clean}"`;
-      }
-      if (kirahtSpeechStatus) {
-        kirahtSpeechStatus.textContent = 'SPEAKING';
-        kirahtSpeechStatus.className = 'speech-live-tag tag-speaking';
-      }
-      // Ensure barge-in recognition is listening concurrently so user can interrupt anytime!
-      ensureRecognitionForBargeIn();
-    };
+    try {
+      window.speechSynthesis.cancel();
+    } catch (e) {}
 
-    utterance.onend = function () {
-      if (equalizerBars) equalizerBars.classList.remove('speaking');
-      stopSpeakingModulation();
-      playSciFiTone('complete');
-      if (kirahtSpeechStatus) {
-        kirahtSpeechStatus.textContent = 'READY';
-        kirahtSpeechStatus.className = 'speech-live-tag';
-      }
+    setTimeout(() => {
+      try {
+        const utterance = new SpeechSynthesisUtterance(clean);
+        utterance.rate = 1.05;
+        utterance.pitch = 1.0;
 
-      // Hands-free conversational loop:
-      // If Voice Mode is ON, automatically re-arm the mic to listen for the user's next sentence!
-      if (isVoiceModeEnabled && !isGenerating) {
-        setVoicePipelineState('listening', 'CONTINUOUS LISTENING ARMED');
-        setTimeout(function () {
-          if (!isListening) {
-            startMicListening();
+        loadCachedVoices();
+        const voices = cachedVoices.length ? cachedVoices : (window.speechSynthesis.getVoices() || []);
+        const langVal = localStorage.getItem('kiraht_voice_lang') || 'en-IN';
+
+        let chosenVoice = voices.find(v => v.lang.replace('_', '-').toLowerCase().startsWith(langVal.toLowerCase()));
+        if (!chosenVoice) {
+          chosenVoice = voices.find(v => v.lang.startsWith('en') && (v.name.includes('Natural') || v.name.includes('Google') || v.name.includes('David') || v.name.includes('Mark') || v.name.includes('Zira') || v.name.includes('Samantha')));
+        }
+        if (!chosenVoice) {
+          chosenVoice = voices.find(v => v.lang.startsWith('en'));
+        }
+        if (chosenVoice) {
+          utterance.voice = chosenVoice;
+        }
+
+        utterance.onstart = function () {
+          if (equalizerBars) equalizerBars.classList.add('speaking');
+          startSpeakingModulation();
+          setVoicePipelineState('speaking', 'KIRAHT AUDIO TRANSMISSION ACTIVE');
+          if (voiceKirahtText) {
+            voiceKirahtText.textContent = `"${clean}"`;
           }
-        }, 450);
-      } else {
-        setVoicePipelineState('idle', 'SYSTEM IDLE & READY');
-      }
-    };
+          if (kirahtSpeechStatus) {
+            kirahtSpeechStatus.textContent = 'SPEAKING';
+            kirahtSpeechStatus.className = 'speech-live-tag tag-speaking';
+          }
+          startSynthKeepAlive();
+          ensureRecognitionForBargeIn();
+        };
 
-    utterance.onerror = function () {
-      if (equalizerBars) equalizerBars.classList.remove('speaking');
-      stopSpeakingModulation();
-      if (kirahtSpeechStatus) {
-        kirahtSpeechStatus.textContent = 'READY';
-        kirahtSpeechStatus.className = 'speech-live-tag';
-      }
-      setVoicePipelineState('idle');
-    };
+        utterance.onend = function () {
+          if (synthKeepAlive) {
+            clearInterval(synthKeepAlive);
+            synthKeepAlive = null;
+          }
+          if (equalizerBars) equalizerBars.classList.remove('speaking');
+          stopSpeakingModulation();
+          playSciFiTone('complete');
+          if (kirahtSpeechStatus) {
+            kirahtSpeechStatus.textContent = 'READY';
+            kirahtSpeechStatus.className = 'speech-live-tag';
+          }
 
-    window.speechSynthesis.speak(utterance);
+          // Hands-free conversational loop:
+          if (isVoiceModeEnabled && !isGenerating) {
+            setVoicePipelineState('listening', 'CONTINUOUS LISTENING ARMED');
+            setTimeout(function () {
+              if (!isListening) {
+                startMicListening();
+              }
+            }, 450);
+          } else {
+            setVoicePipelineState('idle', 'SYSTEM IDLE & READY');
+          }
+        };
+
+        utterance.onerror = function (event) {
+          if (synthKeepAlive) {
+            clearInterval(synthKeepAlive);
+            synthKeepAlive = null;
+          }
+          if (equalizerBars) equalizerBars.classList.remove('speaking');
+          stopSpeakingModulation();
+          if (kirahtSpeechStatus) {
+            kirahtSpeechStatus.textContent = 'READY';
+            kirahtSpeechStatus.className = 'speech-live-tag';
+          }
+          setVoicePipelineState('idle');
+          // Fallback to backend SAPI5 if browser synthesis failed
+          speakViaBackend(clean);
+        };
+
+        window.speechSynthesis.speak(utterance);
+      } catch (err) {
+        console.error('[HUD] SpeechSynthesis error, delegating to backend:', err);
+        speakViaBackend(clean);
+      }
+    }, 45);
   }
 
   // 8. Web Speech Recognition Engine (Continuous Barge-In & Auto Submit)
@@ -1818,7 +1911,8 @@
     const rec = new SpeechRecognition();
     rec.continuous = true;
     rec.interimResults = true;
-    rec.lang = 'en-US';
+    const currentLang = localStorage.getItem('kiraht_voice_lang') || 'en-IN';
+    rec.lang = currentLang;
 
     rec.onstart = function () {
       isListening = true;
@@ -1829,7 +1923,9 @@
         userSpeechStatus.textContent = 'LISTENING';
         userSpeechStatus.className = 'speech-live-tag tag-listening';
       }
-      startMicAudioAnalysis();
+      try {
+        startMicAudioAnalysis();
+      } catch (e) {}
       logActivity('User', 'Voice Input', 'Microphone active — audio analysis engaged');
     };
 
@@ -1846,6 +1942,8 @@
 
       const spoken = (final || interim).trim();
       if (!spoken) return;
+
+      isVoiceTriggered = true; // User spoke, so assistant should speak back!
 
       if (voiceUserText) {
         voiceUserText.textContent = `"${spoken}"`;
@@ -1901,6 +1999,7 @@
             if (!isStopPhrase(promptToSend)) {
               logActivity('User', 'Voice Transmit', promptToSend);
               playSciFiTone('transmit');
+              isVoiceTriggered = true;
               sendMessage();
             }
           }
@@ -1909,35 +2008,45 @@
     };
 
     rec.onerror = function (event) {
-      if (event.error !== 'no-speech') {
-        logActivity('System', 'Mic Notice', event.error || 'Recognition error');
+      const err = event.error;
+      console.warn('[HUD] SpeechRecognition error:', err);
+      logActivity('System', 'Mic Notice', `Speech error: ${err}`);
+
+      if (err === 'not-allowed') {
+        isListening = false;
+        stopMicListening();
+        showVoiceToast('⚠️ Microphone blocked! Click the lock/camera icon in your address bar to Allow microphone.', 'error');
+        setVoicePipelineState('idle', 'MIC BLOCKED • ALLOW ACCESS');
+      } else if (err === 'service-not-allowed') {
+        isListening = false;
+        stopMicListening();
+        showVoiceToast('⚠️ Speech recognition service blocked. In Brave browser: enable Google Speech in Settings -> Privacy, or open in Chrome/Edge.', 'error');
+        setVoicePipelineState('idle', 'SERVICE BLOCKED');
+      } else if (err === 'audio-capture') {
+        isListening = false;
+        stopMicListening();
+        showVoiceToast('⚠️ No microphone detected or microphone is in use by another application.', 'error');
+        setVoicePipelineState('idle', 'NO MIC FOUND');
+      } else if (err === 'network') {
+        isListening = false;
+        stopMicListening();
+        showVoiceToast('⚠️ Speech recognition network timeout. Ensure internet is connected.', 'warning');
+        setVoicePipelineState('idle', 'NETWORK TIMEOUT');
+      } else if (err === 'no-speech') {
+        // Normal silence timeout
       }
     };
 
     rec.onend = function () {
-      if (isListening) {
-        // Keep continuous listening armed in voice mode or active listening
+      if (isListening && isVoiceModeEnabled) {
         try {
           rec.start();
         } catch (e) {
           isListening = false;
-          if (btnMic) btnMic.classList.remove('listening');
-          stopMicAudioAnalysis();
-          if (!isGenerating && (!window.speechSynthesis || !window.speechSynthesis.speaking)) {
-            setVoicePipelineState('idle');
-          }
+          stopMicListening();
         }
       } else {
-        if (btnMic) btnMic.classList.remove('listening');
-        stopMicAudioAnalysis();
-        if (!isGenerating && (!window.speechSynthesis || !window.speechSynthesis.speaking)) {
-          setVoicePipelineState('idle');
-        }
-        if (chatInput) chatInput.placeholder = 'Type a message, system command, QR link, calculation, or question...';
-        if (userSpeechStatus) {
-          userSpeechStatus.textContent = 'IDLE';
-          userSpeechStatus.className = 'speech-live-tag';
-        }
+        stopMicListening();
       }
     };
 
@@ -1951,7 +2060,7 @@
         isListening = true;
         recognition.start();
         if (btnMic) btnMic.classList.add('listening');
-        startMicAudioAnalysis();
+        try { startMicAudioAnalysis(); } catch (e) {}
       } catch (e) {
         // Already active
       }
@@ -1962,9 +2071,12 @@
     if (!recognition) recognition = initSpeechRecognition();
     if (!recognition) {
       logActivity('System', 'Mic Notice', 'Web Speech Recognition not supported in this browser.');
-      alert('Speech Recognition is not supported by your current browser. Please open in Google Chrome, Microsoft Edge, or Brave Browser.');
+      showVoiceToast('⚠️ Speech Recognition is not supported by this browser. Please open in Google Chrome or Microsoft Edge.', 'error');
       return;
     }
+    const selLang = localStorage.getItem('kiraht_voice_lang') || 'en-IN';
+    recognition.lang = selLang;
+
     if (!isListening) {
       try {
         isListening = true;
@@ -1982,7 +2094,15 @@
       try { recognition.stop(); } catch (e) {}
     }
     if (btnMic) btnMic.classList.remove('listening');
-    stopMicAudioAnalysis();
+    try { stopMicAudioAnalysis(); } catch (e) {}
+    if (!isGenerating && (!window.speechSynthesis || !window.speechSynthesis.speaking)) {
+      setVoicePipelineState('idle');
+    }
+    if (chatInput) chatInput.placeholder = 'Type a message, system command, QR link, calculation, or question...';
+    if (userSpeechStatus) {
+      userSpeechStatus.textContent = 'IDLE';
+      userSpeechStatus.className = 'speech-live-tag';
+    }
     if (!isGenerating) setReactorState('idle');
   }
 
@@ -2006,6 +2126,35 @@
   if (btnCentralInterrupt) {
     btnCentralInterrupt.addEventListener('click', function () {
       triggerVoiceInterruption('Manual button halt');
+    });
+  }
+
+  const btnVoiceTest = document.getElementById('btn-voice-test');
+  if (btnVoiceTest) {
+    btnVoiceTest.addEventListener('click', function () {
+      showVoiceToast('🔊 Running Audio Test: Speaking diagnostic phrase...', 'info');
+      speakAloud('KIRAHT AI voice engine is online and operational, Sir.');
+      if (!isListening) {
+        startMicListening();
+        setTimeout(() => {
+          if (!isVoiceModeEnabled) stopMicListening();
+        }, 5000);
+      }
+    });
+  }
+
+  const voiceLangSelect = document.getElementById('voice-lang-select');
+  if (voiceLangSelect) {
+    const savedLang = localStorage.getItem('kiraht_voice_lang') || 'en-IN';
+    voiceLangSelect.value = savedLang;
+    voiceLangSelect.addEventListener('change', function () {
+      const newLang = this.value;
+      localStorage.setItem('kiraht_voice_lang', newLang);
+      if (recognition) {
+        recognition.lang = newLang;
+      }
+      showVoiceToast(`🌐 Voice Recognition language updated to ${newLang}`, 'success');
+      logActivity('User', 'Voice Config', `Language set to ${newLang}`);
     });
   }
 

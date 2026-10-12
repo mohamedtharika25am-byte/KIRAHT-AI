@@ -1255,6 +1255,7 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
     pending_whatsapp = None
     show_thoughts = False
     last_thought_process = ""
+    terminal_voice_active = False
 
     while True:
         is_processing = False
@@ -1660,6 +1661,36 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
                 print(f"\nkiraht AI: Conversation context cleared, {call_me}.")
                 continue
 
+            # Command: /voice [on|off]
+            if user_input.lower().strip() in ("/voice", "/voice on", "/voice off", "/voice toggle", "/speak"):
+                cmd_parts = user_input.lower().strip().split()
+                if len(cmd_parts) > 1 and cmd_parts[1] in ("on", "true", "1"):
+                    terminal_voice_active = True
+                elif len(cmd_parts) > 1 and cmd_parts[1] in ("off", "false", "0"):
+                    terminal_voice_active = False
+                else:
+                    terminal_voice_active = not terminal_voice_active
+                v_state = "ACTIVE (Assistant answers will be spoken aloud)" if terminal_voice_active else "DISABLED (Silent mode)"
+                print(f"\nkiraht AI: 🔊 Voice Output: {v_state}, {call_me}.")
+                continue
+
+            # Command: /listen (Record voice command from microphone)
+            if user_input.lower().strip() in ("/listen", "/mic", "listen"):
+                try:
+                    import speech_recognition as sr
+                    r = sr.Recognizer()
+                    with sr.Microphone() as source:
+                        print(f"\n[🎙️ KIRAHT Listening... Speak now, {call_me}]")
+                        r.adjust_for_ambient_noise(source, duration=0.4)
+                        audio = r.listen(source, timeout=6, phrase_time_limit=12)
+                        print(f"[⚙️ Transcribing speech...]")
+                        spoken = r.recognize_google(audio, language="en-IN")
+                        print(f"\nYou (Voice): {spoken}")
+                        user_input = spoken
+                except Exception as mic_err:
+                    print(f"\nkiraht AI: ⚠️ Microphone notice: {mic_err}")
+                    continue
+
             # Command: /scan_apps
             if user_input.lower() in ("/scan_apps", "/scanapps", "scan apps"):
                 from tools import scan_installed_apps
@@ -2011,6 +2042,21 @@ def run_chat_loop(client: ollama.Client, model: str, host: str = "http://localho
 
                 # Save assistant response to session history
                 messages.append({"role": "assistant", "content": full_reply})
+
+                # If terminal voice mode is active, speak response aloud
+                if terminal_voice_active and full_reply:
+                    try:
+                        import pyttsx3, pythoncom
+                        pythoncom.CoInitialize()
+                        eng = pyttsx3.init()
+                        eng.setProperty("rate", 175)
+                        clean_speech = re.sub(r"```[\s\S]*?```", "Code omitted.", full_reply)
+                        clean_speech = re.sub(r"[*_#~>`]", "", clean_speech)
+                        eng.say(clean_speech[:350])
+                        eng.runAndWait()
+                        eng.stop()
+                    except Exception:
+                        pass
 
             except KeyboardInterrupt:
                 if messages and messages[-1].get("role") == "user":

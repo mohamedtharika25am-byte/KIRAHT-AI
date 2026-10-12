@@ -330,6 +330,14 @@
                 <span class="voice-badge-icon">🎙️</span>
                 <span class="voice-badge-text">KIRAHT VOICE SYSTEM</span>
               </div>
+              <div class="voice-lang-selector" title="Select Speech Recognition Accent / Language">
+                <select id="voice-lang-select" class="voice-lang-select">
+                  <option value="en-IN" selected>🌐 EN-IN (India / Tanglish)</option>
+                  <option value="en-US">🌐 EN-US (United States)</option>
+                  <option value="ta-IN">🌐 TA-IN (Tamil / தமிழ்)</option>
+                  <option value="en-GB">🌐 EN-GB (United Kingdom)</option>
+                </select>
+              </div>
               <div class="voice-audio-status" id="voice-audio-status">VOICE ENGINE READY</div>
             </div>
 
@@ -411,6 +419,10 @@
               <button class="voice-action-btn btn-voice-interrupt" id="btn-central-interrupt" title="Interrupt KIRAHT / Stop (Esc)">
                 <span class="action-btn-icon">⏹</span>
                 <span class="action-btn-text">INTERRUPT</span>
+              </button>
+              <button class="voice-action-btn btn-voice-test" id="btn-voice-test" title="Self-Test Audio Speakers & Speech Synthesis">
+                <span class="action-btn-icon">🔊</span>
+                <span class="action-btn-text">AUDIO TEST</span>
               </button>
               <button class="voice-action-btn btn-return-chat" id="btn-return-chat" title="Switch to Normal Chat Mode">
                 <span class="action-btn-icon">💬</span>

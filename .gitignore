@@ -19,6 +19,18 @@ ENV/
 *.swp
 *.swo
 
+# Local agent and GSD configuration
+.agent/
+.agents/
+.gemini/
+.gsd/
+GSD-STYLE.md
+PROJECT_RULES.md
+
+# Local adapters and scripts
+adapters/
+scripts/
+
 # OS generated files
 .DS_Store
 Thumbs.db
