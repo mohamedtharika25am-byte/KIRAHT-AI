@@ -1903,7 +1903,259 @@
     }, 45);
   }
 
-  // 8. Web Speech Recognition Engine (Continuous Barge-In & Auto Submit)
+  // 8. Dual-Engine Speech Recognition (Offline Whisper + Cloud Web Speech)
+  let activeSpeechEngine = localStorage.getItem('kiraht_speech_engine') || 'offline';
+  let offlineAudioStream = null;
+  let offlineAudioContext = null;
+  let offlineProcessor = null;
+  let offlineAudioChunks = [];
+  let isOfflineRecording = false;
+  let lastAudioVolumeTime = 0;
+  let hasDetectedSpeech = false;
+
+  function encodeWAV(samples, sampleRate) {
+    const targetSampleRate = 16000;
+    let finalSamples = samples;
+
+    // Resample to 16kHz for Whisper
+    if (sampleRate !== targetSampleRate && samples.length > 0) {
+      const ratio = sampleRate / targetSampleRate;
+      const newLength = Math.round(samples.length / ratio);
+      const resampled = new Float32Array(newLength);
+      for (let i = 0; i < newLength; i++) {
+        const index = Math.min(Math.round(i * ratio), samples.length - 1);
+        resampled[i] = samples[index];
+      }
+      finalSamples = resampled;
+    }
+
+    const buffer = new ArrayBuffer(44 + finalSamples.length * 2);
+    const view = new DataView(buffer);
+
+    function writeString(view, offset, string) {
+      for (let i = 0; i < string.length; i++) {
+        view.setUint8(offset + i, string.charCodeAt(i));
+      }
+    }
+
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + finalSamples.length * 2, true);
+    writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true); // PCM format
+    view.setUint16(22, 1, true); // Mono channel
+    view.setUint32(24, targetSampleRate, true);
+    view.setUint32(28, targetSampleRate * 2, true);
+    view.setUint16(32, 2, true); // Block align
+    view.setUint16(34, 16, true); // 16 bits per sample
+    writeString(view, 36, 'data');
+    view.setUint32(40, finalSamples.length * 2, true);
+
+    let offset = 44;
+    for (let i = 0; i < finalSamples.length; i++, offset += 2) {
+      const s = Math.max(-1, Math.min(1, finalSamples[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+
+    return new Blob([buffer], { type: 'audio/wav' });
+  }
+
+  async function startOfflineMicRecording() {
+    try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showVoiceToast('⚠️ Microphone access not supported by this browser.', 'error');
+        return;
+      }
+
+      isOfflineRecording = true;
+      isListening = true;
+      offlineAudioChunks = [];
+      hasDetectedSpeech = false;
+      lastAudioVolumeTime = Date.now();
+
+      offlineAudioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+      offlineAudioContext = new AudioContextClass();
+      if (offlineAudioContext.state === 'suspended') {
+        await offlineAudioContext.resume();
+      }
+
+      const source = offlineAudioContext.createMediaStreamSource(offlineAudioStream);
+      offlineProcessor = offlineAudioContext.createScriptProcessor(4096, 1, 1);
+
+      offlineProcessor.onaudioprocess = function (e) {
+        if (!isOfflineRecording) return;
+        const inputData = e.inputBuffer.getChannelData(0);
+        offlineAudioChunks.push(new Float32Array(inputData));
+
+        // RMS audio volume detection
+        let sum = 0;
+        for (let i = 0; i < inputData.length; i++) {
+          sum += inputData[i] * inputData[i];
+        }
+        const rms = Math.sqrt(sum / inputData.length);
+
+        if (rms > 0.028) {
+          hasDetectedSpeech = true;
+          lastAudioVolumeTime = Date.now();
+          if (coreStatusText) coreStatusText.textContent = '[VOICE: DETECTING]';
+          if (reactorEpicenter) {
+            const scale = 1 + Math.min(rms * 2.2, 0.45);
+            reactorEpicenter.style.transform = `translate(-50%, -50%) scale(${scale.toFixed(3)})`;
+          }
+        } else {
+          if (coreStatusText && isListening) coreStatusText.textContent = '[VOICE: LISTENING]';
+          // Auto-transcribe after user pauses speaking for 1.3 seconds
+          const durationSec = (offlineAudioChunks.length * 4096) / offlineAudioContext.sampleRate;
+          if (hasDetectedSpeech && durationSec > 1.2 && Date.now() - lastAudioVolumeTime > 1300) {
+            stopOfflineMicRecording(true);
+          }
+        }
+      };
+
+      source.connect(offlineProcessor);
+      offlineProcessor.connect(offlineAudioContext.destination);
+
+      if (btnMic) btnMic.classList.add('listening');
+      if (btnCentralMic) {
+        btnCentralMic.classList.add('active');
+        if (centralMicText) centralMicText.textContent = 'MIC ACTIVE';
+      }
+      if (chatInput) chatInput.placeholder = 'KIRAHT Local Whisper Listening... Speak your command';
+      setVoicePipelineState('listening', 'OFFLINE WHISPER ACTIVE • LISTENING...');
+      if (userSpeechStatus) {
+        userSpeechStatus.textContent = 'LISTENING';
+        userSpeechStatus.className = 'speech-live-tag tag-listening';
+      }
+      playSciFiTone('activate');
+      logActivity('User', 'Offline Mic', 'Local Whisper recording engaged');
+
+    } catch (err) {
+      console.error('[HUD] Offline mic access notice:', err);
+      isOfflineRecording = false;
+      isListening = false;
+      if (btnMic) btnMic.classList.remove('listening');
+      if (btnCentralMic) {
+        btnCentralMic.classList.remove('active');
+        if (centralMicText) centralMicText.textContent = 'MIC STANDBY';
+      }
+      setVoicePipelineState('idle');
+      showVoiceToast('⚠️ Microphone blocked! Click the lock/camera icon in your address bar to Allow microphone.', 'error');
+    }
+  }
+
+  async function stopOfflineMicRecording(autoTranscribe = true) {
+    if (!isOfflineRecording && !isListening) return;
+    isOfflineRecording = false;
+    isListening = false;
+
+    if (btnMic) btnMic.classList.remove('listening');
+    if (btnCentralMic) {
+      btnCentralMic.classList.remove('active');
+      if (centralMicText) centralMicText.textContent = 'MIC STANDBY';
+    }
+    if (chatInput) chatInput.placeholder = 'Type a message, system command, QR link, calculation, or question...';
+
+    if (offlineProcessor) {
+      try { offlineProcessor.disconnect(); } catch (e) {}
+      offlineProcessor = null;
+    }
+    if (offlineAudioStream) {
+      try {
+        offlineAudioStream.getTracks().forEach(t => t.stop());
+      } catch (e) {}
+      offlineAudioStream = null;
+    }
+
+    if (!autoTranscribe || offlineAudioChunks.length === 0) {
+      setVoicePipelineState('idle');
+      if (userSpeechStatus) {
+        userSpeechStatus.textContent = 'IDLE';
+        userSpeechStatus.className = 'speech-live-tag';
+      }
+      return;
+    }
+
+    // Merge chunks
+    const totalLength = offlineAudioChunks.reduce((acc, c) => acc + c.length, 0);
+    const sampleRate = offlineAudioContext ? offlineAudioContext.sampleRate : 16000;
+    const merged = new Float32Array(totalLength);
+    let offset = 0;
+    for (const chunk of offlineAudioChunks) {
+      merged.set(chunk, offset);
+      offset += chunk.length;
+    }
+    offlineAudioChunks = [];
+
+    // If recording was less than 0.35s, discard as noise
+    if (totalLength < sampleRate * 0.35) {
+      setVoicePipelineState('idle');
+      if (userSpeechStatus) {
+        userSpeechStatus.textContent = 'READY';
+        userSpeechStatus.className = 'speech-live-tag';
+      }
+      return;
+    }
+
+    setVoicePipelineState('processing', 'WHISPER TRANSCRIBING AUDIO...');
+    if (userSpeechStatus) {
+      userSpeechStatus.textContent = 'TRANSCRIBING';
+      userSpeechStatus.className = 'speech-live-tag tag-processing';
+    }
+
+    const wavBlob = encodeWAV(merged, sampleRate);
+    const formData = new FormData();
+    formData.append('audio', wavBlob, 'whisper_voice.wav');
+    formData.append('lang', localStorage.getItem('kiraht_voice_lang') || 'en');
+
+    try {
+      const resp = await fetch('/api/voice/transcribe', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await resp.json();
+
+      if (data.status === 'success' && data.text && data.text.trim()) {
+        const spoken = data.text.trim();
+        logActivity('User', 'Whisper Transcribed', spoken);
+
+        if (voiceUserText) voiceUserText.textContent = `"${spoken}"`;
+        if (chatInput) chatInput.value = spoken;
+        if (userSpeechStatus) {
+          userSpeechStatus.textContent = 'VERIFIED';
+          userSpeechStatus.className = 'speech-live-tag';
+        }
+
+        if (isStopPhrase(spoken)) {
+          triggerVoiceInterruption(spoken);
+          return;
+        }
+
+        playSciFiTone('transmit');
+        isVoiceTriggered = true;
+        setVoicePipelineState('processing', 'COMMAND DISPATCHING');
+        sendMessage();
+
+      } else {
+        setVoicePipelineState('idle', 'NO SPEECH DETECTED');
+        if (userSpeechStatus) {
+          userSpeechStatus.textContent = 'READY';
+          userSpeechStatus.className = 'speech-live-tag';
+        }
+      }
+    } catch (err) {
+      console.error('[HUD] Transcribe error:', err);
+      showVoiceToast('⚠️ Offline Whisper error: ' + err.message, 'error');
+      setVoicePipelineState('idle');
+      if (userSpeechStatus) {
+        userSpeechStatus.textContent = 'READY';
+        userSpeechStatus.className = 'speech-live-tag';
+      }
+    }
+  }
+
+  // Web Speech Recognition Engine (Cloud Fallback)
   function initSpeechRecognition() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) return null;
@@ -1943,7 +2195,7 @@
       const spoken = (final || interim).trim();
       if (!spoken) return;
 
-      isVoiceTriggered = true; // User spoke, so assistant should speak back!
+      isVoiceTriggered = true;
 
       if (voiceUserText) {
         voiceUserText.textContent = `"${spoken}"`;
@@ -1961,13 +2213,11 @@
       const isAssistantSpeaking = window.speechSynthesis && window.speechSynthesis.speaking;
       const isBusy = isAssistantSpeaking || isGenerating;
 
-      // 1. Check for STOP / INTERRUPT command
       if (isStopPhrase(spoken)) {
         triggerVoiceInterruption(spoken);
         return;
       }
 
-      // 2. Barge-in detection while assistant is speaking or computing
       if (isBusy && spoken.length > 2) {
         if (window.speechSynthesis) window.speechSynthesis.cancel();
         stopSpeakingModulation();
@@ -1981,7 +2231,6 @@
         chatInput.value = spoken;
       }
 
-      // 3. Hands-free auto transmit on final speech or natural pause
       if (final && final.trim()) {
         const finalText = final.trim();
         if (isStopPhrase(finalText)) return;
@@ -2014,39 +2263,41 @@
 
       if (err === 'not-allowed') {
         isListening = false;
-        stopMicListening();
+        stopWebSpeechListening();
         showVoiceToast('⚠️ Microphone blocked! Click the lock/camera icon in your address bar to Allow microphone.', 'error');
         setVoicePipelineState('idle', 'MIC BLOCKED • ALLOW ACCESS');
-      } else if (err === 'service-not-allowed') {
+      } else if (err === 'service-not-allowed' || err === 'network') {
+        // Brave browser blocks Google Speech API or offline -> Auto-switch to Local Offline Whisper!
         isListening = false;
-        stopMicListening();
-        showVoiceToast('⚠️ Speech recognition service blocked. In Brave browser: enable Google Speech in Settings -> Privacy, or open in Chrome/Edge.', 'error');
-        setVoicePipelineState('idle', 'SERVICE BLOCKED');
+        stopWebSpeechListening();
+        showVoiceToast('⚠️ Brave/network blocked cloud speech. Switching automatically to 100% Local Offline Whisper...', 'warning');
+        activeSpeechEngine = 'offline';
+        localStorage.setItem('kiraht_speech_engine', 'offline');
+        const engSelect = document.getElementById('voice-engine-select');
+        if (engSelect) engSelect.value = 'offline';
+        setTimeout(() => {
+          startOfflineMicRecording();
+        }, 400);
       } else if (err === 'audio-capture') {
         isListening = false;
-        stopMicListening();
+        stopWebSpeechListening();
         showVoiceToast('⚠️ No microphone detected or microphone is in use by another application.', 'error');
         setVoicePipelineState('idle', 'NO MIC FOUND');
-      } else if (err === 'network') {
-        isListening = false;
-        stopMicListening();
-        showVoiceToast('⚠️ Speech recognition network timeout. Ensure internet is connected.', 'warning');
-        setVoicePipelineState('idle', 'NETWORK TIMEOUT');
       } else if (err === 'no-speech') {
         // Normal silence timeout
       }
     };
 
     rec.onend = function () {
-      if (isListening && isVoiceModeEnabled) {
+      if (isListening && isVoiceModeEnabled && activeSpeechEngine === 'web_speech') {
         try {
           rec.start();
         } catch (e) {
           isListening = false;
-          stopMicListening();
+          stopWebSpeechListening();
         }
       } else {
-        stopMicListening();
+        stopWebSpeechListening();
       }
     };
 
@@ -2054,24 +2305,26 @@
   }
 
   function ensureRecognitionForBargeIn() {
-    if (!recognition) recognition = initSpeechRecognition();
-    if (recognition && !isListening) {
-      try {
-        isListening = true;
-        recognition.start();
-        if (btnMic) btnMic.classList.add('listening');
-        try { startMicAudioAnalysis(); } catch (e) {}
-      } catch (e) {
-        // Already active
+    if (activeSpeechEngine === 'web_speech') {
+      if (!recognition) recognition = initSpeechRecognition();
+      if (recognition && !isListening) {
+        try {
+          isListening = true;
+          recognition.start();
+          if (btnMic) btnMic.classList.add('listening');
+          try { startMicAudioAnalysis(); } catch (e) {}
+        } catch (e) {}
       }
     }
   }
 
-  function startMicListening() {
+  function startWebSpeechListening() {
     if (!recognition) recognition = initSpeechRecognition();
     if (!recognition) {
-      logActivity('System', 'Mic Notice', 'Web Speech Recognition not supported in this browser.');
-      showVoiceToast('⚠️ Speech Recognition is not supported by this browser. Please open in Google Chrome or Microsoft Edge.', 'error');
+      logActivity('System', 'Mic Notice', 'Web Speech not supported. Switching to Local Offline Whisper.');
+      activeSpeechEngine = 'offline';
+      localStorage.setItem('kiraht_speech_engine', 'offline');
+      startOfflineMicRecording();
       return;
     }
     const selLang = localStorage.getItem('kiraht_voice_lang') || 'en-IN';
@@ -2082,18 +2335,20 @@
         isListening = true;
         recognition.start();
         playSciFiTone('activate');
-      } catch (e) {
-        // Already running
-      }
+      } catch (e) {}
     }
   }
 
-  function stopMicListening() {
+  function stopWebSpeechListening() {
     isListening = false;
     if (recognition) {
       try { recognition.stop(); } catch (e) {}
     }
     if (btnMic) btnMic.classList.remove('listening');
+    if (btnCentralMic) {
+      btnCentralMic.classList.remove('active');
+      if (centralMicText) centralMicText.textContent = 'MIC STANDBY';
+    }
     try { stopMicAudioAnalysis(); } catch (e) {}
     if (!isGenerating && (!window.speechSynthesis || !window.speechSynthesis.speaking)) {
       setVoicePipelineState('idle');
@@ -2106,9 +2361,29 @@
     if (!isGenerating) setReactorState('idle');
   }
 
+  function startMicListening() {
+    if (activeSpeechEngine === 'offline') {
+      startOfflineMicRecording();
+    } else {
+      startWebSpeechListening();
+    }
+  }
+
+  function stopMicListening() {
+    if (activeSpeechEngine === 'offline') {
+      stopOfflineMicRecording(false);
+    } else {
+      stopWebSpeechListening();
+    }
+  }
+
   function toggleMicListening() {
-    if (isListening) {
-      stopMicListening();
+    if (isListening || isOfflineRecording) {
+      if (activeSpeechEngine === 'offline') {
+        stopOfflineMicRecording(true);
+      } else {
+        stopWebSpeechListening();
+      }
       logActivity('User', 'Voice Paused', 'Microphone deactivated');
     } else {
       startMicListening();
@@ -2139,6 +2414,21 @@
         setTimeout(() => {
           if (!isVoiceModeEnabled) stopMicListening();
         }, 5000);
+      }
+    });
+  }
+
+  const voiceEngineSelect = document.getElementById('voice-engine-select');
+  if (voiceEngineSelect) {
+    voiceEngineSelect.value = activeSpeechEngine;
+    voiceEngineSelect.addEventListener('change', function () {
+      activeSpeechEngine = this.value;
+      localStorage.setItem('kiraht_speech_engine', activeSpeechEngine);
+      const label = activeSpeechEngine === 'offline' ? '⚡ 100% Local Offline Whisper' : '🌐 Cloud Web Speech';
+      showVoiceToast(`Speech Engine set to: ${label}`, 'success');
+      logActivity('User', 'Speech Engine', activeSpeechEngine);
+      if (isListening || isOfflineRecording) {
+        stopMicListening();
       }
     });
   }

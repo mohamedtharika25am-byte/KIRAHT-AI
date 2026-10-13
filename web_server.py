@@ -11,7 +11,7 @@ import os
 import sys
 from typing import Dict, Any, List
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -196,11 +196,27 @@ class VoiceSpeakRequest(BaseModel):
     rate: int = 175
 
 
+_whisper_instance = None
+
+
+def get_whisper_model():
+    global _whisper_instance
+    if _whisper_instance is None:
+        try:
+            from faster_whisper import WhisperModel
+            _whisper_instance = WhisperModel("tiny", device="cpu", compute_type="int8")
+        except Exception as e:
+            print(f"[!] Warning: faster-whisper load failed: {e}")
+            _whisper_instance = None
+    return _whisper_instance
+
+
 @app.get("/api/voice/status")
 async def get_voice_status():
     """Returns local Python voice engine status (TTS & STT availability)."""
     tts_available = False
     stt_available = False
+    whisper_available = False
     voices_list = []
     try:
         import pyttsx3
@@ -225,13 +241,98 @@ async def get_voice_status():
     except Exception:
         pass
 
+    try:
+        whisper_available = get_whisper_model() is not None
+    except Exception:
+        pass
+
     return {
         "status": "online",
         "tts_available": tts_available,
         "stt_available": stt_available,
+        "whisper_available": whisper_available,
+        "offline_stt": whisper_available,
         "engine": "pyttsx3/sapi5" if tts_available else "none",
         "voices": voices_list
     }
+
+
+@app.post("/api/voice/transcribe")
+async def voice_transcribe(audio: UploadFile = File(...), lang: str = Form("en")):
+    """
+    100% Local Offline Speech Recognition using faster-whisper.
+    Zero cloud dependencies. Works completely offline and inside Brave/Firefox/Chrome/Edge.
+    """
+    import io
+    import wave
+    import numpy as np
+
+    content = await audio.read()
+    if not content or len(content) < 44:
+        return {"status": "error", "message": "Empty or corrupted audio stream"}
+
+    try:
+        with wave.open(io.BytesIO(content), "rb") as wf:
+            n_channels = wf.getnchannels()
+            sampwidth = wf.getsampwidth()
+            framerate = wf.getframerate()
+            frames = wf.readframes(wf.getnframes())
+
+        if sampwidth == 2:
+            samples = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+        elif sampwidth == 1:
+            samples = (np.frombuffer(frames, dtype=np.uint8).astype(np.float32) - 128.0) / 128.0
+        elif sampwidth == 4:
+            samples = np.frombuffer(frames, dtype=np.int32).astype(np.float32) / 2147483648.0
+        else:
+            samples = np.frombuffer(frames, dtype=np.int16).astype(np.float32) / 32768.0
+
+        if n_channels > 1:
+            samples = samples.reshape(-1, n_channels).mean(axis=1)
+
+        # Resample to 16000 Hz if recorded at 44.1k / 48k
+        if framerate != 16000 and len(samples) > 0:
+            target_len = int(len(samples) * 16000 / framerate)
+            samples = np.interp(
+                np.linspace(0, len(samples), target_len, endpoint=False),
+                np.arange(len(samples)),
+                samples
+            ).astype(np.float32)
+
+        model = get_whisper_model()
+        if not model:
+            return {"status": "error", "message": "Whisper offline model not available on host"}
+
+        whisper_lang = None
+        if lang in ("en", "en-IN", "en-US", "en-GB"):
+            whisper_lang = "en"
+        elif lang in ("ta", "ta-IN"):
+            whisper_lang = "ta"
+
+        # Transcribe in separate thread to keep asyncio event loop responsive
+        def _run_transcribe():
+            segments, info = model.transcribe(
+                samples,
+                language=whisper_lang,
+                beam_size=1,
+                temperature=0.0,
+                vad_filter=True,
+            )
+            raw_text = " ".join(s.text.strip() for s in segments).strip()
+            return raw_text, info.language
+
+        transcribed_text, detected_lang = await asyncio.to_thread(_run_transcribe)
+        return {
+            "status": "success",
+            "text": transcribed_text,
+            "language": detected_lang or lang,
+            "offline": True,
+            "engine": "faster-whisper/tiny"
+        }
+
+    except Exception as err:
+        print(f"[!] Offline transcribe error: {err}")
+        return {"status": "error", "message": str(err)}
 
 
 @app.post("/api/voice/speak")

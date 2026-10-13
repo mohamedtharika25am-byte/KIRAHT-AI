@@ -2616,6 +2616,16 @@ body.cyber-hud {
   box-shadow: 0 0 10px rgba(0, 243, 255, 0.4);
 }
 
+.voice-engine-select {
+  border-color: rgba(0, 255, 170, 0.4);
+  color: #00ffaa;
+}
+
+.voice-engine-select:focus {
+  border-color: #00ffaa;
+  box-shadow: 0 0 10px rgba(0, 255, 170, 0.4);
+}
+
 .btn-voice-test {
   border-color: rgba(0, 255, 170, 0.4);
   color: #00ffaa;
