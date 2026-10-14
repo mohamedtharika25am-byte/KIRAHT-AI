@@ -263,8 +263,8 @@ def load_chat_history() -> List[Dict[str, Any]]:
 def save_chat_history(messages: List[Dict[str, Any]]) -> None:
     """Saves conversation messages to chat_history.json (limits to last 100 messages)."""
     try:
-        # Keep last 100 messages for fast startup while retaining ample context
-        trimmed = messages[-100:]
+        # Keep last 500 messages for fast startup while retaining ample context
+        trimmed = messages[-500:]
         with open(CHAT_HISTORY_FILE, "w", encoding="utf-8") as f:
             json.dump(trimmed, f, indent=2, ensure_ascii=False)
     except Exception as err:

@@ -28,12 +28,17 @@
   let thinkingCard = null;
   let isGenerating = false;
   let lastOptimisticUserMessage = null;
+  let generationWatchdogTimer = null;
+  let isUserScrolledUp = false;
+  let historyOffset = 0;
+  const HISTORY_BATCH_SIZE = 50;
 
   // DOM Elements - Core & Navigation
   const chatViewport = document.getElementById('chat-viewport');
   const chatInput = document.getElementById('chat-input');
   const btnSend = document.getElementById('btn-send');
   const btnClearChat = document.getElementById('btn-clear-chat');
+  const btnScrollBottom = document.getElementById('btn-scroll-bottom');
   const statusState = document.getElementById('status-state');
   const statusDetail = document.getElementById('status-detail');
   const networkDot = document.getElementById('network-dot');
@@ -403,21 +408,15 @@
   }
 
   function displayLoadedHistory() {
-    if (isHistoryRendered) {
-      logActivity('History', 'Notice', 'Previous history is already displayed');
-      scrollToBottom();
-      return;
-    }
-
     if (!cachedChatHistory || cachedChatHistory.length === 0) {
-      // If cache is empty, fetch fresh from backend
-      fetch('/chat_history.json?v=' + Date.now())
+      // Fetch fresh from backend (supports /api/history with pagination)
+      fetch('/api/history?limit=500&offset=0')
         .then(function (res) { return res.json(); })
         .then(function (data) {
           if (Array.isArray(data) && data.length > 0) {
             cachedChatHistory = data;
             updateHistoryButtonBadge(cachedChatHistory.length);
-            renderLoadedHistory();
+            loadNextHistoryBatch();
           } else {
             logActivity('History', 'Empty', 'No archived conversations found');
             alert('No previous conversation history found, Sir.');
@@ -430,58 +429,108 @@
       return;
     }
 
-    renderLoadedHistory();
+    loadNextHistoryBatch();
   }
 
-  function renderLoadedHistory() {
-    if (isHistoryRendered || !chatViewport) return;
+  function loadNextHistoryBatch() {
+    if (!chatViewport || !cachedChatHistory || cachedChatHistory.length === 0) return;
 
-    if (!cachedChatHistory || cachedChatHistory.length === 0) {
-      logActivity('History', 'Empty', 'No previous archived chats found');
+    const totalAvailable = cachedChatHistory.length;
+    if (historyOffset >= totalAvailable) {
+      logActivity('History', 'Complete', `All ${totalAvailable} archived messages already rendered`);
+      const navText = document.getElementById('nav-history-text');
+      const tileTitle = document.getElementById('tile-history-title');
+      if (navText) navText.textContent = `ALL HISTORY (${totalAvailable})`;
+      if (tileTitle) tileTitle.textContent = `ALL HISTORY (${totalAvailable})`;
       return;
     }
 
-    // Preserve any current active session cards if user has already exchanged messages
-    const existingCards = Array.from(chatViewport.children);
-    chatViewport.innerHTML = '';
+    // Slice next 50 messages backward (e.g. latest 50, then 50-100, etc.)
+    const startIndex = Math.max(0, totalAvailable - historyOffset - HISTORY_BATCH_SIZE);
+    const endIndex = totalAvailable - historyOffset;
+    const batch = cachedChatHistory.slice(startIndex, endIndex);
+    historyOffset += batch.length;
 
-    // Archive header
-    const archiveHeader = document.createElement('div');
-    archiveHeader.className = 'history-divider';
-    archiveHeader.innerHTML = `<span>📜 PREVIOUS ARCHIVED LOGS (${cachedChatHistory.length} MESSAGES) 📜</span>`;
-    chatViewport.appendChild(archiveHeader);
+    // Create a container for this batch
+    const batchContainer = document.createElement('div');
+    batchContainer.className = 'history-batch-group';
 
-    // Append cached history cards
-    cachedChatHistory.forEach(function (msg) {
-      appendMessageCard(msg.role, msg.content, msg.timestamp || 'Archived', msg.meta);
+    const batchDivider = document.createElement('div');
+    batchDivider.className = 'history-divider';
+    batchDivider.innerHTML = `<span>📜 ARCHIVED LOGS [${historyOffset}/${totalAvailable}] 📜</span>`;
+    batchContainer.appendChild(batchDivider);
+
+    batch.forEach(function (msg) {
+      const isUser = msg.role === 'user';
+      const card = document.createElement('div');
+      card.className = `message-card ${isUser ? 'user-card' : 'assistant-card'}`;
+
+      const avatar = document.createElement('div');
+      avatar.className = 'message-avatar';
+      if (isUser) {
+        avatar.innerHTML = '<span class="avatar-fallback-user">👤</span>';
+      } else {
+        const avatarImg = document.createElement('img');
+        avatarImg.src = '/static/img/kiraht_ai_logo.png?v=4.0';
+        avatarImg.className = 'message-avatar-img assistant-avatar-img';
+        avatarImg.alt = 'K';
+        avatar.appendChild(avatarImg);
+      }
+
+      const body = document.createElement('div');
+      body.className = 'message-body';
+      const header = document.createElement('div');
+      header.className = 'message-header';
+      const headerLeft = document.createElement('div');
+      headerLeft.className = 'message-header-left';
+      const sender = document.createElement('span');
+      sender.className = 'sender-name';
+      sender.textContent = isUser ? 'You' : 'KIRAHT AI';
+      headerLeft.appendChild(sender);
+
+      if (!isUser) {
+        const badge = createEngineSourceBadge(msg.meta);
+        headerLeft.appendChild(badge);
+      }
+
+      const time = document.createElement('span');
+      time.className = 'message-timestamp';
+      time.textContent = msg.timestamp || 'Archived';
+      header.appendChild(headerLeft);
+      header.appendChild(time);
+
+      const contentEl = document.createElement('div');
+      contentEl.className = 'message-content';
+      contentEl.innerHTML = formatMarkdown(msg.content);
+
+      body.appendChild(header);
+      body.appendChild(contentEl);
+      card.appendChild(avatar);
+      card.appendChild(body);
+      batchContainer.appendChild(card);
     });
 
-    // If user already had messages or welcome message in active session, preserve them below active session divider
-    if (existingCards.length > 0) {
-      const activeDivider = document.createElement('div');
-      activeDivider.className = 'history-divider';
-      activeDivider.innerHTML = `<span>⚡ CURRENT ACTIVE SESSION ⚡</span>`;
-      chatViewport.appendChild(activeDivider);
-
-      existingCards.forEach(function (card) {
-        chatViewport.appendChild(card);
-      });
-    }
-
-    isHistoryRendered = true;
+    // Prepend batch to top of chatViewport smoothly
+    chatViewport.insertBefore(batchContainer, chatViewport.firstChild);
 
     // Update buttons
     const navText = document.getElementById('nav-history-text');
     const btnNav = document.getElementById('btn-load-history');
     const tileTitle = document.getElementById('tile-history-title');
     const tileDesc = document.getElementById('tile-history-desc');
-    if (navText) navText.textContent = 'HISTORY LOADED';
-    if (btnNav) btnNav.classList.add('active');
-    if (tileTitle) tileTitle.textContent = 'HISTORY LOADED';
-    if (tileDesc) tileDesc.textContent = `${cachedChatHistory.length} logs displayed`;
 
-    logActivity('System', 'History Loaded', `${cachedChatHistory.length} archived messages rendered`);
-    scrollToBottom();
+    if (historyOffset >= totalAvailable) {
+      if (navText) navText.textContent = `ALL HISTORY (${totalAvailable})`;
+      if (btnNav) btnNav.classList.add('active');
+      if (tileTitle) tileTitle.textContent = `ALL HISTORY (${totalAvailable})`;
+      if (tileDesc) tileDesc.textContent = `All ${totalAvailable} logs loaded`;
+    } else {
+      if (navText) navText.textContent = `LOAD PREV (+50) [${historyOffset}/${totalAvailable}]`;
+      if (tileTitle) tileTitle.textContent = `LOAD PREV (+50)`;
+      if (tileDesc) tileDesc.textContent = `${historyOffset} of ${totalAvailable} loaded`;
+    }
+
+    logActivity('System', 'History Loaded', `Rendered batch of ${batch.length} messages (${historyOffset}/${totalAvailable})`);
   }
 
   function renderSingleMessage(role, content, timestamp, meta) {
@@ -707,12 +756,37 @@
     if (wordStreamInterval) return;
 
     wordStreamInterval = setInterval(function () {
+      // Background Tab Throttling Protection: If tab is hidden in background, drain immediately
+      if (document.hidden && wordStreamQueue.length > 0) {
+        accumulatedStreamText += wordStreamQueue.join('');
+        wordStreamQueue = [];
+        if (currentStreamingContentEl) {
+          try {
+            currentStreamingContentEl.innerHTML = formatMarkdown(accumulatedStreamText) + '<span class="typing-cursor"></span>';
+          } catch (e) {
+            currentStreamingContentEl.textContent = accumulatedStreamText;
+          }
+          scrollToBottom();
+        }
+        if (pendingStreamEnd) {
+          clearInterval(wordStreamInterval);
+          wordStreamInterval = null;
+          finishStream(pendingStreamEnd.fullText, pendingStreamEnd.meta);
+          pendingStreamEnd = null;
+        }
+        return;
+      }
+
       if (wordStreamQueue.length > 0) {
         // Pop next token or word
         const token = wordStreamQueue.shift();
         accumulatedStreamText += token;
         if (currentStreamingContentEl) {
-          currentStreamingContentEl.innerHTML = formatMarkdown(accumulatedStreamText) + '<span class="typing-cursor"></span>';
+          try {
+            currentStreamingContentEl.innerHTML = formatMarkdown(accumulatedStreamText) + '<span class="typing-cursor"></span>';
+          } catch (fmtErr) {
+            currentStreamingContentEl.textContent = accumulatedStreamText;
+          }
           scrollToBottom();
         }
       } else if (!isStreamingActive && pendingStreamEnd) {
@@ -725,8 +799,43 @@
     }, 20); // 20ms cadence gives a fluid, natural word-by-word typing experience
   }
 
+  // Handle Tab Switch (Visibility Change) to instantly drain pending streaming queues
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && wordStreamQueue.length > 0) {
+      accumulatedStreamText += wordStreamQueue.join('');
+      wordStreamQueue = [];
+      if (currentStreamingContentEl) {
+        try {
+          currentStreamingContentEl.innerHTML = formatMarkdown(accumulatedStreamText) + '<span class="typing-cursor"></span>';
+        } catch (e) {
+          currentStreamingContentEl.textContent = accumulatedStreamText;
+        }
+        scrollToBottom();
+      }
+      if (pendingStreamEnd) {
+        if (wordStreamInterval) {
+          clearInterval(wordStreamInterval);
+          wordStreamInterval = null;
+        }
+        finishStream(pendingStreamEnd.fullText, pendingStreamEnd.meta);
+        pendingStreamEnd = null;
+      }
+    }
+  });
+
   function handleStreamChunk(chunk) {
     if (!chunk) return;
+
+    // Reset 20-second watchdog timer on every active chunk so active long responses are never cut short
+    if (isGenerating && generationWatchdogTimer) {
+      clearTimeout(generationWatchdogTimer);
+      generationWatchdogTimer = setTimeout(function () {
+        if (isGenerating) {
+          console.warn('[HUD] Stream chunk 20s watchdog fired - auto recovering controls');
+          setGeneratingState(false);
+        }
+      }, 20000);
+    }
 
     // Seamlessly transition from Gemini-style thinking dots to real streamed tokens
     if (thinkingCard) {
@@ -988,15 +1097,36 @@
   function setGeneratingState(generating) {
     isGenerating = Boolean(generating);
     if (!btnSend) return;
+
+    if (generationWatchdogTimer) {
+      clearTimeout(generationWatchdogTimer);
+      generationWatchdogTimer = null;
+    }
+
     if (isGenerating) {
       btnSend.classList.add('btn-cancel');
       btnSend.setAttribute('title', 'Stop Generating (Esc)');
       btnSend.innerHTML = '<span class="btn-cancel-icon" style="font-size:12px;">■</span> <span class="btn-send-text">STOP</span>';
       if (typeof setReactorState === 'function') setReactorState('thinking');
+
+      // 20-second safety watchdog: Auto-reset button if backend stream hangs or network drops packets
+      generationWatchdogTimer = setTimeout(function () {
+        if (isGenerating) {
+          console.warn('[HUD] Generation 20s safety watchdog triggered. Auto-recovering EXECUTE state.');
+          logActivity('System', 'Watchdog Recovery', 'Stream latency threshold exceeded — controls reset');
+          setGeneratingState(false);
+          updateStatus('READY', 'Ready for command');
+          if (typeof setReactorState === 'function') setReactorState('idle');
+          if (thinkingCard && thinkingCard.parentNode) {
+            thinkingCard.parentNode.removeChild(thinkingCard);
+            thinkingCard = null;
+          }
+        }
+      }, 20000);
     } else {
       btnSend.classList.remove('btn-cancel');
-      btnSend.setAttribute('title', 'Send Directive (Enter)');
-      btnSend.innerHTML = '<span class="btn-send-icon">▲</span> <span class="btn-send-text">TRANSMIT</span>';
+      btnSend.setAttribute('title', 'Execute Directive (Enter)');
+      btnSend.innerHTML = '<span class="btn-send-icon">▲</span> <span class="btn-send-text">EXECUTE</span>';
       if (typeof setReactorState === 'function' && typeof isListening !== 'undefined' && !isListening) {
         setReactorState('idle');
       }
@@ -2537,10 +2667,38 @@
     }
   }
 
-  function scrollToBottom() {
-    if (chatViewport) {
-      chatViewport.scrollTop = chatViewport.scrollHeight;
+  // ChatGPT-Style Smart Auto-Scroll & Floating Down-Arrow Button Handler
+  if (chatViewport) {
+    chatViewport.addEventListener('scroll', function () {
+      const scrollGap = chatViewport.scrollHeight - chatViewport.scrollTop - chatViewport.clientHeight;
+      if (scrollGap > 70) {
+        isUserScrolledUp = true;
+        if (btnScrollBottom) btnScrollBottom.style.display = 'flex';
+      } else {
+        isUserScrolledUp = false;
+        if (btnScrollBottom) btnScrollBottom.style.display = 'none';
+      }
+    });
+  }
+
+  if (btnScrollBottom) {
+    btnScrollBottom.addEventListener('click', function () {
+      isUserScrolledUp = false;
+      if (chatViewport) {
+        chatViewport.scrollTo({ top: chatViewport.scrollHeight, behavior: 'smooth' });
+      }
+      btnScrollBottom.style.display = 'none';
+    });
+  }
+
+  function scrollToBottom(force = false) {
+    if (!chatViewport) return;
+    if (isUserScrolledUp && !force) {
+      // User is reading previous messages or top of long answer - pause forced scroll!
+      if (btnScrollBottom) btnScrollBottom.style.display = 'flex';
+      return;
     }
+    chatViewport.scrollTop = chatViewport.scrollHeight;
   }
 
   function getCurrentTime(withSeconds = false) {
@@ -2617,12 +2775,23 @@
       .replace(/'/g, '&#039;');
   }
 
-  // Live HUD Clock Ticker
-  setInterval(function () {
+  // Live HUD Clock & Calendar Date Ticker (Monospace Tabular Numerics - No Jitter)
+  const hudDate = document.getElementById('hud-date');
+  function updateLiveClockAndDate() {
+    const now = new Date();
     if (hudClock) {
       hudClock.textContent = getCurrentTime(true);
     }
-  }, 1000);
+    if (hudDate) {
+      const d = String(now.getDate()).padStart(2, '0');
+      const months = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+      const m = months[now.getMonth()];
+      const y = now.getFullYear();
+      hudDate.textContent = `${d} ${m} ${y}`;
+    }
+  }
+  setInterval(updateLiveClockAndDate, 1000);
+  updateLiveClockAndDate();
 
   // =========================================================================
   // 6. RESIZE & COLLAPSE CONTROLLER FOR SIDEBARS & HALF-SCREEN
@@ -2812,14 +2981,15 @@
         return;
       }
 
-      // 6. Alt + 1 .. Alt + 5: Quick Action Tiles
+      // 6. Alt + 1 .. Alt + 6: Quick Action Tiles
       if (e.altKey && !e.ctrlKey && !e.shiftKey) {
         const quickMap = {
-          '1': 'system_status',
-          '2': 'open_chrome',
-          '3': 'open_vscode',
-          '4': 'open_task_manager',
+          '1': 'open_chrome',
+          '2': 'open_brave',
+          '3': 'open_antigravity',
+          '4': 'open_vscode',
           '5': 'screenshot',
+          '6': 'system_status',
         };
         if (quickMap[e.key]) {
           e.preventDefault();

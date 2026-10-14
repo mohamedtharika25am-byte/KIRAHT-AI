@@ -42,6 +42,7 @@ apps_cache.json
 notes.json
 contacts.json
 whatsapp_contacts.json
+.pending_whatsapp.json
 googlecontacts.csv
 *.vcf
 *.csv

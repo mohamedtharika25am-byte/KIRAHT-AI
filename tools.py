@@ -32,6 +32,7 @@ import urllib.parse
 import urllib.request
 import webbrowser
 import psutil
+import shutil
 import time
 
 # Import file operations engine
@@ -760,6 +761,29 @@ def launch_desktop_app(app_name: str, call_me: str = "Sir", force_new: bool = Fa
             try:
                 subprocess.Popen(["code"], shell=True)
                 return True, f"{call_me}, launching Visual Studio Code."
+            except Exception:
+                pass
+
+    # Dedicated high-speed native launch for Antigravity IDE
+    if clean_name in ("antigravity", "antigravity ide", "agy", "anti gravity"):
+        agy_paths = [
+            os.path.expandvars(r"%LOCALAPPDATA%\Programs\Antigravity IDE\Antigravity IDE.exe"),
+            os.path.expandvars(r"%PROGRAMFILES%\Antigravity IDE\Antigravity IDE.exe"),
+        ]
+        for apath in agy_paths:
+            if os.path.exists(apath):
+                set_last_app("antigravity ide")
+                try:
+                    os.startfile(apath)
+                    return True, f"{call_me}, launching Antigravity IDE."
+                except Exception:
+                    pass
+        agy_cmd = shutil.which("antigravity") or shutil.which("agy")
+        if agy_cmd:
+            set_last_app("antigravity ide")
+            try:
+                subprocess.Popen([agy_cmd], shell=True)
+                return True, f"{call_me}, launching Antigravity IDE."
             except Exception:
                 pass
 
@@ -1508,25 +1532,55 @@ def generate_qr_code(query: str, call_me: str = "Sir") -> tuple[bool, str]:
 
     try:
         import qrcode
+        from PIL import Image, ImageDraw
+
         gen_dir = os.path.join(WORKSPACE_DIR, "static", "generated")
         os.makedirs(gen_dir, exist_ok=True)
         ts = int(time.time())
         filename = f"qr_{ts}.png"
         filepath = os.path.join(gen_dir, filename)
 
+        # High error correction (30%) to allow logo placement in the center
         qr = qrcode.QRCode(
-            version=1,
-            error_correction=qrcode.constants.ERROR_CORRECT_M,
-            box_size=10,
-            border=4,
+            version=None,
+            error_correction=qrcode.constants.ERROR_CORRECT_H,
+            box_size=12,
+            border=3,
         )
         qr.add_data(data)
         qr.make(fit=True)
-        img = qr.make_image(fill_color="black", back_color="white")
-        img.save(filepath)
+        qr_img = qr.make_image(fill_color="#040b17", back_color="#ffffff").convert("RGBA")
+
+        # Overlay Kiraht AI branded logo in the exact center
+        logo_path = os.path.join(WORKSPACE_DIR, "static", "img", "kiraht_ai_logo.png")
+        if os.path.exists(logo_path):
+            try:
+                logo = Image.open(logo_path).convert("RGBA")
+                qr_w, qr_h = qr_img.size
+                logo_size = int(qr_w * 0.22)
+                logo = logo.resize((logo_size, logo_size), Image.Resampling.LANCZOS)
+
+                # Create circular background badge with cyan glowing border
+                badge_size = logo_size + 14
+                badge = Image.new("RGBA", (badge_size, badge_size), (0, 0, 0, 0))
+                draw = ImageDraw.Draw(badge)
+                draw.ellipse([0, 0, badge_size - 1, badge_size - 1], fill=(255, 255, 255, 255), outline=(0, 243, 255, 255), width=2)
+
+                # Create circular mask for logo
+                mask = Image.new("L", (logo_size, logo_size), 0)
+                mask_draw = ImageDraw.Draw(mask)
+                mask_draw.ellipse([0, 0, logo_size - 1, logo_size - 1], fill=255)
+
+                badge.paste(logo, (7, 7), mask)
+                pos = ((qr_w - badge_size) // 2, (qr_h - badge_size) // 2)
+                qr_img.paste(badge, pos, badge)
+            except Exception as logo_err:
+                print(f"[!] Warning: Logo overlay in QR code failed: {logo_err}")
+
+        qr_img.save(filepath, format="PNG")
 
         rel_url = f"/static/generated/{filename}"
-        return True, f"{call_me}, generated tactical QR code for '{data[:60]}'. Saved to: {rel_url}\n![QR Code]({rel_url})"
+        return True, f"{call_me}, generated branded KIRAHT QR code for '{data[:60]}'. Saved to: {rel_url}\n![QR Code]({rel_url})"
     except Exception as err:
         return True, f"{call_me}, failed to generate QR code: {err}"
 

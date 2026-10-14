@@ -78,8 +78,21 @@ async def get_telemetry():
 
 
 @app.get("/api/history")
-async def get_history():
-    """Returns conversation history."""
+async def get_history(limit: int = 50, offset: int = 0):
+    """Returns conversation history with pagination support."""
+    all_history = load_chat_history()
+    if limit <= 0:
+        return all_history
+    if offset == 0:
+        return all_history[-limit:]
+    start = max(0, len(all_history) - offset - limit)
+    end = max(0, len(all_history) - offset)
+    return all_history[start:end]
+
+
+@app.get("/chat_history.json")
+async def get_chat_history_json():
+    """Fallback endpoint for legacy chat history requests."""
     return load_chat_history()
 
 
@@ -120,6 +133,12 @@ async def handle_quick_action(req: QuickActionRequest):
     elif action == "open_chrome":
         _, res_text = execute_system_command("open chrome", call_me=call_me)
         activity_action = "Open Chrome"
+
+    elif action in ("open_antigravity", "antigravity"):
+        from tools import launch_application
+        _, res_text = launch_application("antigravity", call_me=call_me)
+        activity_action = "Open Antigravity IDE"
+        meta_info["source_label"] = "APP: ANTIGRAVITY"
 
     elif action == "open_vscode":
         _, res_text = execute_system_command("open vs code", call_me=call_me)
@@ -500,6 +519,17 @@ async def websocket_endpoint(websocket: WebSocket):
                     "timestamp": datetime.datetime.now().strftime("%I:%M %p"),
                     "meta": res.get("meta", {}),
                 })
+                # Always dispatch stream_end and ready status so frontend button resets from STOP to EXECUTE
+                await manager.send_json(websocket, {
+                    "type": "stream_end",
+                    "full_text": res.get("result", ""),
+                    "meta": res.get("meta", {}),
+                })
+                await manager.send_json(websocket, {
+                    "type": "status",
+                    "state": "READY",
+                    "detail": "Ready",
+                })
                 continue
 
             if msg_type in ("cancel", "cancel_generation"):
@@ -543,6 +573,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
                 # Stream response inside a cancellable background task
                 async def stream_worker(prompt: str):
+                    has_sent_done = False
                     try:
                         async for event in process_user_message_stream(prompt):
                             event_type = event.get("type")
@@ -570,6 +601,7 @@ async def websocket_endpoint(websocket: WebSocket):
                                 })
 
                             elif event_type == "done":
+                                has_sent_done = True
                                 await manager.send_json(websocket, {
                                     "type": "stream_end",
                                     "full_text": event.get("full_text", ""),
@@ -594,6 +626,22 @@ async def websocket_endpoint(websocket: WebSocket):
                             "full_text": err_msg,
                             "meta": {"engine": "system", "source_label": "SYSTEM ERROR"},
                         })
+                        has_sent_done = True
+                    finally:
+                        if not has_sent_done:
+                            try:
+                                await manager.send_json(websocket, {
+                                    "type": "stream_end",
+                                    "full_text": "",
+                                    "meta": {"engine": "system", "source_label": "COMPLETE"},
+                                })
+                                await manager.send_json(websocket, {
+                                    "type": "status",
+                                    "state": "READY",
+                                    "detail": "Ready",
+                                })
+                            except Exception:
+                                pass
 
                 active_stream_task = asyncio.create_task(stream_worker(user_text))
 
