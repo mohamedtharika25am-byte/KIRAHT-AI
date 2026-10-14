@@ -5,6 +5,43 @@ Format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), adh
 
 ---
 
+## ⚡ [v2.4.0] — 2026-10-14 12:35 PM IST (Live Tactical Patch & Visual Overhaul)
+
+### 📌 Summary (சுருக்கம்):
+Critical stability patch fixing the STOP button lock caused by a JS variable scope bug, eliminating classroom noise auto-transmission via a new Voice Manual/Auto toggle with Tamil (`TA-IN`) support, adding dual history pagination controls (`+50 HISTORY` and `➖ 50` collapse), removing the legacy audio spectrum footer for a clean full-width activity console, relocating the floating down-arrow (`↓`) button above the input bar with wheel scroll-pause, elevating Arc Reactor core opacity to 0.82 with Stark Industries golden-orange plasma flicker, eliminating panel header clipping (`TELEMETRY`), and ensuring reliable branded QR code generation with center logo.
+
+---
+
+### 🚀 New Features & Enhancements (புதிய வசதிகள் & மேம்பாடுகள்):
+1. **Live Date, Monospace Clock & Uptime Top Pill:**
+   - Integrated live Date (`14 OCT 2026`), Tabular Monospace Clock (`12:30:00 PM`), and System Uptime (`UP: 28h 16m`) in a unified, non-jittering glassmorphic pill.
+2. **Dual History Controls (`+50 HISTORY` & `➖ 50 LESS`):**
+   - Click `+50 HISTORY` to load the preceding 50 archived messages.
+   - Click `➖ 50` to collapse/hide 50 loaded past messages from the viewport, with live message count badge.
+3. **Voice Classroom Noise Safeguard & Tamil/English Switcher:**
+   - **Manual Dictation Mode (Default):** Speech recognition loads transcribed text directly into the chat textarea for review before sending, preventing inadvertent auto-transmission of classroom noise.
+   - **Language Toggle Chip:** Easily toggle between English (`EN 🇮🇳`) and Tamil (`TA 🇮🇳` - `ta-IN`) directly from the input bar.
+   - **Background Noise Gate:** Auto-transmit mode requires `> 5` characters and 1200ms debounce to filter out random background chatter.
+4. **Full-Width Tactical Activity Console:**
+   - Removed legacy audio spectrum frequency bars from the footer; expanded the Activity Telemetry Stream to 100% full-width tactical terminal format.
+5. **Floating Down-Arrow (`↓`) Above Input Bar:**
+   - Moved button to `bottom: 78px; right: 28px; z-index: 100;` floating prominently above the input bar.
+   - Added mouse wheel up (`wheel deltaY < 0`) listener to instantly pause auto-scroll when reading earlier messages.
+6. **Chat Viewport Steady Typing (No Jumping Down):**
+   - Added height delta compensation on `#chat-input` auto-expand so messages remain perfectly stationary when typing multi-line text.
+7. **Responsive Headers & Action Tiles (No Truncation):**
+   - Fixed header text clipping (`TELEMETF ◀` ➔ `TELEMETRY ◀`) using `clamp()` typography and `min-width: 0`.
+   - Action tiles shrink gracefully with responsive ellipsis on title and description when resizing panels.
+8. **Stark Industries Hyper-Vibrant Arc Reactor Glow:**
+   - Increased reactor core opacity from 0.38 to `0.82`, eliminating murky darkness.
+   - Upgraded epicenter plasma core to high-energy golden-orange plasma (`#ffe600` to `#ff7700`) with dynamic flicker animation.
+9. **Branded QR Code Center Logo Engine:**
+   - Robust `base_dir` image path resolution ensuring `kiraht_ai_logo.png` is always embedded in the center with high-contrast circular shield.
+10. **STOP Button Freeze Permanent Resolution:**
+    - Fixed `ReferenceError: textToRender is not defined` inside `finishStream()` by hoisting variable declaration and wrapping in `try ... finally { setGeneratingState(false); }`.
+
+---
+
 ## ⚡ [v2.3.0] — 2026-10-14 11:30 AM IST (Live GitHub Release)
 
 ### 📌 Summary (சுருக்கம்):

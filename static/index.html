@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Inter:wght@300;400;500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/hud.css?v=3.2">
+  <link rel="stylesheet" href="/static/css/hud.css?v=4.0">
   <link rel="icon" type="image/png" href="/static/img/kiraht_ai_logo.png?v=4.0">
   <link rel="preload" as="image" href="/static/img/user_avatar.jpg">
 </head>
@@ -71,9 +71,14 @@
               <span class="bar bar-4"></span>
             </span>
           </button>
-          <button id="btn-load-history" class="hud-nav-toggle-btn" title="Load Previous Chat History (Alt+H)">
-            📜 <span id="nav-history-text">LOAD HISTORY</span> <span class="nav-badge" id="nav-history-count" style="display:none; margin-left:4px; font-size:10px; background:rgba(0,243,255,0.2); padding:1px 5px; border-radius:10px; border:1px solid #00f3ff;">0</span>
-          </button>
+          <div class="history-controls-group" style="display:inline-flex; align-items:center; gap:3px;">
+            <button id="btn-load-history" class="hud-nav-toggle-btn" title="Load Previous 50 Chat Messages (Alt+H)">
+              📜 <span id="nav-history-text">+50 HISTORY</span> <span class="nav-badge" id="nav-history-count" style="display:none; margin-left:3px; font-size:10px; background:rgba(0,243,255,0.25); padding:1px 5px; border-radius:10px; border:1px solid #00f3ff;">0</span>
+            </button>
+            <button id="btn-collapse-history" class="hud-nav-toggle-btn" title="Collapse/Hide 50 Past Messages" style="display:none; padding: 4px 8px; font-size: 11px;">
+              ➖ 50
+            </button>
+          </div>
           <button id="btn-shortcuts-modal" class="hud-nav-toggle-btn" title="Tactical Keyboard Shortcuts (F1)">
             ⌨️ KEYS
           </button>
@@ -81,11 +86,13 @@
       </div>
 
       <div class="header-right">
-        <div class="clock-date-pill" id="clock-date-pill" title="System Time & Date">
+        <div class="clock-date-pill" id="clock-date-pill" title="System Time, Date & Uptime">
           <span class="pill-calendar-icon">📅</span>
           <span class="hud-date" id="hud-date">-- --- ----</span>
           <span class="pill-separator">•</span>
           <span class="hud-clock" id="hud-clock">--:--:-- --</span>
+          <span class="pill-separator">•</span>
+          <span class="hud-uptime-badge" id="hud-uptime">UP: 0m</span>
         </div>
       </div>
     </header>
@@ -459,6 +466,12 @@
             <span class="mic-icon">🎙️</span>
             <span class="mic-wave-pulse"></span>
           </button>
+          <button id="btn-voice-lang-chip" class="input-ctrl-chip" title="Toggle Recognition Language: English (EN) / தமிழ் (TA)" type="button">
+            <span id="voice-lang-label">EN</span>
+          </button>
+          <button id="btn-auto-send-chip" class="input-ctrl-chip chip-off" title="Toggle Auto-Transmit: MANUAL (review text before sending, avoids classroom noise) / AUTO" type="button">
+            <span id="auto-send-label">MANUAL</span>
+          </button>
           <button id="btn-send" class="btn-send" title="Execute Directive (Enter)">
             <span class="send-text">EXECUTE</span>
             <span class="send-arrow">➔</span>
@@ -649,28 +662,9 @@
       <div class="resizer-bar-horizontal"></div>
     </div>
 
-    <!-- ==================== 3. BOTTOM HUD: AUDIO EQUALIZER & TOOL LOG ==================== -->
+    <!-- ==================== 3. BOTTOM HUD: ACTIVITY TELEMETRY CONSOLE ==================== -->
     <footer class="hud-footer tactical-frame" id="hud-footer">
-      <!-- Animated Equalizer Spectrum -->
-      <div class="hud-equalizer-wrap">
-        <div class="equalizer-header">
-          <span class="eq-icon">📡</span>
-          <span class="eq-title">AUDIO & REACTOR FREQUENCY SPECTRUM</span>
-        </div>
-        <div class="equalizer-bars" id="equalizer-bars">
-          <!-- 32 animated equalizer bars -->
-          <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
-          <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
-          <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
-          <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
-          <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
-          <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
-          <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
-          <span class="bar"></span><span class="bar"></span><span class="bar"></span><span class="bar"></span>
-        </div>
-      </div>
-
-      <!-- Real-Time Activity & Tool Log -->
+      <!-- Real-Time Activity & Tool Log (Full-Width Tactical Terminal) -->
       <div class="activity-log-bar">
         <div class="activity-log-header">
           <div class="activity-log-header-left">
@@ -784,6 +778,6 @@
     </div>
   </div>
 
-  <script src="/static/js/hud.js?v=3.2"></script>
+  <script src="/static/js/hud.js?v=4.0"></script>
 </body>
 </html>

@@ -348,8 +348,9 @@
     }
 
     // Uptime
-    if (data.uptime && hudUptime) {
-      hudUptime.textContent = `UPTIME: ${data.uptime.session || '0m 0s'}`;
+    const uptimeEl = hudUptime || document.getElementById('hud-uptime');
+    if (data.uptime && uptimeEl) {
+      uptimeEl.textContent = `UP: ${data.uptime.session || data.uptime.system || '0m'}`;
     }
 
     // Stream active telemetry heartbeat periodically without spamming raw dashes
@@ -394,6 +395,7 @@
   function updateHistoryButtonBadge(count) {
     const navCountEl = document.getElementById('nav-history-count');
     const tileDescEl = document.getElementById('tile-history-desc');
+    const collapseBtn = document.getElementById('btn-collapse-history');
     if (navCountEl) {
       if (count > 0) {
         navCountEl.textContent = count;
@@ -402,6 +404,9 @@
         navCountEl.style.display = 'none';
       }
     }
+    if (collapseBtn) {
+      collapseBtn.style.display = count > 0 ? 'inline-block' : 'none';
+    }
     if (tileDescEl) {
       tileDescEl.textContent = count > 0 ? `${count} past logs saved` : 'View past conversations';
     }
@@ -409,13 +414,11 @@
 
   function displayLoadedHistory() {
     if (!cachedChatHistory || cachedChatHistory.length === 0) {
-      // Fetch fresh from backend (supports /api/history with pagination)
       fetch('/api/history?limit=500&offset=0')
         .then(function (res) { return res.json(); })
         .then(function (data) {
           if (Array.isArray(data) && data.length > 0) {
             cachedChatHistory = data;
-            updateHistoryButtonBadge(cachedChatHistory.length);
             loadNextHistoryBatch();
           } else {
             logActivity('History', 'Empty', 'No archived conversations found');
@@ -430,6 +433,32 @@
     }
 
     loadNextHistoryBatch();
+  }
+
+  function collapseHistoryBatch() {
+    if (!chatViewport) return;
+    const batchGroups = chatViewport.querySelectorAll('.history-batch-group');
+    if (batchGroups.length === 0) return;
+
+    // Remove the oldest rendered batch group
+    const oldestGroup = batchGroups[0];
+    if (oldestGroup && oldestGroup.parentNode) {
+      oldestGroup.parentNode.removeChild(oldestGroup);
+    }
+
+    historyOffset = Math.max(0, historyOffset - HISTORY_BATCH_SIZE);
+    updateHistoryButtonBadge(historyOffset);
+
+    const navText = document.getElementById('nav-history-text');
+    const collapseBtn = document.getElementById('btn-collapse-history');
+    if (historyOffset === 0) {
+      if (navText) navText.textContent = '+50 HISTORY';
+      if (collapseBtn) collapseBtn.style.display = 'none';
+    } else {
+      if (navText) navText.textContent = `+50 HISTORY`;
+      if (collapseBtn) collapseBtn.style.display = 'inline-block';
+    }
+    logActivity('System', 'History Collapsed', `Collapsed 50 messages. Active history on screen: ${historyOffset}`);
   }
 
   function loadNextHistoryBatch() {
@@ -519,14 +548,16 @@
     const tileTitle = document.getElementById('tile-history-title');
     const tileDesc = document.getElementById('tile-history-desc');
 
+    const collapseBtn = document.getElementById('btn-collapse-history');
+    if (collapseBtn) collapseBtn.style.display = 'inline-block';
+
     if (historyOffset >= totalAvailable) {
-      if (navText) navText.textContent = `ALL HISTORY (${totalAvailable})`;
-      if (btnNav) btnNav.classList.add('active');
-      if (tileTitle) tileTitle.textContent = `ALL HISTORY (${totalAvailable})`;
+      if (navText) navText.textContent = `ALL (${totalAvailable})`;
+      if (tileTitle) tileTitle.textContent = `ALL (${totalAvailable})`;
       if (tileDesc) tileDesc.textContent = `All ${totalAvailable} logs loaded`;
     } else {
-      if (navText) navText.textContent = `LOAD PREV (+50) [${historyOffset}/${totalAvailable}]`;
-      if (tileTitle) tileTitle.textContent = `LOAD PREV (+50)`;
+      if (navText) navText.textContent = `+50 HISTORY`;
+      if (tileTitle) tileTitle.textContent = `+50 HISTORY`;
       if (tileDesc) tileDesc.textContent = `${historyOffset} of ${totalAvailable} loaded`;
     }
 
@@ -935,56 +966,60 @@
   }
 
   function finishStream(fullText, meta) {
-    if (currentStreamingCard) {
-      const headerLeft = currentStreamingCard.querySelector('.message-header-left');
-      if (headerLeft) {
-        const oldBadge = headerLeft.querySelector('.engine-source-badge');
-        if (oldBadge) {
-          headerLeft.removeChild(oldBadge);
+    const textToRender = fullText || accumulatedStreamText || '';
+    try {
+      if (currentStreamingCard) {
+        const headerLeft = currentStreamingCard.querySelector('.message-header-left');
+        if (headerLeft) {
+          const oldBadge = headerLeft.querySelector('.engine-source-badge');
+          if (oldBadge) {
+            headerLeft.removeChild(oldBadge);
+          }
+          const badge = createEngineSourceBadge(meta);
+          headerLeft.appendChild(badge);
         }
-        const badge = createEngineSourceBadge(meta);
-        headerLeft.appendChild(badge);
       }
-    }
 
-    if (currentStreamingContentEl) {
-      const textToRender = fullText || accumulatedStreamText;
-      currentStreamingContentEl.innerHTML = formatMarkdown(textToRender);
+      if (currentStreamingContentEl) {
+        currentStreamingContentEl.innerHTML = formatMarkdown(textToRender);
 
-      if (meta && meta.screenshot_url) {
-        const img = document.createElement('img');
-        img.src = meta.screenshot_url;
-        img.className = 'chat-preview-img';
-        img.alt = 'Screenshot';
-        img.onclick = function () { window.open(meta.screenshot_url, '_blank'); };
-        currentStreamingContentEl.appendChild(img);
+        if (meta && meta.screenshot_url) {
+          const img = document.createElement('img');
+          img.src = meta.screenshot_url;
+          img.className = 'chat-preview-img';
+          img.alt = 'Screenshot';
+          img.onclick = function () { window.open(meta.screenshot_url, '_blank'); };
+          currentStreamingContentEl.appendChild(img);
+        }
       }
-    }
 
-    const engineTag = (meta && meta.engine) ? meta.engine.toUpperCase() : 'AI';
-    const sourceLabel = (meta && meta.source_label) ? meta.source_label : `Delivered via ${engineTag}`;
-    logActivity('KIRAHT', 'Response Done', sourceLabel);
+      const engineTag = (meta && meta.engine) ? meta.engine.toUpperCase() : 'AI';
+      const sourceLabel = (meta && meta.source_label) ? meta.source_label : `Delivered via ${engineTag}`;
+      logActivity('KIRAHT', 'Response Done', sourceLabel);
 
-    // Synchronize to Voice Transcript Sidebar
-    if (typeof appendTranscriptEntry === 'function' && textToRender) {
-      appendTranscriptEntry('assistant', textToRender, getCurrentTime(), meta);
-    }
-    if (typeof updateVoiceResponseCard === 'function' && textToRender) {
-      updateVoiceResponseCard(textToRender);
-    }
+      // Synchronize to Voice Transcript Sidebar
+      if (typeof appendTranscriptEntry === 'function' && textToRender) {
+        appendTranscriptEntry('assistant', textToRender, getCurrentTime(), meta);
+      }
+      if (typeof updateVoiceResponseCard === 'function' && textToRender) {
+        updateVoiceResponseCard(textToRender);
+      }
 
-    if (((typeof isVoiceModeEnabled !== 'undefined' && isVoiceModeEnabled) || isVoiceTriggered) && textToRender) {
-      speakAloud(textToRender);
-      isVoiceTriggered = false;
+      if (((typeof isVoiceModeEnabled !== 'undefined' && isVoiceModeEnabled) || isVoiceTriggered) && textToRender) {
+        speakAloud(textToRender);
+        isVoiceTriggered = false;
+      }
+    } catch (finishErr) {
+      console.warn('[HUD] finishStream non-fatal warning:', finishErr);
+    } finally {
+      currentStreamingCard = null;
+      currentStreamingContentEl = null;
+      accumulatedStreamText = '';
+      wordStreamQueue = [];
+      thinkingCard = null;
+      setGeneratingState(false);
+      scrollToBottom();
     }
-
-    currentStreamingCard = null;
-    currentStreamingContentEl = null;
-    accumulatedStreamText = '';
-    wordStreamQueue = [];
-    thinkingCard = null;
-    setGeneratingState(false);
-    scrollToBottom();
   }
 
   function handleChatCleared() {
@@ -1239,10 +1274,17 @@
       }
     });
 
-    // Auto-expand textarea
+    // Auto-expand textarea without jumping messages
+    let prevInputHeight = 42;
     chatInput.addEventListener('input', function () {
       this.style.height = '42px';
-      this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+      const newHeight = Math.min(this.scrollHeight, 120);
+      this.style.height = newHeight + 'px';
+      const heightDelta = newHeight - prevInputHeight;
+      prevInputHeight = newHeight;
+      if (chatViewport && isUserScrolledUp && heightDelta !== 0) {
+        chatViewport.scrollTop += heightDelta;
+      }
     });
   }
 
@@ -2365,24 +2407,40 @@
         const finalText = final.trim();
         if (isStopPhrase(finalText)) return;
 
-        setVoicePipelineState('processing', 'COMMAND VERIFIED • DISPATCHING');
-        if (userSpeechStatus) {
-          userSpeechStatus.textContent = 'DISPATCHED';
-          userSpeechStatus.className = 'speech-live-tag tag-processing';
-        }
-
-        if (speechDebounceTimer) clearTimeout(speechDebounceTimer);
-        speechDebounceTimer = setTimeout(function () {
-          if (chatInput && chatInput.value.trim()) {
-            const promptToSend = chatInput.value.trim();
-            if (!isStopPhrase(promptToSend)) {
-              logActivity('User', 'Voice Transmit', promptToSend);
-              playSciFiTone('transmit');
-              isVoiceTriggered = true;
-              sendMessage();
-            }
+        if (isVoiceAutoSendEnabled) {
+          // Guard: require at least 5 characters to avoid random classroom chatter
+          if (finalText.length < 5) {
+            logActivity('Voice', 'Filtered', `Ignored short background chatter: "${finalText}"`);
+            return;
           }
-        }, 650);
+
+          setVoicePipelineState('processing', 'COMMAND VERIFIED • DISPATCHING');
+          if (userSpeechStatus) {
+            userSpeechStatus.textContent = 'DISPATCHED';
+            userSpeechStatus.className = 'speech-live-tag tag-processing';
+          }
+
+          if (speechDebounceTimer) clearTimeout(speechDebounceTimer);
+          speechDebounceTimer = setTimeout(function () {
+            if (chatInput && chatInput.value.trim()) {
+              const promptToSend = chatInput.value.trim();
+              if (!isStopPhrase(promptToSend)) {
+                logActivity('User', 'Voice Transmit', promptToSend);
+                playSciFiTone('transmit');
+                isVoiceTriggered = true;
+                sendMessage();
+              }
+            }
+          }, 1200);
+        } else {
+          // Manual mode: Spoken words are safely loaded into textarea for user review (prevents classroom noise transmission)
+          setVoicePipelineState('idle', 'SPEECH RECOGNIZED • PRESS EXECUTE');
+          if (userSpeechStatus) {
+            userSpeechStatus.textContent = 'READY TO EXECUTE';
+            userSpeechStatus.className = 'speech-live-tag tag-listening';
+          }
+          logActivity('Voice', 'Dictation Loaded', `Spoken text placed into input bar: "${finalText}"`);
+        }
       }
     };
 
@@ -2669,9 +2727,17 @@
 
   // ChatGPT-Style Smart Auto-Scroll & Floating Down-Arrow Button Handler
   if (chatViewport) {
+    chatViewport.addEventListener('wheel', function (e) {
+      if (e.deltaY < 0) {
+        // User scrolled UP with mouse wheel: pause auto-scroll and show ↓ button immediately
+        isUserScrolledUp = true;
+        if (btnScrollBottom) btnScrollBottom.style.display = 'flex';
+      }
+    }, { passive: true });
+
     chatViewport.addEventListener('scroll', function () {
       const scrollGap = chatViewport.scrollHeight - chatViewport.scrollTop - chatViewport.clientHeight;
-      if (scrollGap > 70) {
+      if (scrollGap > 45) {
         isUserScrolledUp = true;
         if (btnScrollBottom) btnScrollBottom.style.display = 'flex';
       } else {
@@ -2775,8 +2841,11 @@
       .replace(/'/g, '&#039;');
   }
 
-  // Live HUD Clock & Calendar Date Ticker (Monospace Tabular Numerics - No Jitter)
+  // Live HUD Clock, Calendar Date & Uptime Ticker (Monospace Tabular Numerics - No Jitter)
   const hudDate = document.getElementById('hud-date');
+  const hudUptimeEl = document.getElementById('hud-uptime');
+  const sessionStartTime = Date.now();
+
   function updateLiveClockAndDate() {
     const now = new Date();
     if (hudClock) {
@@ -2789,9 +2858,78 @@
       const y = now.getFullYear();
       hudDate.textContent = `${d} ${m} ${y}`;
     }
+    if (hudUptimeEl) {
+      const elapsedSec = Math.floor((Date.now() - sessionStartTime) / 1000);
+      const hrs = Math.floor(elapsedSec / 3600);
+      const mins = Math.floor((elapsedSec % 3600) / 60);
+      const secs = elapsedSec % 60;
+      hudUptimeEl.textContent = hrs > 0 ? `UP: ${hrs}h ${mins}m` : `UP: ${mins}m ${secs}s`;
+    }
   }
   setInterval(updateLiveClockAndDate, 1000);
   updateLiveClockAndDate();
+
+  // Wire Top Nav History Controls (+50 and -50)
+  const btnLoadHistory = document.getElementById('btn-load-history');
+  if (btnLoadHistory) {
+    btnLoadHistory.addEventListener('click', function (e) {
+      e.preventDefault();
+      displayLoadedHistory();
+    });
+  }
+  const btnCollapseHistory = document.getElementById('btn-collapse-history');
+  if (btnCollapseHistory) {
+    btnCollapseHistory.addEventListener('click', function (e) {
+      e.preventDefault();
+      collapseHistoryBatch();
+    });
+  }
+
+  // Wire Voice Language & Auto-Send Safeguard Chips
+  const btnVoiceLangChip = document.getElementById('btn-voice-lang-chip');
+  const voiceLangLabel = document.getElementById('voice-lang-label');
+  const btnAutoSendChip = document.getElementById('btn-auto-send-chip');
+  const autoSendLabel = document.getElementById('auto-send-label');
+
+  if (btnVoiceLangChip) {
+    if (activeVoiceLang.startsWith('ta')) {
+      if (voiceLangLabel) voiceLangLabel.textContent = 'TA 🇮🇳';
+    } else {
+      if (voiceLangLabel) voiceLangLabel.textContent = 'EN 🇮🇳';
+    }
+    btnVoiceLangChip.addEventListener('click', function (e) {
+      e.preventDefault();
+      if (activeVoiceLang.startsWith('en')) {
+        activeVoiceLang = 'ta-IN';
+        if (voiceLangLabel) voiceLangLabel.textContent = 'TA 🇮🇳';
+        showVoiceToast('🌐 Recognition Language: தமிழ் (Tamil - TA-IN)', 'info');
+      } else {
+        activeVoiceLang = 'en-IN';
+        if (voiceLangLabel) voiceLangLabel.textContent = 'EN 🇮🇳';
+        showVoiceToast('🌐 Recognition Language: English (India - EN-IN)', 'info');
+      }
+      localStorage.setItem('kiraht_voice_lang', activeVoiceLang);
+      if (recognition) recognition.lang = activeVoiceLang;
+    });
+  }
+
+  if (btnAutoSendChip) {
+    btnAutoSendChip.addEventListener('click', function (e) {
+      e.preventDefault();
+      isVoiceAutoSendEnabled = !isVoiceAutoSendEnabled;
+      if (isVoiceAutoSendEnabled) {
+        btnAutoSendChip.classList.remove('chip-off');
+        btnAutoSendChip.classList.add('chip-on');
+        if (autoSendLabel) autoSendLabel.textContent = 'AUTO-SEND';
+        showVoiceToast('⚡ Voice Auto-Transmit: ON (Will send automatically)', 'warning');
+      } else {
+        btnAutoSendChip.classList.remove('chip-on');
+        btnAutoSendChip.classList.add('chip-off');
+        if (autoSendLabel) autoSendLabel.textContent = 'MANUAL';
+        showVoiceToast('🛡️ Voice Auto-Transmit: MANUAL (Dictates text to input bar - prevents room noise)', 'info');
+      }
+    });
+  }
 
   // =========================================================================
   // 6. RESIZE & COLLAPSE CONTROLLER FOR SIDEBARS & HALF-SCREEN

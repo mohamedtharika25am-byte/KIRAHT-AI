@@ -1552,7 +1552,10 @@ def generate_qr_code(query: str, call_me: str = "Sir") -> tuple[bool, str]:
         qr_img = qr.make_image(fill_color="#040b17", back_color="#ffffff").convert("RGBA")
 
         # Overlay Kiraht AI branded logo in the exact center
-        logo_path = os.path.join(WORKSPACE_DIR, "static", "img", "kiraht_ai_logo.png")
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        logo_path = os.path.join(base_dir, "static", "img", "kiraht_ai_logo.png")
+        if not os.path.exists(logo_path):
+            logo_path = os.path.join(WORKSPACE_DIR, "static", "img", "kiraht_ai_logo.png")
         if os.path.exists(logo_path):
             try:
                 logo = Image.open(logo_path).convert("RGBA")
