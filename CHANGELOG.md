@@ -5,6 +5,24 @@ Format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), adh
 
 ---
 
+## ⚡ [v2.5.2] — 2026-10-15 12:40 PM IST (Complete Transcript Removal)
+
+### 📌 Summary (சுருக்கம்):
+Completely removed the Voice Transcript component, sidebar, and right panel tab per user request. The right panel is now dedicated exclusively to Tactical Quick Action Tiles with a clean, unified header (`⚡ ACTIONS`) mirroring the Telemetry panel.
+
+---
+
+### 🚀 New Features & Enhancements (புதிய வசதிகள் & மேம்பாடுகள்):
+1. **Complete Removal of Transcript UI:**
+   - Removed `📜 TRANSCRIPT` tab button (`#tab-btn-transcript`) and `.tabbed-panel-header` wrappers.
+   - Removed the `#voice-transcript-wrapper` sidebar and DOM lists from `index.html`.
+   - Styled the right panel header with standard unified `.panel-header.compact-header` containing `⚡ ACTIONS` title and collapse button.
+2. **Controller Safeguards & Mode Normalization:**
+   - Updated `setHudMode()` and `switchRightTab()` in `hud.js` to always keep Tactical Action Tiles active in both Voice and Chat modes.
+   - Removed transcript event triggers and history sync overhead.
+
+---
+
 ## ⚡ [v2.5.1] — 2026-10-15 12:05 PM IST (Popup Clipping Fix, ⏱️ Time & ⌛ Uptime Redesign)
 
 ### 📌 Summary (சுருக்கம்):

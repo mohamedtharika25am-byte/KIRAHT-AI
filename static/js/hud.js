@@ -1415,19 +1415,12 @@
     });
   }
 
-  // Helper: Switch Right Panel Tab (Transcript vs Actions)
+  // Helper: Switch Right Panel Tab (Transcript removed - keep Actions active)
   function switchRightTab(tabName) {
-    if (tabName === 'transcript') {
-      if (tabBtnTranscript) tabBtnTranscript.classList.add('active');
-      if (tabBtnActions) tabBtnActions.classList.remove('active');
-      if (voiceTranscriptWrapper) voiceTranscriptWrapper.style.display = 'flex';
-      if (actionTilesGrid) actionTilesGrid.style.display = 'none';
-    } else {
-      if (tabBtnActions) tabBtnActions.classList.add('active');
-      if (tabBtnTranscript) tabBtnTranscript.classList.remove('active');
-      if (actionTilesGrid) actionTilesGrid.style.display = 'grid';
-      if (voiceTranscriptWrapper) voiceTranscriptWrapper.style.display = 'none';
-    }
+    if (tabBtnActions) tabBtnActions.classList.add('active');
+    if (tabBtnTranscript) tabBtnTranscript.classList.remove('active');
+    if (actionTilesGrid) actionTilesGrid.style.display = 'grid';
+    if (voiceTranscriptWrapper) voiceTranscriptWrapper.style.display = 'none';
   }
 
   // Helper: Update Central Voice Readout Cards
@@ -1846,7 +1839,7 @@
       if (navVoiceText) {
         navVoiceText.textContent = 'VOICE: ACTIVE';
       }
-      switchRightTab('transcript');
+      switchRightTab('actions');
       setVoicePipelineState(isListening ? 'listening' : 'idle', 'VOICE ENGINE ARMED • LISTENING');
       logActivity('System', 'HUD Mode', 'Engaged KIRAHT VOICE COMMAND INTERFACE');
 
