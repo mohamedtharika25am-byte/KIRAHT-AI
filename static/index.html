@@ -59,9 +59,6 @@
           <button id="toggle-telemetry-btn" class="hud-nav-toggle-btn active" title="Toggle Telemetry Sidebar (Alt+T)">
             <span class="toggle-dot">●</span> TELEMETRY
           </button>
-          <button id="toggle-actions-btn" class="hud-nav-toggle-btn active" title="Toggle Quick Actions Sidebar (Alt+Q)">
-            <span class="toggle-dot">●</span> ACTIONS
-          </button>
           <button id="btn-voice-mode" class="hud-nav-toggle-btn" title="Toggle KIRAHT Voice Mode (Alt+S)">
             <span class="mode-icon">🎙️</span> <span id="nav-voice-text">VOICE: OFF</span>
             <span class="equalizer-bars" id="equalizer-bars">
@@ -514,168 +511,6 @@
           </button>
         </div>
       </section>
-
-      <!-- RESIZER: RIGHT SPLITTER -->
-      <div class="panel-resizer resizer-right" id="resizer-right" title="Drag to resize Quick Actions panel (Double-click to reset)">
-        <div class="resizer-bar"></div>
-      </div>
-
-      <!-- RIGHT: RESIZABLE & COLLAPSIBLE QUICK ACTION TILES -->
-      <aside class="panel right-panel tactical-frame" id="actions-panel">
-        <div class="panel-header compact-header">
-          <div class="panel-header-title-wrap">
-            <span class="panel-icon">⚡</span>
-            <h2 class="panel-title">ACTIONS</h2>
-          </div>
-          <button class="panel-collapse-btn" id="btn-collapse-actions" title="Collapse Panel (Alt+Q)">▶</button>
-        </div>
-
-        <!-- QUICK ACTION TILES -->
-        <div class="action-tiles-grid" id="action-tiles-grid">
-          <!-- Tile 1: Open Chrome -->
-          <button class="tactical-action-tile" data-action="open_chrome">
-            <div class="tile-icon-wrap">
-              <span class="tile-icon">🌐</span>
-            </div>
-            <div class="tile-content">
-              <span class="tile-title">OPEN CHROME</span>
-              <span class="tile-desc">Google browser</span>
-            </div>
-          </button>
-
-          <!-- Tile 2: Open Brave -->
-          <button class="tactical-action-tile" data-action="open_brave">
-            <div class="tile-icon-wrap">
-              <span class="tile-icon">🦁</span>
-            </div>
-            <div class="tile-content">
-              <span class="tile-title">BRAVE BROWSER</span>
-              <span class="tile-desc">Shielded web</span>
-            </div>
-          </button>
-
-          <!-- Tile 3: Antigravity IDE (Added above VS Code per request) -->
-          <button class="tactical-action-tile" data-action="open_antigravity">
-            <div class="tile-icon-wrap">
-              <span class="tile-icon">⚛️</span>
-            </div>
-            <div class="tile-content">
-              <span class="tile-title">ANTIGRAVITY</span>
-              <span class="tile-desc">Agentic IDE</span>
-            </div>
-          </button>
-
-          <!-- Tile 4: Open VS Code -->
-          <button class="tactical-action-tile" data-action="open_vscode">
-            <div class="tile-icon-wrap">
-              <span class="tile-icon">💻</span>
-            </div>
-            <div class="tile-content">
-              <span class="tile-title">VS CODE</span>
-              <span class="tile-desc">Code editor</span>
-            </div>
-          </button>
-
-          <!-- Tile 5: WhatsApp -->
-          <button class="tactical-action-tile" data-action="open_whatsapp">
-            <div class="tile-icon-wrap">
-              <span class="tile-icon">💬</span>
-            </div>
-            <div class="tile-content">
-              <span class="tile-title">WHATSAPP</span>
-              <span class="tile-desc">Messaging hub</span>
-            </div>
-          </button>
-
-          <!-- Tile 6: Task Manager -->
-          <button class="tactical-action-tile" data-action="open_task_manager">
-            <div class="tile-icon-wrap">
-              <span class="tile-icon">📈</span>
-            </div>
-            <div class="tile-content">
-              <span class="tile-title">TASK MANAGER</span>
-              <span class="tile-desc">Process monitor</span>
-            </div>
-          </button>
-
-          <!-- Tile 7: Screenshot -->
-          <button class="tactical-action-tile" data-action="screenshot">
-            <div class="tile-icon-wrap">
-              <span class="tile-icon">📸</span>
-            </div>
-            <div class="tile-content">
-              <span class="tile-title">SCREENSHOT</span>
-              <span class="tile-desc">Capture display</span>
-            </div>
-          </button>
-
-          <!-- Tile 8: System Status (Moved under Screenshot per request) -->
-          <button class="tactical-action-tile" data-action="system_status">
-            <div class="tile-icon-wrap">
-              <span class="tile-icon">📊</span>
-            </div>
-            <div class="tile-content">
-              <span class="tile-title">SYSTEM STATUS</span>
-              <span class="tile-desc">Full PC diagnostic</span>
-            </div>
-          </button>
-
-          <!-- Tile 8: Minimize Window -->
-          <button class="tactical-action-tile" data-action="minimize_window">
-            <div class="tile-icon-wrap">
-              <span class="tile-icon">🗕</span>
-            </div>
-            <div class="tile-content">
-              <span class="tile-title">MINIMIZE</span>
-              <span class="tile-desc">Minimize window</span>
-            </div>
-          </button>
-
-          <!-- Tile 9: Maximize Window -->
-          <button class="tactical-action-tile" data-action="maximize_window">
-            <div class="tile-icon-wrap">
-              <span class="tile-icon">🗖</span>
-            </div>
-            <div class="tile-content">
-              <span class="tile-title">MAXIMIZE</span>
-              <span class="tile-desc">Maximize window</span>
-            </div>
-          </button>
-
-          <!-- Tile 10: Workspace Files -->
-          <button class="tactical-action-tile" data-action="file_manager">
-            <div class="tile-icon-wrap">
-              <span class="tile-icon">📁</span>
-            </div>
-            <div class="tile-content">
-              <span class="tile-title">WORKSPACE</span>
-              <span class="tile-desc">Open directory</span>
-            </div>
-          </button>
-
-          <!-- Tile 9: Load History -->
-          <button class="tactical-action-tile tile-history" id="tile-load-history" data-action="load_history">
-            <div class="tile-icon-wrap">
-              <span class="tile-icon">📜</span>
-            </div>
-            <div class="tile-content">
-              <span class="tile-title" id="tile-history-title">LOAD HISTORY</span>
-              <span class="tile-desc" id="tile-history-desc">View past conversations</span>
-            </div>
-          </button>
-
-          <!-- Tile 10: Clear Chat -->
-          <button class="tactical-action-tile tile-danger" data-action="clear_chat">
-            <div class="tile-icon-wrap">
-              <span class="tile-icon">🧹</span>
-            </div>
-            <div class="tile-content">
-              <span class="tile-title">CLEAR CHAT</span>
-              <span class="tile-desc">Reset screen view</span>
-            </div>
-          </button>
-        </div>
-      </aside>
     </main>
 
     <!-- RESIZER: HORIZONTAL BOTTOM SPLITTER (DRAG UP/DOWN TO RESIZE FOOTER CONSOLE) -->
@@ -763,10 +598,6 @@
           <div class="shortcut-item">
             <span class="shortcut-keys"><kbd>Alt</kbd> + <kbd>T</kbd></span>
             <span class="shortcut-desc">Toggle Left Telemetry Sidebar</span>
-          </div>
-          <div class="shortcut-item">
-            <span class="shortcut-keys"><kbd>Alt</kbd> + <kbd>Q</kbd></span>
-            <span class="shortcut-desc">Toggle Right Quick Actions Sidebar</span>
           </div>
           <div class="shortcut-item">
             <span class="shortcut-keys"><kbd>Alt</kbd> + <kbd>V</kbd></span>

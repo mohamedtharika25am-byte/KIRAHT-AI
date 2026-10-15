@@ -5,6 +5,25 @@ Format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), adh
 
 ---
 
+## ⚡ [v2.5.3] — 2026-10-15 12:50 PM IST (Complete Actions Panel Removal & Full-Width Chat Viewport)
+
+### 📌 Summary (சுருக்கம்):
+Completely removed the Quick Actions panel (`#actions-panel`), right drag-resizer (`#resizer-right`), top navbar Actions toggle (`#toggle-actions-btn`), and `Alt+Q` keyboard shortcut. The primary central chat interface now expands cleanly to the full right edge of the screen, providing maximum space and readability.
+
+---
+
+### 🚀 New Features & Enhancements (புதிய வசதிகள் & மேம்பாடுகள்):
+1. **Full Actions Panel & Resizer Removal:**
+   - Removed `#actions-panel` and all launcher tiles (Chrome, Brave, VS Code, WhatsApp, etc.) from `index.html`.
+   - Removed right drag-resizer splitter (`#resizer-right`).
+   - Removed `● ACTIONS` quick toggle button from top navbar.
+   - Removed `Alt+Q` entry from Tactical Keyboard Shortcuts modal cheat-sheet.
+2. **Spacious Full-Width Chat Viewport:**
+   - The central chat hero (`.center-panel`) now expands naturally to take 100% of available space right of the telemetry sidebar (`flex: 1 1 0%`).
+   - Eliminated all right-side resizer/panel drag event listeners and storage overhead in `hud.js`.
+
+---
+
 ## ⚡ [v2.5.2] — 2026-10-15 12:40 PM IST (Complete Transcript Removal)
 
 ### 📌 Summary (சுருக்கம்):

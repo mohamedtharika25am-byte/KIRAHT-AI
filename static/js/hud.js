@@ -3138,13 +3138,9 @@
   function initPanelResizersAndCollapsing() {
     const hudMain = document.getElementById('hud-main');
     const telemetryPanel = document.getElementById('telemetry-panel');
-    const actionsPanel = document.getElementById('actions-panel');
     const resizerLeft = document.getElementById('resizer-left');
-    const resizerRight = document.getElementById('resizer-right');
     const btnCollapseTelemetry = document.getElementById('btn-collapse-telemetry');
-    const btnCollapseActions = document.getElementById('btn-collapse-actions');
     const toggleTelemetryBtn = document.getElementById('toggle-telemetry-btn');
-    const toggleActionsBtn = document.getElementById('toggle-actions-btn');
 
     if (!hudMain) return;
 
@@ -3152,10 +3148,6 @@
     const savedTelemWidth = localStorage.getItem('kiraht_telemetry_width');
     if (savedTelemWidth) {
       hudMain.style.setProperty('--telemetry-width', savedTelemWidth + 'px');
-    }
-    const savedActionsWidth = localStorage.getItem('kiraht_actions_width');
-    if (savedActionsWidth) {
-      hudMain.style.setProperty('--actions-width', savedActionsWidth + 'px');
     }
 
     // Toggle Telemetry Panel
@@ -3183,31 +3175,6 @@
       }
     }
 
-    // Toggle Quick Actions Panel
-    function toggleActions(forceState) {
-      if (!actionsPanel) return;
-      const isCurrentlyCollapsed = actionsPanel.classList.contains('collapsed');
-      const targetCollapsed = forceState !== undefined ? !forceState : !isCurrentlyCollapsed;
-
-      if (!targetCollapsed) {
-        actionsPanel.classList.remove('collapsed');
-        if (btnCollapseActions) {
-          btnCollapseActions.textContent = '▶';
-          btnCollapseActions.title = 'Collapse Quick Actions (Alt+Q)';
-        }
-        if (toggleActionsBtn) toggleActionsBtn.classList.add('active');
-        if (resizerRight) resizerRight.classList.remove('hidden-resizer');
-      } else {
-        actionsPanel.classList.add('collapsed');
-        if (btnCollapseActions) {
-          btnCollapseActions.textContent = '◀';
-          btnCollapseActions.title = 'Expand Quick Actions (Alt+Q)';
-        }
-        if (toggleActionsBtn) toggleActionsBtn.classList.remove('active');
-        if (resizerRight) resizerRight.classList.add('hidden-resizer');
-      }
-    }
-
     if (btnCollapseTelemetry) {
       btnCollapseTelemetry.addEventListener('click', function (e) {
         e.stopPropagation();
@@ -3218,18 +3185,6 @@
       toggleTelemetryBtn.addEventListener('click', function (e) {
         e.stopPropagation();
         toggleTelemetry();
-      });
-    }
-    if (btnCollapseActions) {
-      btnCollapseActions.addEventListener('click', function (e) {
-        e.stopPropagation();
-        toggleActions();
-      });
-    }
-    if (toggleActionsBtn) {
-      toggleActionsBtn.addEventListener('click', function (e) {
-        e.stopPropagation();
-        toggleActions();
       });
     }
 
@@ -3362,9 +3317,6 @@
       } else if (e.altKey && (e.key === 't' || e.key === 'T')) {
         e.preventDefault();
         toggleTelemetry();
-      } else if (e.altKey && (e.key === 'q' || e.key === 'Q')) {
-        e.preventDefault();
-        toggleActions();
       } else if (e.altKey && (e.key === 'v' || e.key === 'V')) {
         e.preventDefault();
         toggleMicListening();
@@ -3411,47 +3363,6 @@
           document.body.style.userSelect = '';
           const currentWidth = parseInt(getComputedStyle(hudMain).getPropertyValue('--telemetry-width'), 10);
           if (currentWidth) localStorage.setItem('kiraht_telemetry_width', currentWidth);
-        }
-      });
-    }
-
-    // 2. Drag Resizer: Right (Quick Actions)
-    if (resizerRight) {
-      let isDraggingRight = false;
-
-      resizerRight.addEventListener('mousedown', function (e) {
-        isDraggingRight = true;
-        resizerRight.classList.add('is-dragging');
-        if (hudMain) hudMain.classList.add('is-resizing');
-        if (actionsPanel) actionsPanel.style.transition = 'none';
-        document.body.style.cursor = 'col-resize';
-        document.body.style.userSelect = 'none';
-        e.preventDefault();
-      });
-
-      resizerRight.addEventListener('dblclick', function () {
-        hudMain.style.setProperty('--actions-width', '220px');
-        localStorage.removeItem('kiraht_actions_width');
-      });
-
-      window.addEventListener('mousemove', function (e) {
-        if (!isDraggingRight) return;
-        const mainRect = hudMain.getBoundingClientRect();
-        let newWidth = mainRect.right - e.clientX;
-        newWidth = Math.max(170, Math.min(380, newWidth));
-        hudMain.style.setProperty('--actions-width', newWidth + 'px');
-      });
-
-      window.addEventListener('mouseup', function () {
-        if (isDraggingRight) {
-          isDraggingRight = false;
-          resizerRight.classList.remove('is-dragging');
-          if (hudMain) hudMain.classList.remove('is-resizing');
-          if (actionsPanel) actionsPanel.style.transition = '';
-          document.body.style.cursor = '';
-          document.body.style.userSelect = '';
-          const currentWidth = parseInt(getComputedStyle(hudMain).getPropertyValue('--actions-width'), 10);
-          if (currentWidth) localStorage.setItem('kiraht_actions_width', currentWidth);
         }
       });
     }

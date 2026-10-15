@@ -662,10 +662,9 @@ body.cyber-hud {
   font-weight: 700;
 }
 
-/* ==================== 2. MAIN HUD VIEW (3 RESIZABLE PANELS) ==================== */
+/* ==================== 2. MAIN HUD VIEW (TELEMETRY & EXPANDED CHAT HERO) ==================== */
 .hud-main {
   --telemetry-width: 215px;
-  --actions-width: 220px;
   display: flex;
   flex-direction: row;
   align-items: stretch;
