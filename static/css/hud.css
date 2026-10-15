@@ -1862,6 +1862,7 @@ body.cyber-hud {
   background: linear-gradient(90deg, var(--accent-cyan), var(--accent-purple), #3b82f6, var(--accent-cyan));
   background-size: 200% auto;
   -webkit-background-clip: text;
+  background-clip: text;
   -webkit-text-fill-color: transparent;
   animation: shimmer-text 2.2s linear infinite;
 }
