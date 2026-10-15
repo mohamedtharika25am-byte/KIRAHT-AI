@@ -1592,6 +1592,296 @@ body.cyber-hud {
   user-select: text;
 }
 
+/* =========================================================================
+   TACTICAL WELCOME HERO & BOOT SEQUENCE (V2.6)
+   ========================================================================= */
+.tactical-welcome-hero {
+  position: relative;
+  margin: 6px auto 16px;
+  width: 100%;
+  max-width: 860px;
+  background: rgba(10, 16, 32, 0.78);
+  border: 1px solid rgba(0, 243, 255, 0.35);
+  border-radius: 12px;
+  padding: 20px 24px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 24px rgba(0, 243, 255, 0.12);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  animation: welcome-boot-in 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  overflow: hidden;
+  user-select: text;
+}
+
+/* Cyber Scanning Light Bar */
+.tactical-welcome-hero::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -120%;
+  width: 70%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(0, 243, 255, 0.14), rgba(168, 85, 247, 0.1), transparent);
+  transform: skewX(-25deg);
+  animation: welcome-scan 4.8s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes welcome-scan {
+  0% { left: -120%; }
+  35%, 100% { left: 180%; }
+}
+
+@keyframes welcome-boot-in {
+  0% {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+    filter: blur(4px) brightness(1.6);
+  }
+  60% {
+    transform: translateY(-2px) scale(1.008);
+    filter: blur(0px) brightness(1.15);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+}
+
+.welcome-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid rgba(0, 243, 255, 0.15);
+  padding-bottom: 11px;
+  margin-bottom: 16px;
+}
+
+.welcome-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 243, 255, 0.08);
+  border: 1px solid rgba(0, 243, 255, 0.35);
+  border-radius: 20px;
+  padding: 3px 12px;
+}
+
+.welcome-pulse-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  animation: welcome-dot-blink 1.8s ease-in-out infinite alternate;
+}
+
+@keyframes welcome-dot-blink {
+  0% { opacity: 0.4; transform: scale(0.85); }
+  100% { opacity: 1; transform: scale(1.2); }
+}
+
+.welcome-badge-text {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1.2px;
+  color: var(--accent-cyan);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.welcome-time-tag {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-dim);
+  letter-spacing: 0.8px;
+}
+
+.welcome-main {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.welcome-avatar-wrap {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  flex-shrink: 0;
+}
+
+.welcome-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 50%;
+  position: relative;
+  z-index: 2;
+  filter: drop-shadow(0 0 12px rgba(0, 243, 255, 0.5));
+}
+
+.welcome-avatar-glow {
+  position: absolute;
+  top: -4px;
+  left: -4px;
+  right: -4px;
+  bottom: -4px;
+  border-radius: 50%;
+  border: 1.5px dashed rgba(0, 243, 255, 0.45);
+  animation: rotate-cw 12s linear infinite;
+}
+
+.welcome-intro {
+  flex: 1;
+}
+
+.welcome-title {
+  margin: 0 0 6px 0;
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  background: linear-gradient(90deg, #ffffff, var(--accent-cyan), #a855f7);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.welcome-desc {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.welcome-readiness-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.readiness-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: rgba(14, 23, 42, 0.65);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 8px 12px;
+  transition: all 0.25s ease;
+}
+
+.readiness-card:hover {
+  background: rgba(14, 23, 42, 0.9);
+  border-color: rgba(0, 243, 255, 0.35);
+  box-shadow: 0 0 12px rgba(0, 243, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.readiness-icon {
+  font-size: 18px;
+}
+
+.readiness-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.readiness-label {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+}
+
+.readiness-val {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.welcome-actions-wrap {
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding-top: 13px;
+}
+
+.welcome-actions-label {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+  margin-bottom: 9px;
+  text-transform: uppercase;
+}
+
+.welcome-chips-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.welcome-chip {
+  background: rgba(16, 26, 48, 0.75);
+  border: 1px solid rgba(0, 243, 255, 0.25);
+  border-radius: 20px;
+  padding: 6px 14px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  transition: all 0.22s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+
+.welcome-chip:hover {
+  background: rgba(0, 243, 255, 0.15);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 12px rgba(0, 243, 255, 0.35);
+  transform: translateY(-2px);
+  color: #ffffff;
+}
+
+.welcome-chip:active {
+  transform: translateY(0);
+}
+
+.welcome-chip.chip-voice {
+  border-color: rgba(168, 85, 247, 0.4);
+}
+.welcome-chip.chip-voice:hover {
+  background: rgba(168, 85, 247, 0.2);
+  border-color: #a855f7;
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.4);
+}
+
+.welcome-chip.chip-audio {
+  border-color: rgba(59, 130, 246, 0.45);
+}
+.welcome-chip.chip-audio:hover {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: #3b82f6;
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+}
+
+.welcome-chip.chip-history {
+  border-color: rgba(234, 179, 8, 0.35);
+}
+.welcome-chip.chip-history:hover {
+  background: rgba(234, 179, 8, 0.15);
+  border-color: #eab308;
+  box-shadow: 0 0 12px rgba(234, 179, 8, 0.35);
+}
+
 .message-card {
   display: flex;
   gap: 12px;

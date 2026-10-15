@@ -5,6 +5,32 @@ Format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), adh
 
 ---
 
+## ⚡ [v2.6.0] — 2026-10-15 11:30 PM IST (Sidebar Section Inversion, History User Avatar & Tactical Welcome Hero)
+
+### 📌 Summary (சுருக்கம்):
+Shifted KIRAHT CORE section above NETWORK in the Telemetry sidebar, fixed user profile avatar rendering for loaded history messages (+50 history), ensured `-50` collapse button is hidden on startup and only appears when history is actually loaded, and introduced a futuristic Tactical Holographic Welcome Hero with dynamic time-of-day greeting, system readiness grid, interactive prompt chips, and voice greeting briefing.
+
+---
+
+### 🚀 New Features & Enhancements (புதிய வசதிகள் & மேம்பாடுகள்):
+1. **Telemetry Sidebar Layout Inversion (KIRAHT CORE Above NETWORK):**
+   - Moved `KIRAHT CORE` telemetry divider and metrics (`Model`, `AI`, `Memory`, `Tools`, `Search`) to section 2 above `NETWORK`.
+   - Moved `NETWORK` divider and metrics (`Download`, `Upload`, `Ping`, `Connection`) to section 3 below `KIRAHT CORE`.
+2. **User Profile Picture for Loaded History Messages:**
+   - Standardized avatar creation through `createUserAvatarElement()` and `createAssistantAvatarElement()`.
+   - Fixed `loadNextHistoryBatch()` which previously hardcoded `👤` fallback instead of loading `/static/img/user_avatar.jpg`. Loaded history messages now consistently show the user's actual profile picture.
+3. **`-50` Collapse Button Lifecycle Safeguard:**
+   - Fixed startup display bug where `-50` button appeared immediately on load because `cachedChatHistory.length > 0`.
+   - Button visibility now strictly tracks active rendered history batches (`historyOffset > 0`), ensuring `-50` is completely hidden at startup and only shows when the user expands history (+50).
+4. **Interactive Tactical Welcome Hero & Dynamic Boot Greeting:**
+   - Replaced static plain-text initial greeting with a futuristic Holographic Welcome Hero card featuring glassmorphism, corner reticles, glowing scanline pulse, and KIRAHT seal.
+   - Dynamic time-of-day greeting: *Good Morning, Sir.*, *Good Afternoon, Sir.*, *Good Evening, Sir.*, and *Late-Night Tactical Session, Sir.*
+   - Integrated System Readiness grid displaying live core, active neural engine, defense state, and voice protocol status.
+   - Interactive Quick Directives: `⚡ System Diagnostics`, `🌐 Web Intelligence`, `💻 Code Assistant`, `🎙️ Start Voice Mode`, `📜 Load Chat History`, and `🔊 Voice Greeting` audio briefing.
+   - Restored and re-hydrated dynamically during screen clear (`handleChatCleared()`).
+
+---
+
 ## ⚡ [v2.5.3] — 2026-10-15 12:50 PM IST (Complete Actions Panel Removal & Full-Width Chat Viewport)
 
 ### 📌 Summary (சுருக்கம்):

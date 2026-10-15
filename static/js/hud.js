@@ -393,23 +393,54 @@
   let cachedChatHistory = [];
   let isHistoryRendered = false;
 
+  function createUserAvatarElement() {
+    const avatar = document.createElement('div');
+    avatar.className = 'message-avatar';
+    const userImg = document.createElement('img');
+    userImg.src = '/static/img/user_avatar.jpg?v=2.2';
+    userImg.className = 'message-avatar-img user-avatar-img';
+    userImg.alt = 'User';
+    userImg.onerror = function () {
+      this.style.display = 'none';
+      if (!avatar.querySelector('.avatar-fallback-user')) {
+        avatar.innerHTML = '<span class="avatar-fallback-user">👤</span>';
+      }
+    };
+    avatar.appendChild(userImg);
+    return avatar;
+  }
+
+  function createAssistantAvatarElement() {
+    const avatar = document.createElement('div');
+    avatar.className = 'message-avatar';
+    const avatarImg = document.createElement('img');
+    avatarImg.src = '/static/img/kiraht_ai_logo.png?v=4.0';
+    avatarImg.className = 'message-avatar-img assistant-avatar-img';
+    avatarImg.alt = 'KIRAHT';
+    avatar.appendChild(avatarImg);
+    return avatar;
+  }
+
   function updateHistoryButtonBadge(count) {
     const navCountEl = document.getElementById('nav-history-count');
     const tileDescEl = document.getElementById('tile-history-desc');
     const collapseBtn = document.getElementById('btn-collapse-history');
+    const totalCount = (cachedChatHistory && cachedChatHistory.length) ? cachedChatHistory.length : (count || 0);
+
     if (navCountEl) {
-      if (count > 0) {
-        navCountEl.textContent = count;
+      if (totalCount > 0) {
+        navCountEl.textContent = totalCount;
         navCountEl.style.display = 'inline-block';
       } else {
         navCountEl.style.display = 'none';
       }
     }
+    // Only display collapse button when history batches have actually been loaded on screen
     if (collapseBtn) {
-      collapseBtn.style.display = count > 0 ? 'inline-block' : 'none';
+      collapseBtn.style.display = historyOffset > 0 ? 'inline-block' : 'none';
     }
     if (tileDescEl) {
-      tileDescEl.textContent = count > 0 ? `${count} past logs saved` : 'View past conversations';
+      tileDescEl.textContent = totalCount > 0 ? `${totalCount} past logs saved` : 'View past conversations';
     }
   }
 
@@ -495,17 +526,7 @@
       const card = document.createElement('div');
       card.className = `message-card ${isUser ? 'user-card' : 'assistant-card'}`;
 
-      const avatar = document.createElement('div');
-      avatar.className = 'message-avatar';
-      if (isUser) {
-        avatar.innerHTML = '<span class="avatar-fallback-user">👤</span>';
-      } else {
-        const avatarImg = document.createElement('img');
-        avatarImg.src = '/static/img/kiraht_ai_logo.png?v=4.0';
-        avatarImg.className = 'message-avatar-img assistant-avatar-img';
-        avatarImg.alt = 'K';
-        avatar.appendChild(avatarImg);
-      }
+      const avatar = isUser ? createUserAvatarElement() : createAssistantAvatarElement();
 
       const body = document.createElement('div');
       body.className = 'message-body';
@@ -632,25 +653,7 @@
     const card = document.createElement('div');
     card.className = `message-card ${isUser ? 'user-card' : 'assistant-card'}`;
 
-    const avatar = document.createElement('div');
-    avatar.className = 'message-avatar';
-    if (isUser) {
-      const userImg = document.createElement('img');
-      userImg.src = '/static/img/user_avatar.jpg';
-      userImg.className = 'message-avatar-img user-avatar-img';
-      userImg.alt = 'User';
-      userImg.onerror = function () {
-        this.style.display = 'none';
-        avatar.innerHTML = '<span class="avatar-fallback-user">👤</span>';
-      };
-      avatar.appendChild(userImg);
-    } else {
-      const avatarImg = document.createElement('img');
-      avatarImg.src = '/static/img/kiraht_ai_logo.png?v=4.0';
-      avatarImg.className = 'message-avatar-img assistant-avatar-img';
-      avatarImg.alt = 'K';
-      avatar.appendChild(avatarImg);
-    }
+    const avatar = isUser ? createUserAvatarElement() : createAssistantAvatarElement();
 
     const body = document.createElement('div');
     body.className = 'message-body';
@@ -1023,6 +1026,159 @@
     }
   }
 
+  function getWelcomeGreeting() {
+    const hr = new Date().getHours();
+    if (hr >= 4 && hr < 12) return 'Good Morning, Sir.';
+    if (hr >= 12 && hr < 17) return 'Good Afternoon, Sir.';
+    if (hr >= 17 && hr < 22) return 'Good Evening, Sir.';
+    return 'Late-Night Tactical Session, Sir.';
+  }
+
+  function getWelcomeHeroHtml() {
+    const greeting = getWelcomeGreeting();
+    const now = new Date();
+    const todayStr = `${now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()} • READY`;
+    return `
+      <div class="tactical-welcome-hero" id="tactical-welcome-hero">
+        <div class="welcome-header">
+          <div class="welcome-badge">
+            <span class="welcome-pulse-dot"></span>
+            <span class="welcome-badge-text">SYS.MK-VII • TACTICAL AI ONLINE</span>
+          </div>
+          <div class="welcome-time-tag" id="welcome-live-date">${todayStr}</div>
+        </div>
+
+        <div class="welcome-main">
+          <div class="welcome-avatar-wrap">
+            <img src="/static/img/kiraht_ai_logo.png?v=4.0" class="welcome-avatar-img" alt="KIRAHT Core">
+            <div class="welcome-avatar-glow"></div>
+          </div>
+          <div class="welcome-intro">
+            <h2 class="welcome-title" id="welcome-greeting-title">${greeting}</h2>
+            <p class="welcome-desc">
+              Welcome to <strong class="text-cyan">KIRAHT Tactical AI Command</strong>. Workstation telemetry, neural models, and background automations are fully synchronized. Ready for directives.
+            </p>
+          </div>
+        </div>
+
+        <div class="welcome-readiness-grid">
+          <div class="readiness-card">
+            <span class="readiness-icon">⚡</span>
+            <div class="readiness-info">
+              <span class="readiness-label">Core Engine</span>
+              <span class="readiness-val text-green">OPERATIONAL</span>
+            </div>
+          </div>
+          <div class="readiness-card">
+            <span class="readiness-icon">🧠</span>
+            <div class="readiness-info">
+              <span class="readiness-label">Neural Model</span>
+              <span class="readiness-val text-cyan" id="welcome-active-model">qwen2.5:3b / Gemini</span>
+            </div>
+          </div>
+          <div class="readiness-card">
+            <span class="readiness-icon">🛡️</span>
+            <div class="readiness-info">
+              <span class="readiness-label">System State</span>
+              <span class="readiness-val text-green">ARMED &amp; READY</span>
+            </div>
+          </div>
+          <div class="readiness-card">
+            <span class="readiness-icon">🎙️</span>
+            <div class="readiness-info">
+              <span class="readiness-label">Voice Protocol</span>
+              <span class="readiness-val text-purple">STANDBY (Alt+V)</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="welcome-actions-wrap">
+          <span class="welcome-actions-label">QUICK DIRECTIVES:</span>
+          <div class="welcome-chips-container">
+            <button class="welcome-chip" type="button" data-prompt="Run full system hardware diagnostics and report status.">
+              <span>⚡ System Diagnostics</span>
+            </button>
+            <button class="welcome-chip" type="button" data-prompt="Search the web for latest AI and technology news today.">
+              <span>🌐 Web Intelligence</span>
+            </button>
+            <button class="welcome-chip" type="button" data-prompt="Help me review and debug the code in my current workspace.">
+              <span>💻 Code Assistant</span>
+            </button>
+            <button class="welcome-chip chip-voice" type="button" id="welcome-chip-voice">
+              <span>🎙️ Start Voice Mode</span>
+            </button>
+            <button class="welcome-chip chip-history" type="button" id="welcome-chip-history">
+              <span>📜 Load Chat History</span>
+            </button>
+            <button class="welcome-chip chip-audio" type="button" id="welcome-chip-audio" title="Play Voice Greeting aloud">
+              <span>🔊 Voice Greeting</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  function initWelcomeHero() {
+    const welcomeHero = document.getElementById('tactical-welcome-hero');
+    if (!welcomeHero) return;
+
+    const titleEl = document.getElementById('welcome-greeting-title');
+    if (titleEl) {
+      titleEl.textContent = getWelcomeGreeting();
+    }
+
+    const dateEl = document.getElementById('welcome-live-date');
+    if (dateEl) {
+      const now = new Date();
+      dateEl.textContent = `${now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()} • READY`;
+    }
+
+    // Quick prompt chips
+    const promptChips = welcomeHero.querySelectorAll('.welcome-chip[data-prompt]');
+    promptChips.forEach(chip => {
+      chip.onclick = function (e) {
+        e.preventDefault();
+        const promptText = chip.getAttribute('data-prompt');
+        const input = document.getElementById('chat-input');
+        if (input) {
+          input.value = promptText;
+          const sendBtn = document.getElementById('btn-send');
+          if (sendBtn) sendBtn.click();
+        }
+      };
+    });
+
+    // Voice mode chip
+    const voiceChip = document.getElementById('welcome-chip-voice');
+    if (voiceChip) {
+      voiceChip.onclick = function (e) {
+        e.preventDefault();
+        const btnVoiceMode = document.getElementById('btn-voice-mode');
+        if (btnVoiceMode) btnVoiceMode.click();
+      };
+    }
+
+    // History chip
+    const historyChip = document.getElementById('welcome-chip-history');
+    if (historyChip) {
+      historyChip.onclick = function (e) {
+        e.preventDefault();
+        displayLoadedHistory();
+      };
+    }
+
+    // Audio greeting chip
+    const audioChip = document.getElementById('welcome-chip-audio');
+    if (audioChip) {
+      audioChip.onclick = function (e) {
+        e.preventDefault();
+        const greeting = getWelcomeGreeting();
+        speakAloud(`${greeting} Welcome to KIRAHT Tactical AI Command. All systems are operational and ready for your directives, Sir.`);
+      };
+    }
+  }
+
   function handleChatCleared() {
     thinkingCard = null;
     currentStreamingCard = null;
@@ -1030,34 +1186,25 @@
     wordStreamQueue = [];
     accumulatedStreamText = '';
     isHistoryRendered = false;
+    historyOffset = 0;
     setGeneratingState(false);
 
     const navText = document.getElementById('nav-history-text');
     const btnNav = document.getElementById('btn-load-history');
     const tileTitle = document.getElementById('tile-history-title');
     const tileDesc = document.getElementById('tile-history-desc');
+    const collapseBtn = document.getElementById('btn-collapse-history');
 
-    if (navText) navText.textContent = 'LOAD HISTORY';
+    if (navText) navText.textContent = '+50 HISTORY';
     if (btnNav) btnNav.classList.remove('active');
-    if (tileTitle) tileTitle.textContent = 'LOAD HISTORY';
+    if (tileTitle) tileTitle.textContent = '+50 HISTORY';
     if (tileDesc) tileDesc.textContent = `${cachedChatHistory.length} past logs saved`;
+    if (collapseBtn) collapseBtn.style.display = 'none';
 
-    chatViewport.innerHTML = `
-      <div class="message-card assistant-card">
-        <div class="message-avatar">
-          <img src="/static/img/kiraht_ai_logo.png?v=4.0" class="message-avatar-img assistant-avatar-img" alt="K">
-        </div>
-        <div class="message-body">
-          <div class="message-header">
-            <span class="sender-name">KIRAHT AI</span>
-            <span class="message-timestamp">Just now</span>
-          </div>
-          <div class="message-content">
-            Fresh screen session active, Sir. 3D Arc Reactor synchronized. Past logs remain safely archived in chat_history.json.
-          </div>
-        </div>
-      </div>
-    `;
+    if (chatViewport) {
+      chatViewport.innerHTML = getWelcomeHeroHtml();
+      initWelcomeHero();
+    }
     if (typeof voiceTranscriptList !== 'undefined' && voiceTranscriptList) {
       voiceTranscriptList.innerHTML = '';
     }
@@ -3498,5 +3645,12 @@
       void reactorCore.offsetWidth; // Force CSS reflow
       reactorCore.classList.add('boot-spin-in');
     }
+
+    // Ensure -50 collapse button is hidden on startup until +50 history is loaded
+    const collapseBtn = document.getElementById('btn-collapse-history');
+    if (collapseBtn) collapseBtn.style.display = 'none';
+
+    // Initialize Tactical Welcome Hero
+    initWelcomeHero();
   });
 })();

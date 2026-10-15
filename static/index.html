@@ -208,37 +208,12 @@
             </div>
           </div>
 
-          <!-- DIVIDER: NETWORK -->
-          <div class="hud-telem-divider">
-            <span class="divider-text">NETWORK</span>
-          </div>
-
-          <!-- 2. NETWORK SECTION -->
-          <div class="telem-stats-section">
-            <div class="telem-stat-row">
-              <span class="stat-name"><span class="stat-arrow arrow-down">↓</span> Download</span>
-              <span class="stat-value" id="net-download">0.0 KB/s</span>
-            </div>
-            <div class="telem-stat-row">
-              <span class="stat-name"><span class="stat-arrow arrow-up">↑</span> Upload</span>
-              <span class="stat-value" id="net-upload">0.0 KB/s</span>
-            </div>
-            <div class="telem-stat-row">
-              <span class="stat-name">Ping</span>
-              <span class="stat-value text-cyan" id="net-ping">24 ms</span>
-            </div>
-            <div class="telem-stat-row">
-              <span class="stat-name">Connection</span>
-              <span class="stat-value text-green" id="net-connection">Wi-Fi</span>
-            </div>
-          </div>
-
           <!-- DIVIDER: KIRAHT CORE -->
           <div class="hud-telem-divider">
             <span class="divider-text">KIRAHT CORE</span>
           </div>
 
-          <!-- 3. KIRAHT CORE SECTION -->
+          <!-- 2. KIRAHT CORE SECTION -->
           <div class="telem-stats-section core-stats-section">
             <div class="telem-stat-row model-stat-row">
               <span class="stat-name">Model</span>
@@ -259,6 +234,31 @@
             <div class="telem-stat-row">
               <span class="stat-name">Search</span>
               <span class="stat-value text-green" id="core-search-status"><span class="telem-dot-mini green-pulse"></span> READY</span>
+            </div>
+          </div>
+
+          <!-- DIVIDER: NETWORK -->
+          <div class="hud-telem-divider">
+            <span class="divider-text">NETWORK</span>
+          </div>
+
+          <!-- 3. NETWORK SECTION -->
+          <div class="telem-stats-section">
+            <div class="telem-stat-row">
+              <span class="stat-name"><span class="stat-arrow arrow-down">↓</span> Download</span>
+              <span class="stat-value" id="net-download">0.0 KB/s</span>
+            </div>
+            <div class="telem-stat-row">
+              <span class="stat-name"><span class="stat-arrow arrow-up">↑</span> Upload</span>
+              <span class="stat-value" id="net-upload">0.0 KB/s</span>
+            </div>
+            <div class="telem-stat-row">
+              <span class="stat-name">Ping</span>
+              <span class="stat-value text-cyan" id="net-ping">24 ms</span>
+            </div>
+            <div class="telem-stat-row">
+              <span class="stat-name">Connection</span>
+              <span class="stat-value text-green" id="net-connection">Wi-Fi</span>
             </div>
           </div>
         </div>
@@ -349,18 +349,85 @@
 
           <!-- Foreground Chat Messages (Floats over the Core with Glass Backing) -->
           <div class="chat-viewport" id="chat-viewport">
-            <!-- Initial Welcome Message from KIRAHT AI -->
-            <div class="message-card assistant-card">
-              <div class="message-avatar">
-                <img src="/static/img/kiraht_ai_logo.png?v=4.0" class="message-avatar-img assistant-avatar-img" alt="KIRAHT">
-              </div>
-              <div class="message-body">
-                <div class="message-header">
-                  <span class="sender-name">KIRAHT AI</span>
-                  <span class="message-timestamp" id="welcome-time">Just now</span>
+            <!-- Tactical Holographic Welcome Hero Container -->
+            <div class="tactical-welcome-hero" id="tactical-welcome-hero">
+              <!-- Header with Tactical System Badge & Time -->
+              <div class="welcome-header">
+                <div class="welcome-badge">
+                  <span class="welcome-pulse-dot"></span>
+                  <span class="welcome-badge-text">SYS.MK-VII • TACTICAL AI ONLINE</span>
                 </div>
-                <div class="message-content">
-                  Online and ready, Sir. Tactical Web HUD operational. Ask a question, request a laptop automation, or run calculations.
+                <div class="welcome-time-tag" id="welcome-live-date">TACTICAL HUD OPERATIONAL</div>
+              </div>
+
+              <!-- Main Hero Greeting -->
+              <div class="welcome-main">
+                <div class="welcome-avatar-wrap">
+                  <img src="/static/img/kiraht_ai_logo.png?v=4.0" class="welcome-avatar-img" alt="KIRAHT Core">
+                  <div class="welcome-avatar-glow"></div>
+                </div>
+                <div class="welcome-intro">
+                  <h2 class="welcome-title" id="welcome-greeting-title">Good Evening, Sir.</h2>
+                  <p class="welcome-desc">
+                    Welcome to <strong class="text-cyan">KIRAHT Tactical AI Command</strong>. Workstation telemetry, neural models, and background automations are fully synchronized. Ready for directives.
+                  </p>
+                </div>
+              </div>
+
+              <!-- Readiness Telemetry Micro-Cards -->
+              <div class="welcome-readiness-grid">
+                <div class="readiness-card">
+                  <span class="readiness-icon">⚡</span>
+                  <div class="readiness-info">
+                    <span class="readiness-label">Core Engine</span>
+                    <span class="readiness-val text-green">OPERATIONAL</span>
+                  </div>
+                </div>
+                <div class="readiness-card">
+                  <span class="readiness-icon">🧠</span>
+                  <div class="readiness-info">
+                    <span class="readiness-label">Neural Model</span>
+                    <span class="readiness-val text-cyan" id="welcome-active-model">qwen2.5:3b / Gemini</span>
+                  </div>
+                </div>
+                <div class="readiness-card">
+                  <span class="readiness-icon">🛡️</span>
+                  <div class="readiness-info">
+                    <span class="readiness-label">System State</span>
+                    <span class="readiness-val text-green">ARMED &amp; READY</span>
+                  </div>
+                </div>
+                <div class="readiness-card">
+                  <span class="readiness-icon">🎙️</span>
+                  <div class="readiness-info">
+                    <span class="readiness-label">Voice Protocol</span>
+                    <span class="readiness-val text-purple">STANDBY (Alt+V)</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Interactive Tactical Quick Launch Chips -->
+              <div class="welcome-actions-wrap">
+                <span class="welcome-actions-label">QUICK DIRECTIVES:</span>
+                <div class="welcome-chips-container">
+                  <button class="welcome-chip" type="button" data-prompt="Run full system hardware diagnostics and report status.">
+                    <span>⚡ System Diagnostics</span>
+                  </button>
+                  <button class="welcome-chip" type="button" data-prompt="Search the web for latest AI and technology news today.">
+                    <span>🌐 Web Intelligence</span>
+                  </button>
+                  <button class="welcome-chip" type="button" data-prompt="Help me review and debug the code in my current workspace.">
+                    <span>💻 Code Assistant</span>
+                  </button>
+                  <button class="welcome-chip chip-voice" type="button" id="welcome-chip-voice">
+                    <span>🎙️ Start Voice Mode</span>
+                  </button>
+                  <button class="welcome-chip chip-history" type="button" id="welcome-chip-history">
+                    <span>📜 Load Chat History</span>
+                  </button>
+                  <button class="welcome-chip chip-audio" type="button" id="welcome-chip-audio" title="Play Voice Greeting aloud">
+                    <span>🔊 Voice Greeting</span>
+                  </button>
                 </div>
               </div>
             </div>
