@@ -2978,6 +2978,26 @@
     }
   }
 
+  function positionCalendarPopup() {
+    if (!hudCalendarPopup) return;
+    const anchor = document.getElementById('clock-date-pill') || btnToggleCalendar;
+    if (!anchor) return;
+    const rect = anchor.getBoundingClientRect();
+    const popupWidth = 285;
+
+    hudCalendarPopup.style.position = 'fixed';
+    hudCalendarPopup.style.top = `${Math.round(rect.bottom + 8)}px`;
+
+    let rightPos = Math.round(window.innerWidth - rect.right);
+    if (rightPos < 12) rightPos = 12;
+    if (window.innerWidth - rightPos - popupWidth < 12) {
+      rightPos = Math.max(12, window.innerWidth - popupWidth - 12);
+    }
+    hudCalendarPopup.style.right = `${rightPos}px`;
+    hudCalendarPopup.style.left = 'auto';
+    hudCalendarPopup.style.zIndex = '999999';
+  }
+
   function toggleCalendar(forceState) {
     if (!hudCalendarPopup) return;
     const isVisible = hudCalendarPopup.style.display !== 'none';
@@ -2988,6 +3008,7 @@
       calViewMonth = new Date().getMonth();
       renderCalendar(calViewYear, calViewMonth);
       hudCalendarPopup.style.display = 'block';
+      positionCalendarPopup();
       if (btnToggleCalendar) btnToggleCalendar.classList.add('active');
     } else {
       hudCalendarPopup.style.display = 'none';
@@ -3047,6 +3068,12 @@
   window.addEventListener('keydown', function (e) {
     if (e.key === 'Escape' && hudCalendarPopup && hudCalendarPopup.style.display !== 'none') {
       toggleCalendar(false);
+    }
+  });
+
+  window.addEventListener('resize', function () {
+    if (hudCalendarPopup && hudCalendarPopup.style.display !== 'none') {
+      positionCalendarPopup();
     }
   });
 

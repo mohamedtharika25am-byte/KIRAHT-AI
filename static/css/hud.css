@@ -143,6 +143,14 @@ body.cyber-hud {
   min-height: 50px;
 }
 
+.hud-header.tactical-frame {
+  clip-path: none !important;
+  border-radius: 12px;
+  overflow: visible !important;
+  position: relative;
+  z-index: 1000;
+}
+
 .header-left {
   display: flex;
   align-items: center;
@@ -321,48 +329,48 @@ body.cyber-hud {
 .clock-date-pill {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 4px 12px;
+  gap: 6px;
+  padding: 3px 8px;
   border-radius: 22px;
-  background: linear-gradient(135deg, rgba(8, 24, 48, 0.94) 0%, rgba(3, 12, 28, 0.98) 100%);
+  background: linear-gradient(135deg, rgba(8, 22, 42, 0.95) 0%, rgba(2, 10, 24, 0.98) 100%);
   border: 1px solid rgba(0, 243, 255, 0.35);
-  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6), 0 0 14px rgba(0, 243, 255, 0.14);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.7), 0 0 16px rgba(0, 243, 255, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.1);
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   flex-shrink: 0;
-  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+  transition: all 0.25s ease;
 }
 
 .clock-date-pill:hover {
-  border-color: rgba(0, 243, 255, 0.55);
-  box-shadow: 0 4px 22px rgba(0, 0, 0, 0.7), 0 0 18px rgba(0, 243, 255, 0.25);
+  border-color: rgba(0, 243, 255, 0.6);
+  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.8), 0 0 22px rgba(0, 243, 255, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.15);
 }
 
-/* Interactive Date Trigger Button */
+/* Module 1: Interactive Date Trigger Button */
 .pill-date-btn {
-  background: transparent;
-  border: 1px solid transparent;
+  background: rgba(0, 243, 255, 0.06);
+  border: 1px solid rgba(0, 243, 255, 0.22);
   cursor: pointer;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 2px 7px;
-  border-radius: 12px;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 14px;
   transition: all 0.2s ease;
   user-select: none;
 }
 
 .pill-date-btn:hover {
-  background: rgba(0, 243, 255, 0.12);
-  border-color: rgba(0, 243, 255, 0.3);
-  box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
+  background: rgba(0, 243, 255, 0.14);
+  border-color: rgba(0, 243, 255, 0.45);
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.25);
 }
 
 .pill-date-btn.active {
-  background: rgba(0, 243, 255, 0.2);
+  background: rgba(0, 243, 255, 0.22);
   border-color: var(--accent-cyan);
-  box-shadow: 0 0 12px rgba(0, 243, 255, 0.35);
+  box-shadow: 0 0 14px rgba(0, 243, 255, 0.45);
 }
 
 .pill-calendar-icon {
@@ -381,56 +389,122 @@ body.cyber-hud {
   color: var(--accent-green);
   letter-spacing: 0.5px;
   font-variant-numeric: tabular-nums;
-  text-shadow: 0 0 8px rgba(0, 255, 170, 0.35);
+  text-shadow: 0 0 8px rgba(0, 255, 170, 0.4);
 }
 
-.pill-separator {
-  color: rgba(0, 243, 255, 0.3);
-  font-size: 11px;
+.pill-cal-arrow {
+  font-size: 9px;
+  color: rgba(0, 243, 255, 0.7);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-block;
+  line-height: 1;
+}
+
+.pill-date-btn.active .pill-cal-arrow {
+  transform: rotate(180deg);
+  color: var(--accent-cyan);
+}
+
+/* Cyber Diamonds Divider */
+.pill-divider-dot {
+  color: rgba(0, 243, 255, 0.45);
+  font-size: 7px;
   user-select: none;
+  padding: 0 1px;
+  text-shadow: 0 0 6px rgba(0, 243, 255, 0.5);
+}
+
+/* Generic Pill Segment */
+.pill-segment {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px;
+  border-radius: 14px;
+  user-select: none;
+  transition: all 0.2s ease;
+}
+
+.pill-segment-icon {
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Module 2: Live Time Segment (⏱️) */
+.pill-time-segment {
+  background: rgba(0, 243, 255, 0.05);
+  border: 1px solid rgba(0, 243, 255, 0.2);
+}
+
+.pill-time-segment:hover {
+  background: rgba(0, 243, 255, 0.1);
+  border-color: rgba(0, 243, 255, 0.4);
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
 }
 
 .hud-clock {
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--accent-cyan);
   letter-spacing: 0.5px;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   display: inline-block;
-  min-width: 90px;
+  min-width: 82px;
   text-align: center;
-  text-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
+  text-shadow: 0 0 10px rgba(0, 243, 255, 0.6);
+}
+
+/* Module 3: Active Session Uptime (⌛) */
+.pill-uptime-segment {
+  background: rgba(255, 170, 0, 0.08);
+  border: 1px solid rgba(255, 170, 0, 0.32);
+}
+
+.pill-uptime-segment:hover {
+  background: rgba(255, 170, 0, 0.15);
+  border-color: rgba(255, 170, 0, 0.55);
+  box-shadow: 0 0 10px rgba(255, 170, 0, 0.25);
+}
+
+.uptime-icon {
+  animation: uptime-hourglass 4s ease-in-out infinite alternate;
+}
+
+@keyframes uptime-hourglass {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
 }
 
 .hud-uptime-badge {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 10.5px;
   color: #ffaa00;
   font-weight: 700;
   letter-spacing: 0.5px;
   font-variant-numeric: tabular-nums;
-  background: rgba(255, 170, 0, 0.12);
-  border: 1px solid rgba(255, 170, 0, 0.35);
-  padding: 2px 7px;
-  border-radius: 10px;
-  text-shadow: 0 0 6px rgba(255, 170, 0, 0.35);
+  display: inline-block;
+  min-width: 72px;
+  text-align: center;
+  text-shadow: 0 0 8px rgba(255, 170, 0, 0.45);
 }
 
 /* ==================== MICRO TACTICAL DROPDOWN CALENDAR (FIGMA STYLE) ==================== */
 .hud-calendar-popup {
-  position: absolute;
-  top: calc(100% + 10px);
-  right: 0;
-  width: 275px;
-  background: rgba(5, 15, 34, 0.96);
-  backdrop-filter: blur(20px);
+  position: fixed;
+  width: 285px;
+  background: linear-gradient(145deg, rgba(6, 18, 38, 0.98) 0%, rgba(2, 10, 24, 0.99) 100%);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
   border: 1px solid rgba(0, 243, 255, 0.45);
-  border-radius: 14px;
-  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.85), 0 0 25px rgba(0, 243, 255, 0.2);
+  border-radius: 16px;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.92), 0 0 30px rgba(0, 243, 255, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.12);
   padding: 14px;
-  z-index: 9999;
-  animation: cal-pop-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  z-index: 999999 !important;
+  animation: cal-pop-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   user-select: none;
 }
 

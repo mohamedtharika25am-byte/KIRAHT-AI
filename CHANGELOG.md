@@ -5,6 +5,27 @@ Format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), adh
 
 ---
 
+## ⚡ [v2.5.1] — 2026-10-15 12:05 PM IST (Popup Clipping Fix, ⏱️ Time & ⌛ Uptime Redesign)
+
+### 📌 Summary (சுருக்கம்):
+Tactical patch fixing calendar popup clipping behind panels by lifting `#hud-calendar-popup` to the root viewport layer with `position: fixed; z-index: 999999`, removing `.hud-header`'s `clip-path` constraint, adding dedicated `⏱️` (Stopwatch) icon to Time and `⌛` (Hourglass) icon to Uptime, and styling the top capsule with modular glassmorphic micro-chips.
+
+---
+
+### 🚀 New Features & Enhancements (புதிய வசதிகள் & மேம்பாடுகள்):
+1. **Calendar Popup Stacking & Clipping Fix:**
+   - Lifted `#hud-calendar-popup` outside `<header>` in DOM to eliminate ancestor clipping.
+   - Removed `clip-path` on `.hud-header.tactical-frame` and enabled `overflow: visible; z-index: 1000`.
+   - Pop-up positioned with `position: fixed; z-index: 999999` and calculated dynamically via `positionCalendarPopup()` based on viewport bounds and window resizing.
+2. **Dedicated ⏱️ Time & ⌛ Uptime Telemetry Icons:**
+   - Added Stopwatch emoji `⏱️` to the live chronometer segment (`.pill-time-segment`).
+   - Added Hourglass emoji `⌛` with subtle pulse animation to the active session uptime segment (`.pill-uptime-segment`).
+3. **Cyberpunk Tri-Module Capsule Redesign (Figma / Pinterest Style):**
+   - Transformed the top right container into a sleek multi-segment capsule with neon cyber diamond dividers (`◆`).
+   - Added subtle dropdown indicator chevron (`▾`) to the date button with smooth 180° rotation when open.
+
+---
+
 ## ⚡ [v2.5.0] — 2026-10-15 11:45 AM IST (Figma Calendar, Uptime Fix & ChatGPT Scroll Release)
 
 ### 📌 Summary (சுருக்கம்):

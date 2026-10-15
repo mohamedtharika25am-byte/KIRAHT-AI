@@ -87,38 +87,52 @@
 
       <div class="header-right" id="header-right-zone">
         <div class="clock-date-pill" id="clock-date-pill">
-          <button class="pill-date-btn" id="btn-toggle-calendar" title="Click to view calendar" type="button">
+          <!-- Module 1: Date & Interactive Calendar Dropdown Trigger -->
+          <button class="pill-date-btn" id="btn-toggle-calendar" title="Click to view tactical calendar" type="button">
             <span class="pill-calendar-icon">📅</span>
             <span class="hud-date" id="hud-date">-- --- ----</span>
+            <span class="pill-cal-arrow" id="pill-cal-arrow">▾</span>
           </button>
-          <span class="pill-separator">│</span>
-          <span class="hud-clock" id="hud-clock">--:--:-- --</span>
-          <span class="pill-separator">│</span>
-          <span class="hud-uptime-badge" id="hud-uptime" title="KIRAHT Active Session Uptime">UP: 00m 00s</span>
-        </div>
 
-        <!-- Micro Tactical Dropdown Calendar (Figma / Cyberpunk Aesthetic) -->
-        <div class="hud-calendar-popup" id="hud-calendar-popup" style="display: none;">
-          <div class="calendar-card-header">
-            <button class="cal-nav-btn" id="cal-prev-month" title="Previous Month" type="button">◀</button>
-            <div class="cal-month-title-wrap">
-              <span class="cal-month-title" id="cal-month-title">OCTOBER 2026</span>
-            </div>
-            <button class="cal-nav-btn" id="cal-next-month" title="Next Month" type="button">▶</button>
+          <span class="pill-divider-dot">◆</span>
+
+          <!-- Module 2: Live Time with ⏱️ Stopwatch Emoji -->
+          <div class="pill-segment pill-time-segment" title="Current Local Time">
+            <span class="pill-segment-icon">⏱️</span>
+            <span class="hud-clock" id="hud-clock">--:--:-- --</span>
           </div>
-          <div class="calendar-weekdays">
-            <span>MO</span><span>TU</span><span>WE</span><span>TH</span><span>FR</span><span>SA</span><span>SU</span>
-          </div>
-          <div class="calendar-days-grid" id="cal-days-grid">
-            <!-- Dynamically populated days -->
-          </div>
-          <div class="calendar-card-footer">
-            <button class="cal-today-btn" id="cal-btn-today" title="Jump to today" type="button">TODAY</button>
-            <span class="cal-today-text" id="cal-today-text">-- --- ----</span>
+
+          <span class="pill-divider-dot">◆</span>
+
+          <!-- Module 3: Active Session Uptime with ⌛ Hourglass Emoji -->
+          <div class="pill-segment pill-uptime-segment" title="KIRAHT Active Session Uptime">
+            <span class="pill-segment-icon uptime-icon">⌛</span>
+            <span class="hud-uptime-badge" id="hud-uptime">UP: 00m 00s</span>
           </div>
         </div>
       </div>
     </header>
+
+    <!-- Micro Tactical Dropdown Calendar (Figma / Cyberpunk Aesthetic - High Stack Layer) -->
+    <div class="hud-calendar-popup" id="hud-calendar-popup" style="display: none;">
+      <div class="calendar-card-header">
+        <button class="cal-nav-btn" id="cal-prev-month" title="Previous Month" type="button">◀</button>
+        <div class="cal-month-title-wrap">
+          <span class="cal-month-title" id="cal-month-title">OCTOBER 2026</span>
+        </div>
+        <button class="cal-nav-btn" id="cal-next-month" title="Next Month" type="button">▶</button>
+      </div>
+      <div class="calendar-weekdays">
+        <span>MO</span><span>TU</span><span>WE</span><span>TH</span><span>FR</span><span>SA</span><span>SU</span>
+      </div>
+      <div class="calendar-days-grid" id="cal-days-grid">
+        <!-- Dynamically populated days -->
+      </div>
+      <div class="calendar-card-footer">
+        <button class="cal-today-btn" id="cal-btn-today" title="Jump to today" type="button">TODAY</button>
+        <span class="cal-today-text" id="cal-today-text">-- --- ----</span>
+      </div>
+    </div>
 
     <!-- ==================== 2. MAIN HUD VIEW (3 RESIZABLE COLUMNS) ==================== -->
     <main class="hud-main" id="hud-main">
