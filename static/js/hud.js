@@ -495,6 +495,7 @@
 
   function loadNextHistoryBatch() {
     if (!chatViewport || !cachedChatHistory || cachedChatHistory.length === 0) return;
+    dismissWelcomeHero();
 
     const totalAvailable = cachedChatHistory.length;
     if (historyOffset >= totalAvailable) {
@@ -587,6 +588,7 @@
   }
 
   function renderSingleMessage(role, content, timestamp, meta) {
+    dismissWelcomeHero();
     if (role === 'assistant' && thinkingCard) {
       if (thinkingCard.parentNode) {
         thinkingCard.parentNode.removeChild(thinkingCard);
@@ -813,9 +815,16 @@
       }
 
       if (wordStreamQueue.length > 0) {
-        // Pop next token or word
-        const token = wordStreamQueue.shift();
-        accumulatedStreamText += token;
+        // Adaptive drain: drain faster if backlog accumulates or if stream has ended
+        const drainBatch = pendingStreamEnd
+          ? Math.min(wordStreamQueue.length, 6)
+          : (wordStreamQueue.length > 25 ? 4 : (wordStreamQueue.length > 10 ? 2 : 1));
+
+        for (let i = 0; i < drainBatch; i++) {
+          if (wordStreamQueue.length > 0) {
+            accumulatedStreamText += wordStreamQueue.shift();
+          }
+        }
         if (currentStreamingContentEl) {
           try {
             currentStreamingContentEl.innerHTML = formatMarkdown(accumulatedStreamText) + '<span class="typing-cursor"></span>';
@@ -886,6 +895,7 @@
     }
 
     if (!currentStreamingCard) {
+      dismissWelcomeHero();
       accumulatedStreamText = '';
       wordStreamQueue = [];
       isStreamingActive = true;
@@ -966,6 +976,18 @@
       // Allow remaining words to drain smoothly, then finish
       pendingStreamEnd = { fullText, meta };
       startWordStreamWorker();
+
+      // Hard safety timer: guarantee stream finishes and STOP resets within 1.2s max
+      setTimeout(function () {
+        if (pendingStreamEnd) {
+          if (wordStreamInterval) {
+            clearInterval(wordStreamInterval);
+            wordStreamInterval = null;
+          }
+          finishStream(pendingStreamEnd.fullText, pendingStreamEnd.meta);
+          pendingStreamEnd = null;
+        }
+      }, 1200);
     }
   }
 
@@ -1119,6 +1141,52 @@
     `;
   }
 
+  function dismissWelcomeHero() {
+    const hero = document.getElementById('tactical-welcome-hero');
+    if (!hero || hero.classList.contains('fade-out')) return;
+    hero.classList.add('fade-out');
+    setTimeout(() => {
+      if (hero && hero.parentNode) {
+        hero.parentNode.removeChild(hero);
+      }
+    }, 320);
+  }
+
+  function triggerSystemDiagnosticsAction() {
+    dismissWelcomeHero();
+    const nowTime = getCurrentTime();
+    appendMessageCard('user', '⚡ Run full system diagnostics', nowTime);
+    showThinkingIndicator();
+    setGeneratingState(true);
+
+    fetch('/api/quick-action', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'system_status' })
+    })
+      .then(r => r.json())
+      .then(data => {
+        if (thinkingCard && thinkingCard.parentNode) {
+          thinkingCard.parentNode.removeChild(thinkingCard);
+          thinkingCard = null;
+        }
+        setGeneratingState(false);
+        if (data && data.result) {
+          appendMessageCard('assistant', data.result, getCurrentTime(), data.meta);
+          scrollToBottom();
+        }
+      })
+      .catch(err => {
+        if (thinkingCard && thinkingCard.parentNode) {
+          thinkingCard.parentNode.removeChild(thinkingCard);
+          thinkingCard = null;
+        }
+        setGeneratingState(false);
+        appendMessageCard('assistant', 'Sir, unable to retrieve diagnostic telemetry at this time.', getCurrentTime());
+        scrollToBottom();
+      });
+  }
+
   function initWelcomeHero() {
     const welcomeHero = document.getElementById('tactical-welcome-hero');
     if (!welcomeHero) return;
@@ -1140,6 +1208,11 @@
       chip.onclick = function (e) {
         e.preventDefault();
         const promptText = chip.getAttribute('data-prompt');
+        if (promptText && promptText.toLowerCase().includes('hardware diagnostics')) {
+          triggerSystemDiagnosticsAction();
+          return;
+        }
+        dismissWelcomeHero();
         const input = document.getElementById('chat-input');
         if (input) {
           input.value = promptText;
@@ -1154,6 +1227,7 @@
     if (voiceChip) {
       voiceChip.onclick = function (e) {
         e.preventDefault();
+        dismissWelcomeHero();
         const btnVoiceMode = document.getElementById('btn-voice-mode');
         if (btnVoiceMode) btnVoiceMode.click();
       };
@@ -1164,6 +1238,7 @@
     if (historyChip) {
       historyChip.onclick = function (e) {
         e.preventDefault();
+        dismissWelcomeHero();
         displayLoadedHistory();
       };
     }
@@ -1374,6 +1449,7 @@
 
     const text = chatInput.value.trim();
     if (!text) return;
+    dismissWelcomeHero();
 
     if (!isConnected) {
       logActivity('System', 'Warning', 'Not connected to backend. Reconnecting...');

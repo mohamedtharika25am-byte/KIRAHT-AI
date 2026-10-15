@@ -1596,6 +1596,7 @@ body.cyber-hud {
    TACTICAL WELCOME HERO & BOOT SEQUENCE (V2.6)
    ========================================================================= */
 .tactical-welcome-hero {
+  flex-shrink: 0;
   position: relative;
   margin: 6px auto 16px;
   width: 100%;
@@ -1608,8 +1609,21 @@ body.cyber-hud {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   animation: welcome-boot-in 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  transition: opacity 0.32s ease, transform 0.32s ease, max-height 0.32s ease, margin 0.32s ease;
   overflow: hidden;
   user-select: text;
+}
+
+.tactical-welcome-hero.fade-out {
+  opacity: 0;
+  transform: translateY(-16px) scale(0.96);
+  pointer-events: none;
+  max-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  border-color: transparent;
 }
 
 /* Cyber Scanning Light Bar */

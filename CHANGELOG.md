@@ -5,6 +5,26 @@ Format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), adh
 
 ---
 
+## ⚡ [v2.6.1] — 2026-10-16 01:25 AM IST (Auto-Dismiss Welcome Hero on Chat, Adaptive Stream Draining & Diagnostics Fix)
+
+### 📌 Summary (சுருக்கம்):
+Implemented ChatGPT-style auto-dismissal of the Tactical Welcome Hero upon sending the first message or loading history, added flex-shrink protection, enhanced token streaming with adaptive queue draining and a 1.2s safety timer to prevent frozen streaming states, and routed System Diagnostics quick chip to the internal `/api/quick-action` API.
+
+---
+
+### 🚀 Enhancements & Bug Fixes (மேம்பாடுகள் & பிழைத்திருத்தங்கள்):
+1. **Auto-Dismiss Welcome Hero (Option 1):**
+   - Added smooth fade-out and DOM unmounting (`dismissWelcomeHero()`) as soon as the user transmits a message, loads history (+50), or triggers a directive.
+   - Preserves full Welcome Hero at startup and restores it dynamically whenever the user clears the chat (`handleChatCleared()`).
+   - Added `flex-shrink: 0;` to prevent flexbox from vertically squeezing or distorting the welcome card while visible.
+2. **Streaming Freeze Safeguard & Adaptive Draining:**
+   - Improved `startWordStreamWorker()` with adaptive draining that automatically scales up token drain speed during backlogs and stream completion.
+   - Added a hard 1.2s timeout fallback in `handleStreamEnd()` ensuring the typing cursor and red STOP button always reset cleanly.
+3. **System Diagnostics Quick Action Routing:**
+   - Directly wired `⚡ System Diagnostics` chip to call `/api/quick-action` (`system_status`), preventing terminal command parsing errors (`'full' is not recognized`).
+
+---
+
 ## ⚡ [v2.6.0] — 2026-10-15 11:30 PM IST (Sidebar Section Inversion, History User Avatar & Tactical Welcome Hero)
 
 ### 📌 Summary (சுருக்கம்):
