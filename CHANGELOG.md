@@ -5,6 +5,36 @@ Format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), adh
 
 ---
 
+## ⚡ [v2.5.0] — 2026-10-15 11:45 AM IST (Figma Calendar, Uptime Fix & ChatGPT Scroll Release)
+
+### 📌 Summary (சுருக்கம்):
+Tactical UI and ergonomics release addressing user requests: permanently resolved the Uptime flickering bug by synchronizing frontend timers with backend session timestamps, redesigned the top Time & Date widget with Figma / Pinterest-inspired glassmorphism, implemented a compact interactive dropdown calendar directly below the date pill with month navigation and today highlight, and centered the floating down-arrow (`↓`) button at the bottom of the chat like ChatGPT/Claude with a strict 10-message scroll threshold and zero badge numbers.
+
+---
+
+### 🚀 New Features & Enhancements (புதிய வசதிகள் & மேம்பாடுகள்):
+1. **Permanent Uptime Synchronization Fix:**
+   - Added `start_timestamp` and `session_seconds` to telemetry payload in `core.py`.
+   - Frontend `hud.js` now smoothly synchronizes its 1-second live ticker with the backend session timestamp.
+   - Removed conflicting `updateTelemetry` text overwrites, completely eliminating the rapid jumping/flickering between frontend and backend uptimes.
+2. **Pinterest & Figma-Inspired Time & Date Glassmorphic Pill:**
+   - Redesigned `#clock-date-pill` with cyberpunk gradient glassmorphism (`linear-gradient(135deg, rgba(8, 24, 48, 0.94), rgba(3, 12, 28, 0.98))`), 1px cyan border, and subtle cyan ambient glow.
+   - Date area transformed into an interactive button (`#btn-toggle-calendar`) with smooth hover feedback.
+   - High-contrast neon tabular clock (`#hud-clock`) and dedicated amber uptime chip (`#hud-uptime`).
+3. **Interactive Dropdown Calendar Popup:**
+   - Clicking the Date button opens a compact, holographic calendar directly below the date pill (`#hud-calendar-popup`).
+   - Displays current month and year in bold cyberpunk header with `◀` (Prev) and `▶` (Next) month navigation.
+   - Weekdays grid (`MO TU WE TH FR SA SU`) and interactive days grid.
+   - Today's date highlighted with Stark Arc Reactor cyan glow and bold accent.
+   - `TODAY` jump shortcut in the footer and automatic dismissal when clicking outside or pressing `Escape`.
+4. **Centered ChatGPT / Claude Style Down-Arrow (↓):**
+   - Centered horizontally at the bottom of the chat viewport (`left: 50%; transform: translateX(-50%); bottom: 16px;`) right above the input bar.
+   - Removed all badge numbers/counts (`+10`) for a clean, minimal circular button.
+   - Triggers strictly when the user has scrolled past at least 10 chat messages (`cardsBelow >= 10 || scrollGap >= 1200`).
+   - Profile images, avatars, and headers kept 100% untouched.
+
+---
+
 ## ⚡ [v2.4.0] — 2026-10-14 12:35 PM IST (Live Tactical Patch & Visual Overhaul)
 
 ### 📌 Summary (சுருக்கம்):

@@ -32,6 +32,8 @@
   let isUserScrolledUp = false;
   let historyOffset = 0;
   const HISTORY_BATCH_SIZE = 50;
+  let isVoiceAutoSendEnabled = false;
+  let activeVoiceLang = localStorage.getItem('kiraht_voice_lang') || 'en-IN';
 
   // DOM Elements - Core & Navigation
   const chatViewport = document.getElementById('chat-viewport');
@@ -347,10 +349,9 @@
       securityModeText.style.color = sMode.includes('WRITE') ? 'var(--accent-green)' : 'var(--accent-cyan)';
     }
 
-    // Uptime
-    const uptimeEl = hudUptime || document.getElementById('hud-uptime');
-    if (data.uptime && uptimeEl) {
-      uptimeEl.textContent = `UP: ${data.uptime.session || data.uptime.system || '0m'}`;
+    // Synchronize backend session start timestamp for smooth, non-flickering uptime
+    if (data.uptime && data.uptime.start_timestamp) {
+      serverSessionStartTs = data.uptime.start_timestamp * 1000;
     }
 
     // Stream active telemetry heartbeat periodically without spamming raw dashes
@@ -2725,26 +2726,52 @@
     }
   }
 
-  // ChatGPT-Style Smart Auto-Scroll & Floating Down-Arrow Button Handler
+  // ChatGPT / Claude Style Smart Auto-Scroll & Floating Down-Arrow Button Handler (Triggers only when >= 10 messages scrolled)
+  function updateScrollBottomButton() {
+    if (!chatViewport || !btnScrollBottom) return;
+
+    const scrollGap = chatViewport.scrollHeight - chatViewport.scrollTop - chatViewport.clientHeight;
+
+    // If near bottom (within 40px), user is reading latest -> resume auto-scroll & hide button
+    if (scrollGap <= 40) {
+      isUserScrolledUp = false;
+      btnScrollBottom.style.display = 'none';
+      return;
+    }
+
+    // User is scrolled up
+    isUserScrolledUp = true;
+
+    // Count how many message cards are below current visible viewport bottom
+    const cards = chatViewport.querySelectorAll('.message-card');
+    const viewportBottom = chatViewport.scrollTop + chatViewport.clientHeight;
+    let cardsBelow = 0;
+
+    for (let i = cards.length - 1; i >= 0; i--) {
+      if (cards[i].offsetTop > viewportBottom - 20) {
+        cardsBelow++;
+      } else {
+        break; // Message cards are sequential top-to-bottom
+      }
+    }
+
+    // Only show if user has scrolled past at least 10 messages (or large scrollGap >= 1200px)
+    if (cardsBelow >= 10 || scrollGap >= 1200) {
+      btnScrollBottom.style.display = 'flex';
+    } else {
+      btnScrollBottom.style.display = 'none';
+    }
+  }
+
   if (chatViewport) {
     chatViewport.addEventListener('wheel', function (e) {
       if (e.deltaY < 0) {
-        // User scrolled UP with mouse wheel: pause auto-scroll and show ↓ button immediately
+        // User scrolled UP: pause auto-scroll
         isUserScrolledUp = true;
-        if (btnScrollBottom) btnScrollBottom.style.display = 'flex';
       }
     }, { passive: true });
 
-    chatViewport.addEventListener('scroll', function () {
-      const scrollGap = chatViewport.scrollHeight - chatViewport.scrollTop - chatViewport.clientHeight;
-      if (scrollGap > 45) {
-        isUserScrolledUp = true;
-        if (btnScrollBottom) btnScrollBottom.style.display = 'flex';
-      } else {
-        isUserScrolledUp = false;
-        if (btnScrollBottom) btnScrollBottom.style.display = 'none';
-      }
-    });
+    chatViewport.addEventListener('scroll', updateScrollBottomButton, { passive: true });
   }
 
   if (btnScrollBottom) {
@@ -2760,8 +2787,8 @@
   function scrollToBottom(force = false) {
     if (!chatViewport) return;
     if (isUserScrolledUp && !force) {
-      // User is reading previous messages or top of long answer - pause forced scroll!
-      if (btnScrollBottom) btnScrollBottom.style.display = 'flex';
+      // User is reading previous messages or top of long answer - check threshold
+      updateScrollBottomButton();
       return;
     }
     chatViewport.scrollTop = chatViewport.scrollHeight;
@@ -2844,7 +2871,7 @@
   // Live HUD Clock, Calendar Date & Uptime Ticker (Monospace Tabular Numerics - No Jitter)
   const hudDate = document.getElementById('hud-date');
   const hudUptimeEl = document.getElementById('hud-uptime');
-  const sessionStartTime = Date.now();
+  let serverSessionStartTs = Date.now();
 
   function updateLiveClockAndDate() {
     const now = new Date();
@@ -2859,15 +2886,169 @@
       hudDate.textContent = `${d} ${m} ${y}`;
     }
     if (hudUptimeEl) {
-      const elapsedSec = Math.floor((Date.now() - sessionStartTime) / 1000);
+      const elapsedSec = Math.max(0, Math.floor((Date.now() - serverSessionStartTs) / 1000));
       const hrs = Math.floor(elapsedSec / 3600);
       const mins = Math.floor((elapsedSec % 3600) / 60);
       const secs = elapsedSec % 60;
-      hudUptimeEl.textContent = hrs > 0 ? `UP: ${hrs}h ${mins}m` : `UP: ${mins}m ${secs}s`;
+      hudUptimeEl.textContent = hrs > 0 
+        ? `UP: ${String(hrs).padStart(2, '0')}h ${String(mins).padStart(2, '0')}m`
+        : `UP: ${String(mins).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`;
     }
   }
   setInterval(updateLiveClockAndDate, 1000);
   updateLiveClockAndDate();
+
+  // =========================================================================
+  // INTERACTIVE TACTICAL DROPDOWN CALENDAR (FIGMA / PINTEREST HUD STYLE)
+  // =========================================================================
+  const btnToggleCalendar = document.getElementById('btn-toggle-calendar');
+  const hudCalendarPopup = document.getElementById('hud-calendar-popup');
+  const calMonthTitle = document.getElementById('cal-month-title');
+  const calDaysGrid = document.getElementById('cal-days-grid');
+  const calPrevMonth = document.getElementById('cal-prev-month');
+  const calNextMonth = document.getElementById('cal-next-month');
+  const calBtnToday = document.getElementById('cal-btn-today');
+  const calTodayText = document.getElementById('cal-today-text');
+
+  let calViewYear = new Date().getFullYear();
+  let calViewMonth = new Date().getMonth();
+
+  const CAL_MONTHS = [
+    'JANUARY', 'FEBRUARY', 'MARCH', 'APRIL', 'MAY', 'JUNE',
+    'JULY', 'AUGUST', 'SEPTEMBER', 'OCTOBER', 'NOVEMBER', 'DECEMBER'
+  ];
+
+  function renderCalendar(year, month) {
+    if (!calDaysGrid || !calMonthTitle) return;
+
+    calMonthTitle.textContent = `${CAL_MONTHS[month]} ${year}`;
+
+    const today = new Date();
+    const isCurrentMonth = today.getFullYear() === year && today.getMonth() === month;
+    const todayDate = today.getDate();
+
+    if (calTodayText) {
+      const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      calTodayText.textContent = `${days[today.getDay()]}, ${today.getDate()} ${months[today.getMonth()]} ${today.getFullYear()}`;
+    }
+
+    calDaysGrid.innerHTML = '';
+
+    // First day index (Monday as 0)
+    const firstDay = new Date(year, month, 1).getDay();
+    const startOffset = (firstDay + 6) % 7;
+
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const daysInPrevMonth = new Date(year, month, 0).getDate();
+
+    // Previous month filler days
+    for (let i = startOffset - 1; i >= 0; i--) {
+      const cell = document.createElement('div');
+      cell.className = 'cal-day-cell other-month';
+      cell.textContent = daysInPrevMonth - i;
+      calDaysGrid.appendChild(cell);
+    }
+
+    // Current month days
+    for (let day = 1; day <= daysInMonth; day++) {
+      const cell = document.createElement('div');
+      cell.className = 'cal-day-cell';
+      if (isCurrentMonth && day === todayDate) {
+        cell.classList.add('today');
+        cell.title = 'Today';
+      }
+      cell.textContent = day;
+      cell.addEventListener('click', function () {
+        calDaysGrid.querySelectorAll('.cal-day-cell').forEach(c => c.classList.remove('selected'));
+        cell.classList.add('selected');
+      });
+      calDaysGrid.appendChild(cell);
+    }
+
+    // Next month filler days (fill to 35 or 42 grid cells)
+    const totalFilled = startOffset + daysInMonth;
+    const targetGridCount = totalFilled > 35 ? 42 : 35;
+    const nextDaysNeeded = targetGridCount - totalFilled;
+    for (let d = 1; d <= nextDaysNeeded; d++) {
+      const cell = document.createElement('div');
+      cell.className = 'cal-day-cell other-month';
+      cell.textContent = d;
+      calDaysGrid.appendChild(cell);
+    }
+  }
+
+  function toggleCalendar(forceState) {
+    if (!hudCalendarPopup) return;
+    const isVisible = hudCalendarPopup.style.display !== 'none';
+    const targetState = forceState !== undefined ? forceState : !isVisible;
+
+    if (targetState) {
+      calViewYear = new Date().getFullYear();
+      calViewMonth = new Date().getMonth();
+      renderCalendar(calViewYear, calViewMonth);
+      hudCalendarPopup.style.display = 'block';
+      if (btnToggleCalendar) btnToggleCalendar.classList.add('active');
+    } else {
+      hudCalendarPopup.style.display = 'none';
+      if (btnToggleCalendar) btnToggleCalendar.classList.remove('active');
+    }
+  }
+
+  if (btnToggleCalendar) {
+    btnToggleCalendar.addEventListener('click', function (e) {
+      e.stopPropagation();
+      toggleCalendar();
+    });
+  }
+
+  if (calPrevMonth) {
+    calPrevMonth.addEventListener('click', function (e) {
+      e.stopPropagation();
+      calViewMonth--;
+      if (calViewMonth < 0) {
+        calViewMonth = 11;
+        calViewYear--;
+      }
+      renderCalendar(calViewYear, calViewMonth);
+    });
+  }
+
+  if (calNextMonth) {
+    calNextMonth.addEventListener('click', function (e) {
+      e.stopPropagation();
+      calViewMonth++;
+      if (calViewMonth > 11) {
+        calViewMonth = 0;
+        calViewYear++;
+      }
+      renderCalendar(calViewYear, calViewMonth);
+    });
+  }
+
+  if (calBtnToday) {
+    calBtnToday.addEventListener('click', function (e) {
+      e.stopPropagation();
+      calViewYear = new Date().getFullYear();
+      calViewMonth = new Date().getMonth();
+      renderCalendar(calViewYear, calViewMonth);
+    });
+  }
+
+  // Close calendar when clicking outside or pressing Escape
+  document.addEventListener('click', function (e) {
+    if (hudCalendarPopup && hudCalendarPopup.style.display !== 'none') {
+      if (!hudCalendarPopup.contains(e.target) && (!btnToggleCalendar || !btnToggleCalendar.contains(e.target))) {
+        toggleCalendar(false);
+      }
+    }
+  });
+
+  window.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape' && hudCalendarPopup && hudCalendarPopup.style.display !== 'none') {
+      toggleCalendar(false);
+    }
+  });
 
   // Wire Top Nav History Controls (+50 and -50)
   const btnLoadHistory = document.getElementById('btn-load-history');

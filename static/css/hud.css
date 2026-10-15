@@ -313,27 +313,65 @@ body.cyber-hud {
 .header-right {
   display: flex;
   align-items: center;
+  position: relative;
+  z-index: 100;
 }
 
 /* Dedicated Monospace Pill Container (Zero Jitter / Shift) */
 .clock-date-pill {
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 5px 14px;
-  border-radius: 20px;
-  background: rgba(4, 18, 42, 0.88);
-  border: 1px solid var(--border-cyan);
-  box-shadow: 0 0 14px rgba(0, 243, 255, 0.16);
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(8, 24, 48, 0.94) 0%, rgba(3, 12, 28, 0.98) 100%);
+  border: 1px solid rgba(0, 243, 255, 0.35);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.6), 0 0 14px rgba(0, 243, 255, 0.14);
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   flex-shrink: 0;
-  justify-content: center;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.clock-date-pill:hover {
+  border-color: rgba(0, 243, 255, 0.55);
+  box-shadow: 0 4px 22px rgba(0, 0, 0, 0.7), 0 0 18px rgba(0, 243, 255, 0.25);
+}
+
+/* Interactive Date Trigger Button */
+.pill-date-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 7px;
+  border-radius: 12px;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.pill-date-btn:hover {
+  background: rgba(0, 243, 255, 0.12);
+  border-color: rgba(0, 243, 255, 0.3);
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.2);
+}
+
+.pill-date-btn.active {
+  background: rgba(0, 243, 255, 0.2);
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 12px rgba(0, 243, 255, 0.35);
 }
 
 .pill-calendar-icon {
-  font-size: 11px;
+  font-size: 12px;
+  transition: transform 0.2s ease;
+}
+
+.pill-date-btn:hover .pill-calendar-icon {
+  transform: scale(1.15);
 }
 
 .hud-date {
@@ -343,32 +381,211 @@ body.cyber-hud {
   color: var(--accent-green);
   letter-spacing: 0.5px;
   font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 8px rgba(0, 255, 170, 0.35);
 }
 
 .pill-separator {
-  color: var(--text-muted);
-  font-size: 10px;
+  color: rgba(0, 243, 255, 0.3);
+  font-size: 11px;
+  user-select: none;
 }
 
 .hud-clock {
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--text-cyan);
+  color: var(--accent-cyan);
   letter-spacing: 0.5px;
-  font-weight: 700;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
   display: inline-block;
   min-width: 90px;
-  text-align: right;
+  text-align: center;
+  text-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
 }
 
 .hud-uptime-badge {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
   color: #ffaa00;
   font-weight: 700;
   letter-spacing: 0.5px;
   font-variant-numeric: tabular-nums;
+  background: rgba(255, 170, 0, 0.12);
+  border: 1px solid rgba(255, 170, 0, 0.35);
+  padding: 2px 7px;
+  border-radius: 10px;
+  text-shadow: 0 0 6px rgba(255, 170, 0, 0.35);
+}
+
+/* ==================== MICRO TACTICAL DROPDOWN CALENDAR (FIGMA STYLE) ==================== */
+.hud-calendar-popup {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  width: 275px;
+  background: rgba(5, 15, 34, 0.96);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(0, 243, 255, 0.45);
+  border-radius: 14px;
+  box-shadow: 0 16px 45px rgba(0, 0, 0, 0.85), 0 0 25px rgba(0, 243, 255, 0.2);
+  padding: 14px;
+  z-index: 9999;
+  animation: cal-pop-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  user-select: none;
+}
+
+@keyframes cal-pop-in {
+  0% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.96);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.calendar-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0, 243, 255, 0.2);
+}
+
+.cal-month-title-wrap {
+  text-align: center;
+}
+
+.cal-month-title {
+  font-family: var(--font-header);
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: 1.5px;
+  text-shadow: 0 0 10px rgba(0, 243, 255, 0.5);
+}
+
+.cal-nav-btn {
+  background: rgba(0, 243, 255, 0.1);
+  border: 1px solid rgba(0, 243, 255, 0.3);
+  color: var(--accent-cyan);
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  transition: all 0.2s ease;
+}
+
+.cal-nav-btn:hover {
+  background: rgba(0, 243, 255, 0.25);
+  border-color: var(--accent-cyan);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.4);
+}
+
+.calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+  text-align: center;
+  margin-bottom: 6px;
+}
+
+.calendar-weekdays span {
+  font-family: var(--font-header);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  padding: 3px 0;
+}
+
+.calendar-days-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 3px;
+  margin-bottom: 10px;
+}
+
+.cal-day-cell {
+  aspect-ratio: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: all 0.15s ease;
+}
+
+.cal-day-cell:hover:not(.other-month) {
+  background: rgba(0, 243, 255, 0.18);
+  color: #ffffff;
+  border: 1px solid rgba(0, 243, 255, 0.4);
+  box-shadow: 0 0 8px rgba(0, 243, 255, 0.3);
+}
+
+.cal-day-cell.other-month {
+  color: rgba(255, 255, 255, 0.15);
+  pointer-events: none;
+}
+
+.cal-day-cell.today {
+  background: linear-gradient(135deg, rgba(0, 243, 255, 0.35) 0%, rgba(0, 150, 255, 0.45) 100%) !important;
+  border: 1.5px solid var(--accent-cyan) !important;
+  color: #ffffff !important;
+  font-weight: 800;
+  box-shadow: 0 0 12px rgba(0, 243, 255, 0.65) !important;
+}
+
+.cal-day-cell.selected {
+  background: rgba(0, 243, 255, 0.25);
+  border: 1px solid var(--accent-cyan);
+  color: #ffffff;
+}
+
+.calendar-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 243, 255, 0.15);
+}
+
+.cal-today-btn {
+  background: rgba(0, 243, 255, 0.12);
+  border: 1px solid rgba(0, 243, 255, 0.35);
+  color: var(--accent-cyan);
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-family: var(--font-header);
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.cal-today-btn:hover {
+  background: rgba(0, 243, 255, 0.28);
+  border-color: var(--accent-cyan);
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.4);
+}
+
+.cal-today-text {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent-green);
+  font-weight: 700;
 }
 
 /* ==================== 2. MAIN HUD VIEW (3 RESIZABLE PANELS) ==================== */
@@ -792,41 +1009,47 @@ body.cyber-hud {
   overflow: hidden;
 }
 
-/* Floating Scroll-To-Bottom Button (ChatGPT Style ↓) */
+/* Floating Scroll-To-Bottom Button (ChatGPT / Claude Style ↓ Centered) */
 .chat-scroll-bottom-btn {
   position: absolute;
-  bottom: 78px;
-  right: 28px;
-  width: 42px;
-  height: 42px;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: rgba(4, 18, 42, 0.94);
-  border: 1.5px solid var(--accent-cyan);
+  background: rgba(4, 18, 42, 0.92);
+  border: 1px solid rgba(0, 243, 255, 0.4);
   color: var(--accent-cyan);
-  box-shadow: 0 4px 22px rgba(0, 243, 255, 0.6);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 10px rgba(0, 243, 255, 0.3);
   backdrop-filter: blur(10px);
   cursor: pointer;
   z-index: 100;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 16px;
-  font-weight: 800;
-  transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
-  animation: float-pulse 2s ease-in-out infinite alternate;
+  font-size: 15px;
+  font-weight: 700;
+  transition: transform 0.2s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 .chat-scroll-bottom-btn:hover {
-  transform: scale(1.15);
-  background: rgba(0, 243, 255, 0.25);
-  border-color: #ffffff;
+  transform: translateX(-50%) translateY(-2px);
+  background: rgba(8, 28, 60, 0.98);
+  border-color: var(--accent-cyan);
   color: #ffffff;
-  box-shadow: 0 0 25px rgba(0, 243, 255, 0.85);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.6), 0 0 16px rgba(0, 243, 255, 0.55);
 }
 
-@keyframes float-pulse {
-  0% { transform: translateY(0); box-shadow: 0 4px 16px rgba(0, 243, 255, 0.35); }
-  100% { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0, 243, 255, 0.7); }
+.chat-scroll-bottom-btn:active {
+  transform: translateX(-50%) translateY(0);
+}
+
+.scroll-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
 }
 
 /* ==================== 3D RUNNING / ROLLING KIRAHT ARC REACTOR ==================== */

@@ -517,6 +517,8 @@ def get_system_telemetry() -> Dict[str, Any]:
         "uptime": {
             "system": sys_uptime_str,
             "session": session_uptime_str,
+            "session_seconds": int(session_delta.total_seconds()),
+            "start_timestamp": SESSION_START_DT.timestamp(),
         },
         "ai": {
             "engine": ai_engine,
