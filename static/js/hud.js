@@ -224,6 +224,10 @@
         handleChatCleared();
         break;
 
+      case 'reminder_alert':
+        renderReminderChatCard(packet.reminder);
+        break;
+
       case 'error':
         if (thinkingCard) {
           if (thinkingCard.parentNode) {
@@ -235,6 +239,7 @@
         }
         setGeneratingState(false);
         logActivity('System', 'Error', packet.error);
+        appendMessageCard('assistant', `⚠️ **System Diagnostic Notice**:\n${packet.error || 'The model was unable to complete the request. Systems remain standing by.'}`, getCurrentTime(), { engine: 'error', source_label: 'DIAGNOSTIC NOTICE' });
         break;
     }
   }
@@ -720,6 +725,123 @@
     return contentEl;
   }
 
+  function renderReminderChatCard(reminder) {
+    if (!chatViewport || !reminder) return;
+    dismissWelcomeHero();
+
+    const card = document.createElement('div');
+    card.className = 'message-card assistant-card reminder-card';
+    card.setAttribute('data-reminder-id', reminder.id);
+
+    const avatar = createAssistantAvatarElement();
+
+    const body = document.createElement('div');
+    body.className = 'message-body';
+
+    const header = document.createElement('div');
+    header.className = 'message-header';
+
+    const headerLeft = document.createElement('div');
+    headerLeft.className = 'message-header-left';
+
+    const sender = document.createElement('span');
+    sender.className = 'sender-name';
+    sender.textContent = 'KIRAHT AI';
+    headerLeft.appendChild(sender);
+
+    const remBadge = document.createElement('span');
+    remBadge.className = 'reminder-header-badge';
+    remBadge.innerHTML = `<span>${reminder.icon || '🕌'}</span> ${reminder.category === 'prayer' ? 'PRAYER ALERT' : 'EVENT ALERT'}`;
+    headerLeft.appendChild(remBadge);
+
+    const time = document.createElement('span');
+    time.className = 'message-timestamp';
+    time.textContent = getCurrentTime();
+
+    header.appendChild(headerLeft);
+    header.appendChild(time);
+
+    const contentEl = document.createElement('div');
+    contentEl.className = 'message-content';
+    contentEl.innerHTML = `
+      <div style="font-weight: 800; font-size: 13px; color: var(--accent-cyan); margin-bottom: 4px;">
+        ${escapeHtml(reminder.title)}
+      </div>
+      <div style="font-size: 12px; color: var(--text-primary); margin-bottom: 6px;">
+        ${escapeHtml(reminder.message)}
+      </div>
+      <div style="font-family: var(--font-mono); font-size: 11px; color: var(--accent-green); margin-bottom: 8px;">
+        ⏱️ Scheduled Time: <strong>${escapeHtml(reminder.time || '')}</strong>
+      </div>
+    `;
+
+    // Interactive Action Row: Accept & Deny/Snooze
+    const actionsRow = document.createElement('div');
+    actionsRow.className = 'reminder-actions-row';
+
+    const btnAccept = document.createElement('button');
+    btnAccept.className = 'btn-reminder-action btn-reminder-accept';
+    btnAccept.type = 'button';
+    btnAccept.innerHTML = `<span>✅</span> ACCEPT`;
+
+    const btnDeny = document.createElement('button');
+    btnDeny.className = 'btn-reminder-action btn-reminder-deny';
+    btnDeny.type = 'button';
+    btnDeny.innerHTML = `<span>⏰</span> SNOOZE 10M`;
+
+    btnAccept.onclick = function () {
+      handleReminderActionClick(reminder.id, 'accept', card, btnAccept, btnDeny);
+    };
+    btnDeny.onclick = function () {
+      handleReminderActionClick(reminder.id, 'deny', card, btnAccept, btnDeny);
+    };
+
+    actionsRow.appendChild(btnAccept);
+    actionsRow.appendChild(btnDeny);
+    contentEl.appendChild(actionsRow);
+
+    body.appendChild(header);
+    body.appendChild(contentEl);
+
+    card.appendChild(avatar);
+    card.appendChild(body);
+
+    chatViewport.appendChild(card);
+    if (!isUserScrolledUp) {
+      scrollToBottom();
+    }
+
+    const spokenText = `Sir, reminder for ${reminder.title}. ${reminder.message}`;
+    if (typeof speakAloud === 'function') {
+      speakAloud(spokenText);
+    }
+  }
+
+  function handleReminderActionClick(reminderId, action, cardEl, btnAccept, btnDeny) {
+    if (btnAccept) btnAccept.disabled = true;
+    if (btnDeny) btnDeny.disabled = true;
+
+    if (action === 'accept') {
+      if (btnAccept) {
+        btnAccept.innerHTML = `<span>✅</span> ACCEPTED`;
+        btnAccept.style.background = 'rgba(0, 255, 136, 0.4)';
+      }
+      if (btnDeny) btnDeny.style.display = 'none';
+    } else {
+      if (btnDeny) {
+        btnDeny.innerHTML = `<span>⏰</span> SNOOZED (10M)`;
+        btnDeny.style.background = 'rgba(255, 170, 0, 0.4)';
+      }
+      if (btnAccept) btnAccept.style.display = 'none';
+    }
+
+    sendWebSocket({
+      type: 'reminder_action',
+      id: reminderId,
+      action: action
+    });
+  }
+
   // =========================================================================
   // 5. WORD-BY-WORD STREAMING & GEMINI-STYLE THINKING INDICATOR
   // =========================================================================
@@ -803,7 +925,9 @@
           } catch (e) {
             currentStreamingContentEl.textContent = accumulatedStreamText;
           }
-          scrollToBottom();
+          if (!isUserScrolledUp) {
+            scrollToBottom();
+          }
         }
         if (pendingStreamEnd) {
           clearInterval(wordStreamInterval);
@@ -831,7 +955,9 @@
           } catch (fmtErr) {
             currentStreamingContentEl.textContent = accumulatedStreamText;
           }
-          scrollToBottom();
+          if (!isUserScrolledUp) {
+            scrollToBottom();
+          }
         }
       } else if (!isStreamingActive && pendingStreamEnd) {
         // Queue is finished draining and stream has finished
@@ -854,7 +980,9 @@
         } catch (e) {
           currentStreamingContentEl.textContent = accumulatedStreamText;
         }
-        scrollToBottom();
+        if (!isUserScrolledUp) {
+          scrollToBottom();
+        }
       }
       if (pendingStreamEnd) {
         if (wordStreamInterval) {
@@ -992,30 +1120,41 @@
   }
 
   function finishStream(fullText, meta) {
-    const textToRender = fullText || accumulatedStreamText || '';
+    let textToRender = fullText || accumulatedStreamText || '';
+    if (!textToRender && !currentStreamingCard) {
+      textToRender = 'Sir, the command was processed. Systems remain standing by.';
+    }
     try {
-      if (currentStreamingCard) {
-        const headerLeft = currentStreamingCard.querySelector('.message-header-left');
-        if (headerLeft) {
-          const oldBadge = headerLeft.querySelector('.engine-source-badge');
-          if (oldBadge) {
-            headerLeft.removeChild(oldBadge);
-          }
-          const badge = createEngineSourceBadge(meta);
-          headerLeft.appendChild(badge);
+      if (!currentStreamingCard && textToRender) {
+        if (thinkingCard && thinkingCard.parentNode) {
+          thinkingCard.parentNode.removeChild(thinkingCard);
         }
-      }
+        thinkingCard = null;
+        appendMessageCard('assistant', textToRender, getCurrentTime(), meta);
+      } else {
+        if (currentStreamingCard) {
+          const headerLeft = currentStreamingCard.querySelector('.message-header-left');
+          if (headerLeft) {
+            const oldBadge = headerLeft.querySelector('.engine-source-badge');
+            if (oldBadge) {
+              headerLeft.removeChild(oldBadge);
+            }
+            const badge = createEngineSourceBadge(meta);
+            headerLeft.appendChild(badge);
+          }
+        }
 
-      if (currentStreamingContentEl) {
-        currentStreamingContentEl.innerHTML = formatMarkdown(textToRender);
+        if (currentStreamingContentEl) {
+          currentStreamingContentEl.innerHTML = formatMarkdown(textToRender);
 
-        if (meta && meta.screenshot_url) {
-          const img = document.createElement('img');
-          img.src = meta.screenshot_url;
-          img.className = 'chat-preview-img';
-          img.alt = 'Screenshot';
-          img.onclick = function () { window.open(meta.screenshot_url, '_blank'); };
-          currentStreamingContentEl.appendChild(img);
+          if (meta && meta.screenshot_url) {
+            const img = document.createElement('img');
+            img.src = meta.screenshot_url;
+            img.className = 'chat-preview-img';
+            img.alt = 'Screenshot';
+            img.onclick = function () { window.open(meta.screenshot_url, '_blank'); };
+            currentStreamingContentEl.appendChild(img);
+          }
         }
       }
 
@@ -1044,7 +1183,9 @@
       wordStreamQueue = [];
       thinkingCard = null;
       setGeneratingState(false);
-      scrollToBottom();
+      if (!isUserScrolledUp) {
+        scrollToBottom();
+      }
     }
   }
 
@@ -1465,7 +1606,11 @@
     chatInput.value = '';
     chatInput.style.height = '42px';
     chatInput.focus();
-    scrollToBottom();
+
+    // User explicitly entered a message: reset scroll lock and force scroll down to the new message
+    isUserScrolledUp = false;
+    if (btnScrollBottom) btnScrollBottom.style.display = 'none';
+    scrollToBottom(true);
 
     // Show thinking indicator & switch button to STOP (Point 8)
     showThinkingIndicator();
@@ -2979,15 +3124,29 @@
     }
   }
 
+  let lastChatScrollTop = 0;
   if (chatViewport) {
     chatViewport.addEventListener('wheel', function (e) {
       if (e.deltaY < 0) {
-        // User scrolled UP: pause auto-scroll
+        // User scrolled UP: pause auto-scroll immediately so AI response won't drag them down
         isUserScrolledUp = true;
       }
     }, { passive: true });
 
-    chatViewport.addEventListener('scroll', updateScrollBottomButton, { passive: true });
+    chatViewport.addEventListener('touchmove', function () {
+      if (chatViewport.scrollTop < lastChatScrollTop) {
+        isUserScrolledUp = true;
+      }
+    }, { passive: true });
+
+    chatViewport.addEventListener('scroll', function () {
+      if (chatViewport.scrollTop < lastChatScrollTop - 4) {
+        // Detected user actively scrolling up
+        isUserScrolledUp = true;
+      }
+      lastChatScrollTop = chatViewport.scrollTop;
+      updateScrollBottomButton();
+    }, { passive: true });
   }
 
   if (btnScrollBottom) {
@@ -3199,7 +3358,7 @@
     const anchor = document.getElementById('clock-date-pill') || btnToggleCalendar;
     if (!anchor) return;
     const rect = anchor.getBoundingClientRect();
-    const popupWidth = 285;
+    const popupWidth = 325;
 
     hudCalendarPopup.style.position = 'fixed';
     hudCalendarPopup.style.top = `${Math.round(rect.bottom + 8)}px`;
@@ -3223,6 +3382,7 @@
       calViewYear = new Date().getFullYear();
       calViewMonth = new Date().getMonth();
       renderCalendar(calViewYear, calViewMonth);
+      loadAndRenderReminders();
       hudCalendarPopup.style.display = 'block';
       positionCalendarPopup();
       if (btnToggleCalendar) btnToggleCalendar.classList.add('active');
@@ -3270,6 +3430,249 @@
       calViewMonth = new Date().getMonth();
       renderCalendar(calViewYear, calViewMonth);
     });
+  }
+
+  // =========================================================================
+  // POPUP TABS & PRAYER SCHEDULE / CUSTOM REMINDERS MANAGER
+  // =========================================================================
+  const tabBtnCalendar = document.getElementById('tab-btn-calendar');
+  const tabBtnReminders = document.getElementById('tab-btn-reminders');
+  const tabContentCalendar = document.getElementById('tab-content-calendar');
+  const tabContentReminders = document.getElementById('tab-content-reminders');
+  const prayerTimesList = document.getElementById('prayer-times-list');
+  const customRemindersList = document.getElementById('custom-reminders-list');
+  const btnSavePrayers = document.getElementById('btn-save-prayers');
+  const btnAddReminder = document.getElementById('btn-add-reminder');
+  const newRemTitle = document.getElementById('new-rem-title');
+  const newRemTime = document.getElementById('new-rem-time');
+
+  let activeRemindersData = null;
+
+  function switchPopupTab(tabName) {
+    if (tabName === 'calendar') {
+      if (tabBtnCalendar) tabBtnCalendar.classList.add('active');
+      if (tabBtnReminders) tabBtnReminders.classList.remove('active');
+      if (tabContentCalendar) tabContentCalendar.classList.add('active');
+      if (tabContentReminders) tabContentReminders.classList.remove('active');
+    } else {
+      if (tabBtnReminders) tabBtnReminders.classList.add('active');
+      if (tabBtnCalendar) tabBtnCalendar.classList.remove('active');
+      if (tabContentReminders) tabContentReminders.classList.add('active');
+      if (tabContentCalendar) tabContentCalendar.classList.remove('active');
+      loadAndRenderReminders();
+    }
+  }
+
+  if (tabBtnCalendar) {
+    tabBtnCalendar.addEventListener('click', function (e) {
+      e.stopPropagation();
+      switchPopupTab('calendar');
+    });
+  }
+  if (tabBtnReminders) {
+    tabBtnReminders.addEventListener('click', function (e) {
+      e.stopPropagation();
+      switchPopupTab('reminders');
+    });
+  }
+
+  async function loadAndRenderReminders() {
+    try {
+      const resp = await fetch('/api/reminders');
+      if (!resp.ok) return;
+      const data = await resp.json();
+      activeRemindersData = data;
+      renderPrayerTimes(data.prayer_times || {});
+      renderCustomReminders(data.custom_reminders || []);
+    } catch (err) {
+      console.warn('[HUD] Failed loading reminders:', err);
+    }
+  }
+
+  const PRAYER_ICONS = {
+    fajr: '🌅',
+    dhuhr: '☀️',
+    asr: '🌤️',
+    maghrib: '🌇',
+    isha: '🌙'
+  };
+
+  function renderPrayerTimes(prayers) {
+    if (!prayerTimesList) return;
+    prayerTimesList.innerHTML = '';
+
+    const order = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'];
+    order.forEach(key => {
+      const p = prayers[key] || { name: key.toUpperCase(), time: '12:00', enabled: true };
+      const icon = PRAYER_ICONS[key] || '🕌';
+
+      const row = document.createElement('div');
+      row.className = 'prayer-row';
+      row.innerHTML = `
+        <div class="prayer-info">
+          <span class="prayer-icon">${icon}</span>
+          <span class="prayer-name">${escapeHtml(p.name || key.toUpperCase())}</span>
+        </div>
+        <div class="prayer-controls">
+          <input type="time" class="prayer-time-input" data-prayer="${key}" value="${p.time || '12:00'}">
+          <input type="checkbox" class="prayer-toggle" data-prayer="${key}" ${p.enabled !== false ? 'checked' : ''} title="Toggle reminder">
+        </div>
+      `;
+      prayerTimesList.appendChild(row);
+    });
+  }
+
+  function renderCustomReminders(customList) {
+    if (!customRemindersList) return;
+    customRemindersList.innerHTML = '';
+
+    if (!customList || customList.length === 0) {
+      customRemindersList.innerHTML = '<div style="font-size:10px; color:var(--text-muted); text-align:center; padding:6px 0;">No active custom events</div>';
+      return;
+    }
+
+    customList.forEach(rem => {
+      const item = document.createElement('div');
+      item.className = 'custom-rem-item';
+      item.innerHTML = `
+        <span class="custom-rem-text" title="${escapeHtml(rem.title)}">${escapeHtml(rem.title)}</span>
+        <span class="custom-rem-time">${escapeHtml(rem.time)}</span>
+        <button class="btn-del-reminder" title="Remove reminder" type="button">✕</button>
+      `;
+      const btnDel = item.querySelector('.btn-del-reminder');
+      if (btnDel) {
+        btnDel.addEventListener('click', async function (e) {
+          e.stopPropagation();
+          await deleteReminderItem(rem.id);
+        });
+      }
+      customRemindersList.appendChild(item);
+    });
+  }
+
+  async function savePrayerSchedule() {
+    if (!prayerTimesList) return;
+    const inputs = prayerTimesList.querySelectorAll('.prayer-time-input');
+    const toggles = prayerTimesList.querySelectorAll('.prayer-toggle');
+
+    const updatedPrayers = (activeRemindersData && activeRemindersData.prayer_times) ? { ...activeRemindersData.prayer_times } : {};
+
+    inputs.forEach(inp => {
+      const pKey = inp.getAttribute('data-prayer');
+      if (pKey && updatedPrayers[pKey]) {
+        updatedPrayers[pKey].time = inp.value;
+      }
+    });
+
+    toggles.forEach(tog => {
+      const pKey = tog.getAttribute('data-prayer');
+      if (pKey && updatedPrayers[pKey]) {
+        updatedPrayers[pKey].enabled = tog.checked;
+      }
+    });
+
+    try {
+      if (btnSavePrayers) {
+        btnSavePrayers.textContent = 'SAVING...';
+        btnSavePrayers.disabled = true;
+      }
+      const resp = await fetch('/api/reminders/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prayer_times: updatedPrayers })
+      });
+      if (resp.ok) {
+        const res = await resp.json();
+        activeRemindersData = res.data;
+        if (btnSavePrayers) {
+          btnSavePrayers.textContent = '✅ SAVED SUCCESSFULLY';
+          btnSavePrayers.style.background = 'rgba(0, 255, 136, 0.25)';
+          btnSavePrayers.style.borderColor = '#00ff88';
+        }
+        logActivity('System', 'Prayer Times', 'Updated prayer schedule');
+        setTimeout(() => {
+          if (btnSavePrayers) {
+            btnSavePrayers.textContent = '💾 SAVE PRAYER SCHEDULE';
+            btnSavePrayers.style.background = '';
+            btnSavePrayers.style.borderColor = '';
+            btnSavePrayers.disabled = false;
+          }
+        }, 2000);
+      }
+    } catch (err) {
+      console.warn('[HUD] Failed saving prayer times:', err);
+      if (btnSavePrayers) {
+        btnSavePrayers.textContent = 'ERROR SAVING';
+        btnSavePrayers.disabled = false;
+      }
+    }
+  }
+
+  if (btnSavePrayers) {
+    btnSavePrayers.addEventListener('click', function (e) {
+      e.stopPropagation();
+      savePrayerSchedule();
+    });
+  }
+
+  async function addCustomReminderEvent() {
+    if (!newRemTitle || !newRemTime) return;
+    const title = newRemTitle.value.trim();
+    const time = newRemTime.value;
+    if (!title || !time) return;
+
+    try {
+      const curList = (activeRemindersData && activeRemindersData.custom_reminders) ? [...activeRemindersData.custom_reminders] : [];
+      const newRem = {
+        id: `rem_${Date.now()}`,
+        title: title,
+        time: time,
+        enabled: true,
+        days: ['daily']
+      };
+      curList.push(newRem);
+
+      const resp = await fetch('/api/reminders/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ custom_reminders: curList })
+      });
+      if (resp.ok) {
+        const res = await resp.json();
+        activeRemindersData = res.data;
+        renderCustomReminders(activeRemindersData.custom_reminders || []);
+        newRemTitle.value = '';
+        logActivity('System', 'New Reminder', `${title} at ${time}`);
+      }
+    } catch (err) {
+      console.warn('[HUD] Failed adding reminder:', err);
+    }
+  }
+
+  if (btnAddReminder) {
+    btnAddReminder.addEventListener('click', function (e) {
+      e.stopPropagation();
+      addCustomReminderEvent();
+    });
+  }
+
+  async function deleteReminderItem(remId) {
+    if (!activeRemindersData || !activeRemindersData.custom_reminders) return;
+    const updated = activeRemindersData.custom_reminders.filter(r => r.id !== remId);
+    try {
+      const resp = await fetch('/api/reminders/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ custom_reminders: updated })
+      });
+      if (resp.ok) {
+        const res = await resp.json();
+        activeRemindersData = res.data;
+        renderCustomReminders(activeRemindersData.custom_reminders || []);
+      }
+    } catch (err) {
+      console.warn('[HUD] Failed deleting reminder:', err);
+    }
   }
 
   // Close calendar when clicking outside or pressing Escape

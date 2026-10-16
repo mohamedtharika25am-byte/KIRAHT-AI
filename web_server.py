@@ -103,6 +103,39 @@ async def clear_history():
     return {"status": "success", "message": "Conversation history cleared."}
 
 
+@app.get("/api/reminders")
+async def get_reminders_api():
+    """Returns all prayer times and custom reminders."""
+    from reminder_tools import load_reminders
+    return load_reminders()
+
+
+@app.post("/api/reminders/save")
+async def save_reminders_api(request: Request):
+    """Saves updated prayer times and custom reminders."""
+    from reminder_tools import save_reminders
+    try:
+        data = await request.json()
+        ok = save_reminders(data)
+        return {"status": "success" if ok else "error"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.post("/api/reminders/action")
+async def handle_reminder_action_api(request: Request):
+    """Handles accept/deny response to a reminder."""
+    from reminder_tools import record_reminder_response
+    try:
+        body = await request.json()
+        rem_id = body.get("id", "")
+        action = body.get("action", "accept")
+        ok, msg = record_reminder_response(rem_id, action)
+        return {"status": "success" if ok else "error", "message": msg}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
 @app.post("/api/quick-action")
 async def handle_quick_action(req: QuickActionRequest):
     """Executes predefined dashboard quick actions."""
@@ -450,8 +483,9 @@ async def websocket_endpoint(websocket: WebSocket):
     except Exception as err:
         print(f"[!] WebSocket handshake error: {err}")
 
-    # Background task to push live telemetry continuously every 1.5 seconds
+    # Background task to push live telemetry and check due reminders
     async def telemetry_pusher():
+        reminder_tick = 0
         while True:
             try:
                 await asyncio.sleep(1.5)
@@ -459,6 +493,31 @@ async def websocket_endpoint(websocket: WebSocket):
                     break
                 live_telem = await asyncio.to_thread(get_system_telemetry)
                 await manager.send_json(websocket, {"type": "telemetry", "data": live_telem})
+
+                reminder_tick += 1
+                if reminder_tick >= 5:  # Every ~7.5 seconds check for prayer & event reminders
+                    reminder_tick = 0
+                    from reminder_tools import check_due_reminders
+                    from system_tools import show_desktop_notification
+                    due_list = await asyncio.to_thread(check_due_reminders)
+                    for due in due_list:
+                        show_desktop_notification(due.get("title", "KIRAHT Reminder"), due.get("message", "Time for prayer"))
+                        await manager.send_json(websocket, {
+                            "type": "reminder_alert",
+                            "reminder": due
+                        })
+                        await manager.send_json(websocket, {
+                            "type": "activity",
+                            "actor": "Reminder",
+                            "action": due.get("title", "Alert"),
+                            "detail": due.get("message", ""),
+                            "timestamp": datetime.datetime.now().strftime("%I:%M:%S %p"),
+                        })
+                        add_chat_history_message(
+                            "assistant",
+                            f"{due.get('icon', '🕌')} **{due.get('title')}**: {due.get('message')}",
+                            meta={"engine": "reminder", "source_label": "KIRAHT REMINDER", "reminder_id": due.get("id")}
+                        )
             except asyncio.CancelledError:
                 break
             except Exception as push_err:
@@ -492,6 +551,26 @@ async def websocket_endpoint(websocket: WebSocket):
                     "actor": "User",
                     "action": "Clear Chat",
                     "detail": "Conversation history reset"
+                })
+                continue
+
+            if msg_type == "reminder_action":
+                rem_id = msg_obj.get("id", "")
+                action = msg_obj.get("action", "accept")
+                from reminder_tools import record_reminder_response
+                ok, resp_str = record_reminder_response(rem_id, action)
+                await manager.send_json(websocket, {
+                    "type": "activity",
+                    "actor": "User",
+                    "action": f"Reminder {action.capitalize()}",
+                    "detail": resp_str
+                })
+                await manager.send_json(websocket, {
+                    "type": "chat_message",
+                    "role": "assistant",
+                    "content": f"Sir, {resp_str}",
+                    "timestamp": datetime.datetime.now().strftime("%I:%M %p"),
+                    "meta": {"engine": "reminder", "source_label": "KIRAHT REMINDER"}
                 })
                 continue
 

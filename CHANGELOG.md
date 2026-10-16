@@ -3,6 +3,28 @@ All notable changes, version upgrades, bug fixes, UI overhauls, and architectura
 
 Format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), adhering to Semantic Versioning (`vMAJOR.MINOR.PATCH`).
 
+## ⚡ [v2.7.0] — 2026-10-17 12:30 AM IST (5 Prayer Times & Reminders System, Logo QR Code, Smart Scroll Pin & Guaranteed Response Fix)
+
+### 📌 Summary (சுருக்கம்):
+Added a comprehensive 5 Islamic Prayer Times (Fajr, Dhuhr, Asr, Maghrib, Isha) and custom events reminder suite with editable schedules and interactive chat action cards (Accept / Snooze 10m). Resolved silent response drops with full error & diagnostic cards, embedded the Kiraht AI logo in generated QR codes with high error correction, and implemented smart scroll pinning (immediate bottom snap on user send, zero downward dragging when user scrolls up during AI streaming).
+
+---
+
+### 🚀 New Features & Enhancements (புதிய வசதிகள் & மேம்பாடுகள்):
+1. **Guaranteed Assistant Responses & Diagnostics Visibility:**
+   - Fixed issue where errors or stream terminations without cards silently disappeared.
+   - Core pipeline and WebSocket handlers now guarantee an informative fallback notice or diagnostic error card in chat rather than leaving the user's message hanging with no reply.
+2. **Branded QR Code Center Logo:**
+   - Upgraded `generate_qr_code()` to use `ERROR_CORRECT_H` (30% error correction) and embedded the circular Kiraht AI branded logo with cyan glowing perimeter badge at the exact center.
+3. **Smart Scroll Pin Logic:**
+   - When user is scrolled far up and sends a message (Enter or Execute), the chat immediately resets scroll lock and scrolls down to the bottom.
+   - When AI is streaming a response and the user scrolls up to read earlier messages, the viewport respects the user's scroll position and never drags them down.
+4. **5 Daily Prayer Times & Custom Reminders Manager:**
+   - Tactical dual tabs inside the clock/calendar popup (`[ 📅 CALENDAR ]` & `[ 🕌 PRAYER & REMINDERS ]`).
+   - Integrated schedule for 5 daily prayers (Fajr, Dhuhr, Asr, Maghrib, Isha) with editable times and toggle switches.
+   - Custom reminders and events manager allowing additions, deletions, and persistence in `reminders.json`.
+   - Real-time periodic checks (~7.5s) dispatching tactical reminder cards directly into chat with interactive `[ ✅ ACCEPT ]` and `[ ⏰ SNOOZE 10M ]` buttons, desktop notifications, and voice announcements.
+
 ---
 
 ## ⚡ [v2.6.1] — 2026-10-16 01:25 AM IST (Auto-Dismiss Welcome Hero on Chat, Adaptive Stream Draining & Diagnostics Fix)

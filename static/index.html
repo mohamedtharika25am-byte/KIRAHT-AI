@@ -110,24 +110,70 @@
       </div>
     </header>
 
-    <!-- Micro Tactical Dropdown Calendar (Figma / Cyberpunk Aesthetic - High Stack Layer) -->
+    <!-- Micro Tactical Dropdown Calendar & Reminders/Prayer Popup (High Stack Layer) -->
     <div class="hud-calendar-popup" id="hud-calendar-popup" style="display: none;">
-      <div class="calendar-card-header">
-        <button class="cal-nav-btn" id="cal-prev-month" title="Previous Month" type="button">◀</button>
-        <div class="cal-month-title-wrap">
-          <span class="cal-month-title" id="cal-month-title">OCTOBER 2026</span>
+      <!-- Popup Header Tabs -->
+      <div class="hud-popup-tab-bar">
+        <button class="popup-tab-btn active" id="tab-btn-calendar" type="button">
+          <span>📅</span> CALENDAR
+        </button>
+        <button class="popup-tab-btn" id="tab-btn-reminders" type="button">
+          <span>🕌</span> PRAYER & REMINDERS
+        </button>
+      </div>
+
+      <!-- TAB 1: CALENDAR VIEW -->
+      <div class="popup-tab-content active" id="tab-content-calendar">
+        <div class="calendar-card-header">
+          <button class="cal-nav-btn" id="cal-prev-month" title="Previous Month" type="button">◀</button>
+          <div class="cal-month-title-wrap">
+            <span class="cal-month-title" id="cal-month-title">OCTOBER 2026</span>
+          </div>
+          <button class="cal-nav-btn" id="cal-next-month" title="Next Month" type="button">▶</button>
         </div>
-        <button class="cal-nav-btn" id="cal-next-month" title="Next Month" type="button">▶</button>
+        <div class="calendar-weekdays">
+          <span>MO</span><span>TU</span><span>WE</span><span>TH</span><span>FR</span><span>SA</span><span>SU</span>
+        </div>
+        <div class="calendar-days-grid" id="cal-days-grid">
+          <!-- Dynamically populated days -->
+        </div>
+        <div class="calendar-card-footer">
+          <button class="cal-today-btn" id="cal-btn-today" title="Jump to today" type="button">TODAY</button>
+          <span class="cal-today-text" id="cal-today-text">-- --- ----</span>
+        </div>
       </div>
-      <div class="calendar-weekdays">
-        <span>MO</span><span>TU</span><span>WE</span><span>TH</span><span>FR</span><span>SA</span><span>SU</span>
-      </div>
-      <div class="calendar-days-grid" id="cal-days-grid">
-        <!-- Dynamically populated days -->
-      </div>
-      <div class="calendar-card-footer">
-        <button class="cal-today-btn" id="cal-btn-today" title="Jump to today" type="button">TODAY</button>
-        <span class="cal-today-text" id="cal-today-text">-- --- ----</span>
+
+      <!-- TAB 2: 5 PRAYER TIMES & REMINDERS VIEW -->
+      <div class="popup-tab-content" id="tab-content-reminders">
+        <!-- 5 Prayer Times Section -->
+        <div class="reminders-section">
+          <div class="reminders-section-title">
+            <span>🕌</span> 5 DAILY PRAYER TIMES
+          </div>
+          <div class="prayer-times-list" id="prayer-times-list">
+            <!-- Dynamic prayer rows -->
+          </div>
+          <button class="btn-save-prayers" id="btn-save-prayers" type="button">
+            💾 SAVE PRAYER SCHEDULE
+          </button>
+        </div>
+
+        <!-- Custom Events & Reminders Section -->
+        <div class="reminders-section custom-reminders-section">
+          <div class="reminders-section-title">
+            <span>⏰</span> UPCOMING REMINDERS & EVENTS
+          </div>
+          <div class="custom-reminders-list" id="custom-reminders-list">
+            <!-- Dynamic custom reminders list -->
+          </div>
+          <div class="add-reminder-form">
+            <input type="text" id="new-rem-title" class="rem-input-text" placeholder="Reminder / Event title..." maxlength="60">
+            <div class="add-rem-row">
+              <input type="time" id="new-rem-time" class="rem-input-time" value="10:00">
+              <button class="btn-add-reminder" id="btn-add-reminder" type="button">➕ ADD EVENT</button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 

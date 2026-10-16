@@ -1,0 +1,52 @@
+{
+  "prayer_times": {
+    "fajr": {
+      "name": "Fajr (சுபஹ்)",
+      "time": "05:00",
+      "enabled": true,
+      "last_triggered": ""
+    },
+    "dhuhr": {
+      "name": "Dhuhr (ளுஹர்)",
+      "time": "12:30",
+      "enabled": true,
+      "last_triggered": ""
+    },
+    "asr": {
+      "name": "Asr (அஸர்)",
+      "time": "15:45",
+      "enabled": true,
+      "last_triggered": ""
+    },
+    "maghrib": {
+      "name": "Maghrib (மஃரிப்)",
+      "time": "18:15",
+      "enabled": true,
+      "last_triggered": ""
+    },
+    "isha": {
+      "name": "Isha (இஷா)",
+      "time": "19:45",
+      "enabled": true,
+      "last_triggered": ""
+    }
+  },
+  "custom_reminders": [
+    {
+      "id": "rem_hydrate",
+      "title": "Drink Water & Hydrate (தண்ணீர் அருந்தவும்)",
+      "time": "11:00",
+      "enabled": true,
+      "days": [
+        "daily"
+      ],
+      "last_triggered": ""
+    }
+  ],
+  "settings": {
+    "voice_announce": true,
+    "desktop_notification": true,
+    "snooze_minutes": 10
+  },
+  "history": []
+}

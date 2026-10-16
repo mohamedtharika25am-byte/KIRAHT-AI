@@ -1553,21 +1553,28 @@ def generate_qr_code(query: str, call_me: str = "Sir") -> tuple[bool, str]:
 
         # Overlay Kiraht AI branded logo in the exact center
         base_dir = os.path.dirname(os.path.abspath(__file__))
-        logo_path = os.path.join(base_dir, "static", "img", "kiraht_ai_logo.png")
-        if not os.path.exists(logo_path):
-            logo_path = os.path.join(WORKSPACE_DIR, "static", "img", "kiraht_ai_logo.png")
-        if os.path.exists(logo_path):
+        logo_candidates = [
+            os.path.join(base_dir, "static", "img", "kiraht_ai_logo.png"),
+            os.path.join(WORKSPACE_DIR, "static", "img", "kiraht_ai_logo.png"),
+            os.path.join(WORKSPACE_DIR, "Images", "kiraht_ai_logo_circle.png"),
+            os.path.join(WORKSPACE_DIR, "Images", "kiraht_ai_logo.png"),
+            os.path.join(WORKSPACE_DIR, "Images", "kiraht_ai_logo_transparent.png"),
+        ]
+        logo_path = next((p for p in logo_candidates if os.path.exists(p)), None)
+
+        if logo_path:
             try:
                 logo = Image.open(logo_path).convert("RGBA")
                 qr_w, qr_h = qr_img.size
-                logo_size = int(qr_w * 0.22)
+                logo_size = int(qr_w * 0.24)
                 logo = logo.resize((logo_size, logo_size), Image.Resampling.LANCZOS)
 
                 # Create circular background badge with cyan glowing border
                 badge_size = logo_size + 14
                 badge = Image.new("RGBA", (badge_size, badge_size), (0, 0, 0, 0))
                 draw = ImageDraw.Draw(badge)
-                draw.ellipse([0, 0, badge_size - 1, badge_size - 1], fill=(255, 255, 255, 255), outline=(0, 243, 255, 255), width=2)
+                # White backing circle
+                draw.ellipse([0, 0, badge_size - 1, badge_size - 1], fill=(255, 255, 255, 255), outline=(0, 243, 255, 255), width=3)
 
                 # Create circular mask for logo
                 mask = Image.new("L", (logo_size, logo_size), 0)

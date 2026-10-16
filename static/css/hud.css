@@ -495,7 +495,7 @@ body.cyber-hud {
 /* ==================== MICRO TACTICAL DROPDOWN CALENDAR (FIGMA STYLE) ==================== */
 .hud-calendar-popup {
   position: fixed;
-  width: 285px;
+  width: 325px;
   background: linear-gradient(145deg, rgba(6, 18, 38, 0.98) 0%, rgba(2, 10, 24, 0.99) 100%);
   backdrop-filter: blur(25px);
   -webkit-backdrop-filter: blur(25px);
@@ -660,6 +660,349 @@ body.cyber-hud {
   font-size: 10px;
   color: var(--accent-green);
   font-weight: 700;
+}
+
+/* ==================== POPUP TABS (CALENDAR & PRAYER/REMINDERS) ==================== */
+.hud-popup-tab-bar {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid rgba(0, 243, 255, 0.2);
+  padding-bottom: 8px;
+}
+
+.popup-tab-btn {
+  flex: 1;
+  background: rgba(0, 243, 255, 0.06);
+  border: 1px solid rgba(0, 243, 255, 0.25);
+  color: var(--text-secondary);
+  font-family: var(--font-header);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  padding: 6px 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: all 0.2s ease;
+}
+
+.popup-tab-btn:hover {
+  background: rgba(0, 243, 255, 0.15);
+  color: #fff;
+}
+
+.popup-tab-btn.active {
+  background: rgba(0, 243, 255, 0.22);
+  border-color: var(--accent-cyan);
+  color: #00f3ff;
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.35);
+}
+
+.popup-tab-content {
+  display: none;
+}
+
+.popup-tab-content.active {
+  display: block;
+}
+
+/* Prayer Times & Custom Reminders Section */
+.reminders-section {
+  margin-bottom: 12px;
+}
+
+.reminders-section-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-header);
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--accent-cyan);
+  letter-spacing: 0.8px;
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px dashed rgba(0, 243, 255, 0.2);
+}
+
+.prayer-times-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+
+.prayer-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(0, 20, 40, 0.55);
+  border: 1px solid rgba(0, 243, 255, 0.18);
+  border-radius: 6px;
+  padding: 4px 8px;
+  transition: border-color 0.2s ease;
+}
+
+.prayer-row:hover {
+  border-color: rgba(0, 243, 255, 0.45);
+}
+
+.prayer-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.prayer-icon {
+  font-size: 13px;
+}
+
+.prayer-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.prayer-time-input {
+  background: rgba(0, 243, 255, 0.1);
+  border: 1px solid rgba(0, 243, 255, 0.35);
+  color: #00f3ff;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  padding: 3px 5px;
+  width: 78px;
+  text-align: center;
+  color-scheme: dark;
+}
+
+.prayer-time-input:focus {
+  outline: none;
+  border-color: #00f3ff;
+  box-shadow: 0 0 8px rgba(0, 243, 255, 0.5);
+}
+
+.prayer-toggle {
+  accent-color: var(--accent-cyan);
+  cursor: pointer;
+}
+
+.btn-save-prayers {
+  width: 100%;
+  background: rgba(0, 243, 255, 0.14);
+  border: 1px solid rgba(0, 243, 255, 0.4);
+  color: var(--accent-cyan);
+  padding: 6px 0;
+  border-radius: 6px;
+  font-family: var(--font-header);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.btn-save-prayers:hover {
+  background: rgba(0, 243, 255, 0.28);
+  border-color: #00f3ff;
+  color: #fff;
+  box-shadow: 0 0 12px rgba(0, 243, 255, 0.4);
+}
+
+/* Custom Reminders List */
+.custom-reminders-list {
+  max-height: 110px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  padding-right: 2px;
+}
+
+.custom-rem-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(2, 12, 28, 0.7);
+  border: 1px solid rgba(0, 243, 255, 0.15);
+  border-radius: 5px;
+  padding: 4px 6px;
+  font-size: 10.5px;
+  font-family: var(--font-mono);
+}
+
+.custom-rem-text {
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 170px;
+}
+
+.custom-rem-time {
+  color: var(--accent-green);
+  font-weight: 700;
+  margin-left: auto;
+  margin-right: 6px;
+}
+
+.btn-del-reminder {
+  background: none;
+  border: none;
+  color: rgba(255, 75, 75, 0.7);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0 3px;
+  line-height: 1;
+}
+
+.btn-del-reminder:hover {
+  color: #ff4b4b;
+}
+
+.add-reminder-form {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.rem-input-text {
+  width: 100%;
+  background: rgba(0, 243, 255, 0.08);
+  border: 1px solid rgba(0, 243, 255, 0.25);
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  border-radius: 4px;
+  padding: 5px 8px;
+  box-sizing: border-box;
+}
+
+.rem-input-text:focus {
+  outline: none;
+  border-color: var(--accent-cyan);
+}
+
+.add-rem-row {
+  display: flex;
+  gap: 6px;
+}
+
+.rem-input-time {
+  background: rgba(0, 243, 255, 0.08);
+  border: 1px solid rgba(0, 243, 255, 0.25);
+  color: #00f3ff;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  border-radius: 4px;
+  padding: 4px 6px;
+  color-scheme: dark;
+}
+
+.btn-add-reminder {
+  flex: 1;
+  background: rgba(0, 255, 136, 0.15);
+  border: 1px solid rgba(0, 255, 136, 0.4);
+  color: #00ff88;
+  font-family: var(--font-header);
+  font-size: 10px;
+  font-weight: 800;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-add-reminder:hover {
+  background: rgba(0, 255, 136, 0.3);
+  box-shadow: 0 0 10px rgba(0, 255, 136, 0.4);
+}
+
+/* ==================== TACTICAL CHAT REMINDER CARDS ==================== */
+.reminder-card {
+  border: 1.5px solid rgba(0, 243, 255, 0.5) !important;
+  background: linear-gradient(135deg, rgba(3, 20, 42, 0.96) 0%, rgba(6, 14, 30, 0.98) 100%) !important;
+  box-shadow: 0 0 20px rgba(0, 243, 255, 0.3) !important;
+}
+
+.reminder-header-badge {
+  background: linear-gradient(135deg, rgba(255, 170, 0, 0.25) 0%, rgba(255, 120, 0, 0.35) 100%);
+  border: 1px solid rgba(255, 170, 0, 0.7);
+  color: #ffaa00;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.reminder-actions-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid rgba(0, 243, 255, 0.2);
+}
+
+.btn-reminder-action {
+  flex: 1;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-family: var(--font-header);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.btn-reminder-accept {
+  background: rgba(0, 255, 136, 0.16);
+  border: 1px solid rgba(0, 255, 136, 0.5);
+  color: #00ff88;
+}
+
+.btn-reminder-accept:hover:not(:disabled) {
+  background: rgba(0, 255, 136, 0.32);
+  border-color: #00ff88;
+  box-shadow: 0 0 12px rgba(0, 255, 136, 0.45);
+}
+
+.btn-reminder-deny {
+  background: rgba(255, 170, 0, 0.16);
+  border: 1px solid rgba(255, 170, 0, 0.5);
+  color: #ffaa00;
+}
+
+.btn-reminder-deny:hover:not(:disabled) {
+  background: rgba(255, 170, 0, 0.32);
+  border-color: #ffaa00;
+  box-shadow: 0 0 12px rgba(255, 170, 0, 0.45);
+}
+
+.btn-reminder-action:disabled {
+  opacity: 0.65;
+  cursor: default;
 }
 
 /* ==================== 2. MAIN HUD VIEW (TELEMETRY & EXPANDED CHAT HERO) ==================== */

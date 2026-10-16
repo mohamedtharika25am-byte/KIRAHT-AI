@@ -1561,6 +1561,12 @@ def check_deterministic_intent(user_text: str, call_me: str = "Sir") -> Tuple[bo
     if is_trans:
         return True, "translation", "translate_text", trans_res
 
+    # 8.5 Prayer Times & Tactical Reminders Intent
+    from reminder_tools import handle_reminder_intent
+    is_rem, rem_cat, rem_tool, rem_res = handle_reminder_intent(cleaned, call_me)
+    if is_rem:
+        return True, rem_cat, rem_tool, rem_res
+
     # 9. Existing System & Laptop Operations (Tools Engine)
     from tools import execute_system_command
     handled, sys_res = execute_system_command(cleaned, call_me)
@@ -1829,13 +1835,42 @@ async def process_user_message_stream(
                 await asyncio.sleep(0.005)
 
         except Exception as o_err:
-            err_msg = f"{call_me}, error connecting to local Ollama ({o_err}). Ensure 'ollama serve' is running."
-            yield {"type": "chunk", "text": err_msg}
-            full_reply_chunks.append(err_msg)
+            # If Ollama is offline/failed, but Gemini is available and online, smoothly fallback to Gemini Cloud
+            if gemini_client and is_online():
+                yield {"type": "activity", "actor": "System", "action": "Auto Fallback", "detail": "Local Ollama offline; switching to Gemini Cloud"}
+                yield {"type": "status", "state": "RESPONDING", "detail": f"Generating with Gemini Cloud ({gemini_model})"}
+                try:
+                    contents = []
+                    for m in messages[1:]:
+                        role = "User" if m["role"] == "user" else "Assistant"
+                        contents.append(f"{role}: {m['content']}")
+                    full_prompt = f"{system_prompt}\n\n" + "\n\n".join(contents)
+                    target_model = gemini_model if gemini_model not in ("gemini-2.5-flash", "gemini-2.0-flash", "gemini-1.5-flash") else "gemini-3.1-flash-lite"
+                    stream_resp = await asyncio.to_thread(
+                        gemini_client.models.generate_content_stream,
+                        model=target_model,
+                        contents=full_prompt,
+                    )
+                    for chunk in stream_resp:
+                        txt = chunk.text or ""
+                        if txt:
+                            full_reply_chunks.append(txt)
+                            yield {"type": "chunk", "text": txt}
+                            await asyncio.sleep(0.005)
+                    use_gemini = True
+                except Exception as gem_fallback_err:
+                    err_msg = f"{call_me}, both local Ollama ({o_err}) and Gemini Cloud ({gem_fallback_err}) are currently unavailable."
+                    yield {"type": "chunk", "text": err_msg}
+                    full_reply_chunks.append(err_msg)
+            else:
+                err_msg = f"{call_me}, error connecting to local Ollama ({o_err}). Ensure 'ollama serve' is running or switch to Gemini Cloud."
+                yield {"type": "chunk", "text": err_msg}
+                full_reply_chunks.append(err_msg)
 
     final_text = "".join(full_reply_chunks).strip()
     if not final_text:
-        final_text = f"{call_me}, systems standing by."
+        final_text = f"{call_me}, systems standing by. Ready for your directive."
+        yield {"type": "chunk", "text": final_text}
 
     # Post-generation WhatsApp Interception (Interception of WHATSAPP blocks)
     wa_matches = list(re.finditer(r"```WHATSAPP:([^:\n]+):::\s*(.*?)\s*```", final_text, re.DOTALL))
