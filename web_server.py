@@ -788,12 +788,12 @@ def run_server(host: str = "127.0.0.1", port: int = 8000):
         print(f"[!] Global hotkeys warning: {hk_err}")
     threading.Thread(target=_auto_open_browser, args=(url,), daemon=True).start()
     try:
-        uvicorn.run(app, host=host, port=port, log_level="warning")
+        uvicorn.run("web_server:app", host=host, port=port, log_level="warning", reload=True)
     except OSError as err:
         if "10048" in str(err):
             print(f"\n[!] Port {port} is occupied. Attempting cleanup and retry...")
             free_port(port)
-            uvicorn.run(app, host=host, port=port, log_level="warning")
+            uvicorn.run("web_server:app", host=host, port=port, log_level="warning", reload=True)
         else:
             raise err
 

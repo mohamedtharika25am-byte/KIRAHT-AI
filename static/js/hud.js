@@ -1508,20 +1508,19 @@
       btnSend.innerHTML = '<span class="btn-cancel-icon" style="font-size:12px;">■</span> <span class="btn-send-text">STOP</span>';
       if (typeof setReactorState === 'function') setReactorState('thinking');
 
-      // 20-second safety watchdog: Auto-reset button if backend stream hangs or network drops packets
+      // 60-second safety watchdog: Inform user instead of prematurely destroying response
       generationWatchdogTimer = setTimeout(function () {
         if (isGenerating) {
-          console.warn('[HUD] Generation 20s safety watchdog triggered. Auto-recovering EXECUTE state.');
-          logActivity('System', 'Watchdog Recovery', 'Stream latency threshold exceeded — controls reset');
-          setGeneratingState(false);
-          updateStatus('READY', 'Ready for command');
-          if (typeof setReactorState === 'function') setReactorState('idle');
-          if (thinkingCard && thinkingCard.parentNode) {
-            thinkingCard.parentNode.removeChild(thinkingCard);
-            thinkingCard = null;
+          console.warn('[HUD] Generation latency threshold reached (60s).');
+          logActivity('System', 'Engine Latency', 'Neural inference taking longer than usual...');
+          if (thinkingCard) {
+            const thinkingText = thinkingCard.querySelector('.thinking-text');
+            if (thinkingText) {
+              thinkingText.textContent = 'Processing prompt... please wait a moment';
+            }
           }
         }
-      }, 20000);
+      }, 60000);
     } else {
       btnSend.classList.remove('btn-cancel');
       btnSend.setAttribute('title', 'Execute Directive (Enter)');

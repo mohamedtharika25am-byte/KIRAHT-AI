@@ -388,7 +388,7 @@ def get_system_telemetry() -> Dict[str, Any]:
     # Network & Wi-Fi (non-blocking background refresh)
     global _CACHED_WIFI, _CACHED_LOCAL_IP, _CACHED_NET_IO, _CACHED_NET_SPEED, _CACHED_PING, _IS_REFRESHING_WIFI, _IS_REFRESHING_PING
     now_ts = time.time()
-    online = is_online(timeout=0.15)
+    online = is_online()
     net_status = "Connected (Online)" if online else "Offline"
 
     if now_ts - _CACHED_WIFI[1] > 30.0 and not _IS_REFRESHING_WIFI:
@@ -533,16 +533,22 @@ def get_system_telemetry() -> Dict[str, Any]:
 # =====================================================================
 # 5. CONNECTIVITY & WEB SEARCH
 # =====================================================================
-def is_online(timeout: float = 0.3) -> bool:
-    """Checks if internet connection is reachable (cached for 6s for high performance)."""
+def is_online(timeout: float = 1.0) -> bool:
+    """Checks if internet connection is reachable (cached for 10s for high performance)."""
     global _CACHED_ONLINE
     now_ts = time.time()
-    if now_ts - _CACHED_ONLINE[1] < 6.0:
+    if now_ts - _CACHED_ONLINE[1] < 10.0:
         return _CACHED_ONLINE[0]
 
-    for host in ("1.1.1.1", "8.8.8.8"):
+    endpoints = [
+        ("8.8.8.8", 53),
+        ("1.1.1.1", 53),
+        ("8.8.4.4", 53),
+        ("www.google.com", 80),
+    ]
+    for host, port in endpoints:
         try:
-            s = socket.create_connection((host, 53), timeout=timeout)
+            s = socket.create_connection((host, port), timeout=timeout)
             s.close()
             _CACHED_ONLINE = (True, now_ts)
             return True
@@ -1605,6 +1611,7 @@ async def process_user_message_stream(
     # 1. Processing state & log User activity
     yield {"type": "status", "state": "PROCESSING", "detail": "Analyzing user request..."}
     yield {"type": "activity", "actor": "User", "action": "Prompt", "detail": cleaned}
+    add_chat_history_message("user", cleaned)
 
     # 2. Check Deterministic Intent Router first
     is_handled, category, tool_name, result = check_deterministic_intent(cleaned, call_me)
@@ -1705,7 +1712,6 @@ async def process_user_message_stream(
             await asyncio.sleep(0.01)
 
         # Save to chat history
-        add_chat_history_message("user", cleaned)
         add_chat_history_message("assistant", result, meta=tool_meta)
 
         yield {"type": "activity", "actor": "Tool", "action": "Tool Delivered", "detail": f"Source: {source_lbl}"}
@@ -2010,7 +2016,6 @@ async def process_user_message_stream(
         "source_label": source_label,
     }
 
-    add_chat_history_message("user", cleaned)
     add_chat_history_message("assistant", final_text, meta=meta_info)
 
     yield {"type": "activity", "actor": "KIRAHT", "action": "Response Delivered", "detail": f"Engine Source: {source_label}"}
