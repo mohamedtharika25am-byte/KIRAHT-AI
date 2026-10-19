@@ -3,6 +3,25 @@ All notable changes, version upgrades, bug fixes, UI overhauls, and architectura
 
 Format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), adhering to Semantic Versioning (`vMAJOR.MINOR.PATCH`).
 
+## ⚡ [v2.7.1] — 2026-10-19 08:45 PM IST (Sequenced Startup Boot: 3D Arc Reactor Showcase First, Followed by Welcome Hero Card)
+
+### 📌 Summary (சுருக்கம்):
+Sequenced the startup HUD boot animations so the 3D Holographic Arc Reactor (`#reactor-core`) takes full, unobstructed center stage upon opening. The Arc Reactor executes its complete 1080° spin-up, cyan flux flares, and gyro stabilization over ~1.85s. Only after the Arc Reactor completes this startup sequence does the Tactical Welcome Hero card (`#tactical-welcome-hero`) smoothly glide and fade into view.
+
+---
+
+### 🚀 Enhancements (மேம்பாடுகள்):
+1. **Unobstructed 3D Arc Reactor Startup Showcase:**
+   - On page load, the 3D Arc Reactor starts at `scale(0.06) rotate(-1080deg)`, surges up to `scale(1.15)` at high cyan luminescence (opacity 1.0, drop-shadow 55px), stabilizes at azimuth 0°, and gently eases into standard ambient HUD brightness at 1.85s.
+2. **Sequenced Tactical Welcome Hero Entry:**
+   - Added `.delayed-boot` class on `#tactical-welcome-hero` on initial load (`opacity: 0; visibility: hidden; pointer-events: none`).
+   - At `1.85s`, triggers `@keyframes welcome-delayed-boot-in` over 0.85s, sliding up smoothly from translateY(26px) with dynamic cyan boundary lighting and restoring `pointer-events: auto`.
+   - JavaScript safely cleans up the `.delayed-boot` class after sequence completion (2.75s) and cleanly overrides on instant dismissals.
+3. **Cache-Busting Update:**
+   - Bumped stylesheet and HUD script asset versions to `v=5.1` to ensure instant client synchronization.
+
+---
+
 ## ⚡ [v2.7.0] — 2026-10-17 12:30 AM IST (5 Prayer Times & Reminders System, Logo QR Code, Smart Scroll Pin & Guaranteed Response Fix)
 
 ### 📌 Summary (சுருக்கம்):

@@ -1332,6 +1332,16 @@
     const welcomeHero = document.getElementById('tactical-welcome-hero');
     if (!welcomeHero) return;
 
+    // Clean up delayed-boot class once the sequenced startup animation completes
+    if (welcomeHero.classList.contains('delayed-boot')) {
+      setTimeout(() => {
+        const hero = document.getElementById('tactical-welcome-hero');
+        if (hero && hero.classList.contains('delayed-boot')) {
+          hero.classList.remove('delayed-boot');
+        }
+      }, 2750);
+    }
+
     const titleEl = document.getElementById('welcome-greeting-title');
     if (titleEl) {
       titleEl.textContent = getWelcomeGreeting();
