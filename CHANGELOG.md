@@ -3,6 +3,27 @@ All notable changes, version upgrades, bug fixes, UI overhauls, and architectura
 
 Format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), adhering to Semantic Versioning (`vMAJOR.MINOR.PATCH`).
 
+## ⚡ [v2.7.2] — 2026-10-22 03:08 PM IST (Welcome Hero Startup Glitch & Animation Loop Fix)
+
+### 📌 Summary (சுருக்கம்):
+Resolved the startup animation glitch where the Tactical Welcome Hero card (`#tactical-welcome-hero`) would flash, jump, or replay its entry animation right after completing its initial sequenced boot. Decoupled initial boot from dynamic re-renders, added GPU compositor layer optimization, added `.boot-complete` stabilization, and added critical head styles to prevent FOUC.
+
+---
+
+### 🚀 Bug Fixes & Enhancements (பிழை திருத்தங்கள் & மேம்பாடுகள்):
+1. **Eliminated Startup Double-Animation Glitch:**
+   - Previously, `.tactical-welcome-hero` had a default `animation: welcome-boot-in 0.75s`. When the `.delayed-boot` class was removed at 2.75s, the browser treated `.tactical-welcome-hero` as a fresh rule and restarted `welcome-boot-in` from 0% opacity, causing the card to glitch/re-animate right after settling.
+   - Removed the default animation from `.tactical-welcome-hero` base style; isolated instant re-renders to `.tactical-welcome-hero.instant-boot`.
+   - Added `.tactical-welcome-hero.boot-complete` with `animation: none !important; opacity: 1 !important; transform: none !important;` to lock the card seamlessly once booted.
+2. **GPU Rendering & Compositing Optimization:**
+   - Removed conflicting `filter: blur(...)` inside keyframes on an element that already uses `backdrop-filter: blur(16px)` (which was causing GPU layer repaint stutters).
+   - Added `will-change: opacity, transform` and `animation-fill-mode: both` to prevent frame hitching.
+3. **Critical Pre-render Styling & Cache-Busting:**
+   - Added inline `<style>` in `<head>` of [index.html](file:///d:/KIRAHT%20AI/static/index.html) to eliminate any possible flash of unstyled content before stylesheets parse.
+   - Bumped stylesheet and HUD script asset versions to `v=5.2`.
+
+---
+
 ## ⚡ [v2.7.1] — 2026-10-19 08:45 PM IST (Sequenced Startup Boot: 3D Arc Reactor Showcase First, Followed by Welcome Hero Card)
 
 ### 📌 Summary (சுருக்கம்):

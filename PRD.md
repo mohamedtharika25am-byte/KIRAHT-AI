@@ -62,8 +62,8 @@ Before any user story can be considered complete, the following quality gates mu
 **So that** the startup animation feels cinematic and unobstructed  
 - [x] `#reactor-core` executes complete 1080° spin-up over 1.85s.
 - [x] `#tactical-welcome-hero` has `.delayed-boot` with `visibility: hidden` during reactor spin.
-- [x] Hero smoothly glides and elevates into view at 1.85s.
-- [x] Asset cache buster bumped to `v=5.1`.
+- [x] Hero smoothly glides and elevates into view at 1.85s with `.boot-complete` stabilization (no re-trigger/glitch).
+- [x] Asset cache buster bumped to `v=5.2`.
 
 #### US-002: Auto-Dismissing Welcome Hero on Directives
 **As a** HUD user  

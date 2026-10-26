@@ -2,31 +2,32 @@
   "prayer_times": {
     "fajr": {
       "name": "Fajr (சுபஹ்)",
-      "time": "05:00",
+      "time": "05:35",
       "enabled": true,
       "last_triggered": ""
     },
     "dhuhr": {
       "name": "Dhuhr (ளுஹர்)",
-      "time": "12:30",
+      "time": "13:00",
       "enabled": true,
       "last_triggered": ""
     },
     "asr": {
       "name": "Asr (அஸர்)",
-      "time": "15:45",
+      "time": "17:15",
       "enabled": true,
-      "last_triggered": ""
+      "last_triggered": "2026-10-24",
+      "status": "accepted"
     },
     "maghrib": {
       "name": "Maghrib (மஃரிப்)",
-      "time": "18:15",
+      "time": "18:30",
       "enabled": true,
       "last_triggered": ""
     },
     "isha": {
       "name": "Isha (இஷா)",
-      "time": "19:45",
+      "time": "20:15",
       "enabled": true,
       "last_triggered": ""
     }
@@ -47,6 +48,5 @@
     "voice_announce": true,
     "desktop_notification": true,
     "snooze_minutes": 10
-  },
-  "history": []
+  }
 }

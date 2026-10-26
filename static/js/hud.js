@@ -1202,7 +1202,7 @@
     const now = new Date();
     const todayStr = `${now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).toUpperCase()} • READY`;
     return `
-      <div class="tactical-welcome-hero" id="tactical-welcome-hero">
+      <div class="tactical-welcome-hero instant-boot" id="tactical-welcome-hero">
         <div class="welcome-header">
           <div class="welcome-badge">
             <span class="welcome-pulse-dot"></span>
@@ -1285,6 +1285,8 @@
   function dismissWelcomeHero() {
     const hero = document.getElementById('tactical-welcome-hero');
     if (!hero || hero.classList.contains('fade-out')) return;
+    hero.classList.remove('delayed-boot');
+    hero.classList.remove('boot-complete');
     hero.classList.add('fade-out');
     setTimeout(() => {
       if (hero && hero.parentNode) {
@@ -1338,6 +1340,7 @@
         const hero = document.getElementById('tactical-welcome-hero');
         if (hero && hero.classList.contains('delayed-boot')) {
           hero.classList.remove('delayed-boot');
+          hero.classList.add('boot-complete');
         }
       }, 2750);
     }
@@ -4132,6 +4135,13 @@
       reactorCore.classList.remove('boot-spin-in');
       void reactorCore.offsetWidth; // Force CSS reflow
       reactorCore.classList.add('boot-spin-in');
+    }
+
+    const initialWelcomeHero = document.getElementById('tactical-welcome-hero');
+    if (initialWelcomeHero && initialWelcomeHero.classList.contains('delayed-boot')) {
+      initialWelcomeHero.classList.remove('delayed-boot');
+      void initialWelcomeHero.offsetWidth; // Force CSS reflow
+      initialWelcomeHero.classList.add('delayed-boot');
     }
 
     // Ensure -50 collapse button is hidden on startup until +50 history is loaded
