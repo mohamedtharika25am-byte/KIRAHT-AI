@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Inter:wght@300;400;500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/hud.css?v=5.3">
+  <link rel="stylesheet" href="/static/css/hud.css?v=5.4">
   <link rel="icon" type="image/png" href="/static/img/kiraht_ai_logo.png?v=4.0">
   <link rel="preload" as="image" href="/static/img/user_avatar.jpg">
   <style>
@@ -64,8 +64,11 @@
 
         <!-- Sidebar Quick Toggles for Half-Screen / Responsive Flexibility -->
         <div class="hud-sidebar-toggles">
-          <button id="toggle-telemetry-btn" class="hud-nav-toggle-btn active" title="Toggle Telemetry Sidebar (Alt+T)">
-            <span class="toggle-dot">●</span> TELEMETRY
+          <button id="toggle-telemetry-btn" class="hud-nav-toggle-btn active" title="Toggle Stats Sidebar (Alt+T)">
+            <span class="toggle-dot">●</span> STATS
+          </button>
+          <button id="btn-fullscreen-toggle" class="hud-nav-toggle-btn" title="Toggle Fullscreen 3D Core View (F11)">
+            ⛶ FULLSCREEN
           </button>
           <button id="btn-voice-mode" class="hud-nav-toggle-btn" title="Toggle KIRAHT Voice Mode (Alt+S)">
             <span class="mode-icon">🎙️</span> <span id="nav-voice-text">VOICE: OFF</span>
@@ -192,10 +195,10 @@
         <div class="panel-header compact-header">
           <div class="panel-header-title-wrap">
             <span class="panel-icon">⚡</span>
-            <h2 class="panel-title">TELEMETRY</h2>
+            <h2 class="panel-title">STATS</h2>
             <span class="live-pulse-badge">LIVE</span>
           </div>
-          <button class="panel-collapse-btn" id="btn-collapse-telemetry" title="Collapse Telemetry (Alt+T)">◀</button>
+          <button class="panel-collapse-btn" id="btn-collapse-telemetry" title="Collapse Stats (Alt+T)">◀</button>
         </div>
 
         <div class="telemetry-scroll-body">
@@ -325,39 +328,15 @@
 
       <!-- CENTER: PURE 3D ARC REACTOR HOLOGRAPHIC HERO STAGE (UNOBSTRUCTED) -->
       <section class="panel center-panel arc-reactor-stage tactical-frame" id="center-panel">
-        <!-- Center Stage Top Tactical Bar -->
-        <div class="reactor-stage-header">
-          <div class="stage-header-left">
-            <span class="stage-pulse-dot"></span>
-            <span class="stage-badge-text">SYS.MK-VII • TACTICAL AI CORE</span>
-          </div>
-          <div class="stage-header-center">
-            <span class="stage-coord-tag" id="stage-azimuth-tag">AZIMUTH: 045°</span>
-            <span class="stage-coord-dot">◆</span>
-            <span class="stage-coord-tag text-cyan" id="stage-flux-tag">FLUX: 100%</span>
-            <span class="stage-coord-dot">◆</span>
-            <span class="stage-coord-tag text-green" id="stage-state-tag">STATUS: ONLINE</span>
-          </div>
-          <div class="stage-header-right">
-            <button id="btn-war-room-fullscreen" class="stage-action-btn" title="Toggle War Room Fullscreen Mode (F11)">
-              <span class="stage-btn-icon">⛶</span>
-              <span class="stage-btn-text" id="war-room-btn-text">WAR ROOM</span>
-            </button>
-          </div>
-        </div>
+        <!-- Floating Minimal Fullscreen Toggle Button -->
+        <button id="btn-war-room-fullscreen" class="stage-fullscreen-fab" title="Toggle War Room Fullscreen Mode (F11)">
+          ⛶
+        </button>
 
         <!-- Central Stage Wrapper -->
         <div class="chat-viewport-wrapper reactor-stage-canvas">
           <!-- ==================== 3D RUNNING / ROLLING KIRAHT ARC REACTOR ==================== -->
           <div class="kiraht-reactor-core boot-spin-in" id="reactor-core" title="Click Epicenter to Toggle Voice Recognition">
-            <!-- Outer HUD Reticle Coordinates & Brackets -->
-            <div class="reactor-hud-brackets">
-              <span class="hud-tag top-left">[SYS.MK-VII]</span>
-              <span class="hud-tag top-right">[360° RETICLE]</span>
-              <span class="hud-tag btm-left">[FLUX: 100%]</span>
-              <span class="hud-tag btm-right">[AZIMUTH: 045]</span>
-            </div>
-
             <!-- Authentic SVG Holographic Concentric Rings (Cyan + Golden Amber Coils) -->
             <svg class="reactor-svg-rings" viewBox="0 0 500 500">
               <defs>
@@ -419,25 +398,6 @@
                 <span class="core-subtitle" id="core-subtitle">ARC REACTOR</span>
                 <span class="core-status" id="core-status-text">SYS: ONLINE</span>
               </div>
-            </div>
-          </div>
-
-          <!-- Bottom Stage Quick Directives Bar -->
-          <div class="reactor-quick-directives">
-            <span class="directives-label">TACTICAL SHORTCUTS:</span>
-            <div class="directives-chips-row">
-              <button class="directive-chip" type="button" data-prompt="Run full system hardware diagnostics and report status.">
-                <span>⚡ Hardware Diagnostics</span>
-              </button>
-              <button class="directive-chip" type="button" data-prompt="Search the web for latest AI and technology news today.">
-                <span>🌐 Web Intelligence</span>
-              </button>
-              <button class="directive-chip" type="button" data-prompt="Help me review and debug the code in my current workspace.">
-                <span>💻 Code Assistant</span>
-              </button>
-              <button class="directive-chip chip-voice-btn" type="button" id="chip-activate-voice">
-                <span>🎙️ Voice Interface</span>
-              </button>
             </div>
           </div>
 
@@ -702,7 +662,9 @@
                 <button id="btn-auto-send-chip" class="input-ctrl-chip chip-off" title="Toggle Auto-Transmit: MANUAL / AUTO" type="button">
                   <span id="auto-send-label">MANUAL</span>
                 </button>
-                <span class="toolbar-hint">Press [Enter] to send • [Ctrl+K] focus</span>
+                <button id="btn-sfx-toggle" class="input-ctrl-chip sfx-chip" title="Toggle Audio Sound Effects (🔊 / 🔇)" type="button">
+                  <span id="sfx-icon">🔊</span>
+                </button>
               </div>
             </div>
           </div>
@@ -810,6 +772,6 @@
     </div>
   </div>
 
-  <script src="/static/js/hud.js?v=5.3"></script>
+  <script src="/static/js/hud.js?v=5.4"></script>
 </body>
 </html>

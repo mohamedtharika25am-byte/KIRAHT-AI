@@ -3,6 +3,20 @@ All notable changes, version upgrades, bug fixes, UI overhauls, and architectura
 
 Format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), adhering to Semantic Versioning (`vMAJOR.MINOR.PATCH`).
 
+## ⚡ [v2.8.1] — 2026-10-26 06:55 PM IST (HUD De-clutter, Minimal Clean Arc Reactor Stage & SFX Sound Control)
+
+### 📌 Summary (சுருக்கம்):
+Refined HUD design based on user feedback to eliminate clutter and restore true Jarvis minimalism:
+1. **Renamed `TELEMETRY` ➔ `STATS`:** Eliminates text truncation (`TELE...`) in the left panel header and top nav toggles.
+2. **Compact Send Arrow (`➔`):** Replaced bulky `▲ EXECUTE` button with minimal neon arrow, giving textarea 75% more room.
+3. **Removed Tactical Shortcuts Bar:** Deleted the overlapping horizontal bar that blocked the center Arc Reactor; 3D core is now 100% visible and floating unobstructed.
+4. **Cleaned Reticle Corner Tags:** Removed `[SYS.MK-VII]`, `[FLUX: 100%]`, `[AZIMUTH: 045]` tags colliding with boundaries.
+5. **Removed Center Stage Header:** Deleted `SYS.MK-VII • TACTICAL AI CORE` bar, transforming Center Stage into pure, infinite deep-space holographic canvas.
+6. **SFX Audio Control (`🔊` / `🔇`):** Added simple emoji sound mute toggle in the chat input toolbar to silence synthesizer tones ("faah" sound).
+7. **Enhanced Fullscreen Mode:** Wired both top bar `⛶ FULLSCREEN` button and stage fab with `F11` / `Escape` support.
+
+---
+
 ## ⚡ [v2.8.0] — 2026-10-26 04:35 PM IST (Jarvis AI Spark 3-Zone Layout & 3D Arc Reactor Center Stage)
 
 ### 📌 Summary (சுருக்கம்):

@@ -34,6 +34,7 @@
   const HISTORY_BATCH_SIZE = 50;
   let isVoiceAutoSendEnabled = false;
   let activeVoiceLang = localStorage.getItem('kiraht_voice_lang') || 'en-IN';
+  let isSfxEnabled = localStorage.getItem('kiraht_sfx_enabled') !== 'false';
 
   // DOM Elements - Core & Navigation
   const chatViewport = document.getElementById('chat-viewport');
@@ -1900,6 +1901,7 @@
   }
 
   function playSciFiTone(type) {
+    if (!isSfxEnabled) return;
     try {
       const ctx = getAudioContext();
       if (!ctx) return;
@@ -3807,7 +3809,7 @@
         telemetryPanel.classList.remove('collapsed');
         if (btnCollapseTelemetry) {
           btnCollapseTelemetry.textContent = '◀';
-          btnCollapseTelemetry.title = 'Collapse Telemetry (Alt+T)';
+          btnCollapseTelemetry.title = 'Collapse Stats (Alt+T)';
         }
         if (toggleTelemetryBtn) toggleTelemetryBtn.classList.add('active');
         if (resizerLeft) resizerLeft.style.display = '';
@@ -3815,7 +3817,7 @@
         telemetryPanel.classList.add('collapsed');
         if (btnCollapseTelemetry) {
           btnCollapseTelemetry.textContent = '▶';
-          btnCollapseTelemetry.title = 'Expand Telemetry (Alt+T)';
+          btnCollapseTelemetry.title = 'Expand Stats (Alt+T)';
         }
         if (toggleTelemetryBtn) toggleTelemetryBtn.classList.remove('active');
         if (resizerLeft) resizerLeft.style.display = 'none';
@@ -4107,7 +4109,7 @@
 
     // War Room Fullscreen Mode Toggle (3D Arc Reactor Stage expands 100%)
     const btnWarRoomFullscreen = document.getElementById('btn-war-room-fullscreen');
-    const warRoomBtnText = document.getElementById('war-room-btn-text');
+    const btnFullscreenToggle = document.getElementById('btn-fullscreen-toggle');
 
     function toggleWarRoomFullscreen() {
       if (!hudMain) return;
@@ -4115,14 +4117,42 @@
       if (btnWarRoomFullscreen) {
         btnWarRoomFullscreen.classList.toggle('active', isFullscreen);
       }
-      if (warRoomBtnText) {
-        warRoomBtnText.textContent = isFullscreen ? 'EXIT WAR ROOM' : 'WAR ROOM';
+      if (btnFullscreenToggle) {
+        btnFullscreenToggle.classList.toggle('active', isFullscreen);
       }
       logActivity('System', 'War Room', isFullscreen ? 'Engaged Fullscreen 3D Core View' : 'Restored Standard 3-Zone HUD');
     }
 
     if (btnWarRoomFullscreen) {
       btnWarRoomFullscreen.addEventListener('click', toggleWarRoomFullscreen);
+    }
+    if (btnFullscreenToggle) {
+      btnFullscreenToggle.addEventListener('click', toggleWarRoomFullscreen);
+    }
+
+    // Sound Effects (SFX) Audio Mute Toggle (Simple 🔊 / 🔇)
+    const btnSfxToggle = document.getElementById('btn-sfx-toggle');
+    const sfxIcon = document.getElementById('sfx-icon');
+
+    function updateSfxButtonState() {
+      if (sfxIcon) {
+        sfxIcon.textContent = isSfxEnabled ? '🔊' : '🔇';
+      }
+      if (btnSfxToggle) {
+        btnSfxToggle.classList.toggle('sfx-muted', !isSfxEnabled);
+        btnSfxToggle.title = isSfxEnabled ? 'Audio Sound Effects: Enabled (Click to Mute 🔇)' : 'Audio Sound Effects: Muted (Click to Enable 🔊)';
+      }
+    }
+
+    if (btnSfxToggle) {
+      updateSfxButtonState();
+      btnSfxToggle.addEventListener('click', function (e) {
+        e.preventDefault();
+        isSfxEnabled = !isSfxEnabled;
+        localStorage.setItem('kiraht_sfx_enabled', isSfxEnabled);
+        updateSfxButtonState();
+        showVoiceToast(isSfxEnabled ? '🔊 Audio SFX: Enabled' : '🔇 Audio SFX: Muted', 'info');
+      });
     }
 
     // Arc Reactor Interactive Click-to-Voice
@@ -4132,31 +4162,6 @@
         toggleMicListening();
       });
     }
-
-    const chipActivateVoice = document.getElementById('chip-activate-voice');
-    if (chipActivateVoice) {
-      chipActivateVoice.addEventListener('click', function () {
-        toggleMicListening();
-      });
-    }
-
-    // Central Stage Quick Directives Chips
-    const stageChips = document.querySelectorAll('.directive-chip[data-prompt]');
-    stageChips.forEach(chip => {
-      chip.addEventListener('click', function (e) {
-        e.preventDefault();
-        const promptText = chip.getAttribute('data-prompt');
-        if (promptText && promptText.toLowerCase().includes('hardware diagnostics')) {
-          triggerSystemDiagnosticsAction();
-          return;
-        }
-        switchTerminalTab('chat');
-        if (chatInput) {
-          chatInput.value = promptText;
-          if (btnSend) btnSend.click();
-        }
-      });
-    });
 
     // 3. Drag Resizer: Bottom (Activity Telemetry Footer Console)
     const resizerBottom = document.getElementById('resizer-bottom');
