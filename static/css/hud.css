@@ -6,35 +6,40 @@
    ========================================================================== */
 
 :root {
-  --bg-primary: #040711;
-  --bg-panel: rgba(10, 17, 32, 0.78);
-  --bg-card: rgba(15, 24, 46, 0.72);
-  --bg-card-hover: rgba(22, 36, 68, 0.88);
+  --bg-primary: #02040a;
+  --bg-panel: rgba(6, 12, 24, 0.78);
+  --bg-card: rgba(10, 18, 36, 0.72);
+  --bg-card-hover: rgba(16, 28, 56, 0.88);
 
   --border-cyan: rgba(0, 243, 255, 0.22);
   --border-cyan-bright: #00f3ff;
+  --border-amber: rgba(255, 158, 27, 0.35);
+  --border-amber-bright: #ff9e1b;
   --border-blue: #0077fe;
   --border-dim: rgba(255, 255, 255, 0.07);
 
   --accent-cyan: #00f3ff;
   --accent-blue: #0088ff;
+  --accent-amber: #ff9e1b;
+  --accent-copper: #d18c2f;
   --accent-green: #00ff88;
-  --accent-amber: #ffaa00;
   --accent-purple: #a855f7;
   --accent-red: #ff3366;
 
-  --text-primary: #f0f6fc;
+  --text-primary: #f0f8ff;
   --text-secondary: #8b9bb4;
   --text-muted: #52637a;
   --text-cyan: #5ef3ff;
+  --text-amber: #ffb84d;
 
   --font-display: 'Orbitron', -apple-system, sans-serif;
   --font-header: 'Rajdhani', -apple-system, sans-serif;
   --font-body: 'Inter', system-ui, sans-serif;
   --font-mono: 'Share Tech Mono', 'JetBrains Mono', monospace;
 
-  --glow-cyan: 0 0 16px rgba(0, 243, 255, 0.4);
-  --glow-core: 0 0 35px rgba(0, 243, 255, 0.6);
+  --glow-cyan: 0 0 16px rgba(0, 243, 255, 0.45);
+  --glow-amber: 0 0 16px rgba(255, 158, 27, 0.45);
+  --glow-core: 0 0 45px rgba(0, 243, 255, 0.65), 0 0 20px rgba(255, 158, 27, 0.4);
   --glow-green: 0 0 12px rgba(0, 255, 136, 0.45);
 }
 
@@ -1005,9 +1010,10 @@ body.cyber-hud {
   cursor: default;
 }
 
-/* ==================== 2. MAIN HUD VIEW (TELEMETRY & EXPANDED CHAT HERO) ==================== */
+/* ==================== 2. MAIN HUD VIEW (3-ZONE TACTICAL COMMAND LAYOUT) ==================== */
 .hud-main {
   --telemetry-width: 215px;
+  --chat-panel-width: 440px;
   display: flex;
   flex-direction: row;
   align-items: stretch;
@@ -1016,6 +1022,23 @@ body.cyber-hud {
   min-height: 0;
   position: relative;
   overflow: hidden;
+}
+
+/* War Room Fullscreen Mode (Center Arc Reactor Hero Expands 100%) */
+.hud-main.war-room-fullscreen .left-panel,
+.hud-main.war-room-fullscreen .resizer-left,
+.hud-main.war-room-fullscreen .resizer-right,
+.hud-main.war-room-fullscreen .right-panel {
+  display: none !important;
+}
+
+.hud-main.war-room-fullscreen .center-panel {
+  flex: 1 1 100% !important;
+  border-radius: 12px;
+}
+
+.hud-main.war-room-fullscreen .kiraht-reactor-core {
+  transform: translate(-50%, -50%) scale(1.32) !important;
 }
 
 .compact-header {
@@ -1378,7 +1401,7 @@ body.cyber-hud {
   display: block;
 }
 
-/* ==================== CENTER: PRIMARY CHAT HERO ==================== */
+/* ==================== CENTER: PURE 3D ARC REACTOR HERO STAGE ==================== */
 .center-panel {
   flex: 1 1 0%;
   min-width: 280px;
@@ -1386,6 +1409,183 @@ body.cyber-hud {
   flex-direction: column;
   overflow: hidden;
   position: relative;
+}
+
+.center-panel.arc-reactor-stage {
+  background: radial-gradient(circle at center, rgba(0, 243, 255, 0.04) 0%, rgba(2, 8, 20, 0.72) 50%, rgba(2, 4, 10, 0.98) 100%);
+  border: 1px solid var(--border-cyan);
+}
+
+.reactor-stage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border-cyan);
+  background: rgba(4, 10, 24, 0.78);
+  min-height: 42px;
+  flex-shrink: 0;
+}
+
+.stage-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stage-pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  box-shadow: var(--glow-green);
+  animation: pulse-green 2s infinite;
+}
+
+.stage-badge-text {
+  font-family: var(--font-header);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-cyan);
+  letter-spacing: 1px;
+}
+
+.stage-header-center {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.stage-coord-tag {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: rgba(0, 243, 255, 0.06);
+  border: 1px solid rgba(0, 243, 255, 0.2);
+  border-radius: 4px;
+  padding: 2px 7px;
+  letter-spacing: 0.5px;
+}
+
+.stage-coord-dot {
+  color: rgba(0, 243, 255, 0.4);
+  font-size: 7px;
+}
+
+.stage-header-right {
+  display: flex;
+  align-items: center;
+}
+
+.stage-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 11px;
+  background: rgba(0, 243, 255, 0.08);
+  border: 1px solid rgba(0, 243, 255, 0.35);
+  border-radius: 14px;
+  color: var(--text-cyan);
+  font-family: var(--font-header);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.stage-action-btn:hover {
+  background: rgba(0, 243, 255, 0.22);
+  border-color: var(--accent-cyan);
+  color: #ffffff;
+  box-shadow: 0 0 12px rgba(0, 243, 255, 0.45);
+}
+
+.stage-action-btn.active {
+  background: rgba(255, 158, 27, 0.22);
+  border-color: var(--accent-amber);
+  color: var(--accent-amber);
+  box-shadow: 0 0 14px rgba(255, 158, 27, 0.5);
+}
+
+.stage-btn-icon {
+  font-size: 12px;
+}
+
+.reactor-stage-canvas {
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* Reactor Quick Directives Bar (Stage Bottom) */
+.reactor-quick-directives {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-top: 1px solid rgba(0, 243, 255, 0.15);
+  background: rgba(3, 8, 18, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  flex-shrink: 0;
+}
+
+.directives-label {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.directives-chips-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.directive-chip {
+  background: rgba(14, 24, 48, 0.78);
+  border: 1px solid rgba(0, 243, 255, 0.25);
+  border-radius: 16px;
+  padding: 4px 12px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  user-select: none;
+}
+
+.directive-chip:hover {
+  background: rgba(0, 243, 255, 0.2);
+  border-color: var(--accent-cyan);
+  color: #ffffff;
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.38);
+  transform: translateY(-1px);
+}
+
+.directive-chip.chip-voice-btn {
+  border-color: rgba(168, 85, 247, 0.45);
+}
+
+.directive-chip.chip-voice-btn:hover {
+  background: rgba(168, 85, 247, 0.22);
+  border-color: var(--accent-purple);
+  box-shadow: 0 0 12px rgba(168, 85, 247, 0.45);
 }
 
 .pulse-ring {
@@ -1478,8 +1678,8 @@ body.cyber-hud {
   height: 480px;
   pointer-events: none;
   z-index: 1;
-  opacity: 0.82;
-  transition: opacity 0.5s ease, filter 0.5s ease;
+  opacity: 0.96;
+  transition: opacity 0.5s ease, filter 0.5s ease, transform 0.35s ease;
 }
 
 /* Boot-Up Spin-in Animation ("open pannumbothu suthitu var amaari") */
@@ -1500,24 +1700,24 @@ body.cyber-hud {
   }
   78% {
     transform: translate(-50%, -50%) scale(0.98) rotate(-10deg);
-    opacity: 0.88;
+    opacity: 0.94;
     filter: brightness(1.4) drop-shadow(0 0 35px rgba(0, 243, 255, 0.7));
   }
   92% {
     transform: translate(-50%, -50%) scale(1.01) rotate(2deg);
-    opacity: 0.8;
+    opacity: 0.95;
     filter: brightness(1.2) drop-shadow(0 0 30px rgba(0, 243, 255, 0.6));
   }
   100% {
     transform: translate(-50%, -50%) scale(1) rotate(0deg);
-    opacity: 0.42;
-    filter: brightness(1) drop-shadow(0 0 25px rgba(0, 243, 255, 0.45));
+    opacity: 0.96;
+    filter: brightness(1.18) drop-shadow(0 0 35px rgba(0, 243, 255, 0.65)) drop-shadow(0 0 20px rgba(255, 158, 27, 0.4));
   }
 }
 
 .kiraht-reactor-core.active-pulse {
-  opacity: 0.72;
-  filter: drop-shadow(0 0 45px rgba(0, 243, 255, 0.85)) brightness(1.25);
+  opacity: 1;
+  filter: drop-shadow(0 0 55px rgba(0, 243, 255, 0.95)) drop-shadow(0 0 30px rgba(255, 158, 27, 0.6)) brightness(1.35);
 }
 
 /* Outer HUD Reticle Brackets */
@@ -1679,6 +1879,19 @@ body.cyber-hud {
   display: flex;
   align-items: center;
   justify-content: center;
+  pointer-events: auto !important;
+  cursor: pointer;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), filter 0.25s ease;
+  user-select: none;
+}
+
+.reactor-epicenter:hover {
+  transform: translate(-50%, -50%) scale(1.08);
+  filter: brightness(1.22) drop-shadow(0 0 25px rgba(0, 243, 255, 0.8));
+}
+
+.reactor-epicenter:active {
+  transform: translate(-50%, -50%) scale(0.96);
 }
 
 .epicenter-plasma-core {
@@ -2674,7 +2887,7 @@ body.cyber-hud {
 }
 
 
-/* Chat Input Bar */
+/* Chat Input Bar (Docked Terminal Input) */
 .chat-input-bar {
   display: flex;
   align-items: center;
@@ -2683,6 +2896,81 @@ body.cyber-hud {
   border-top: 1px solid var(--border-cyan);
   background: rgba(8, 14, 26, 0.95);
   z-index: 5;
+}
+
+.docked-terminal-input {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 1px solid var(--border-cyan);
+  background: rgba(4, 10, 24, 0.95);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 5;
+  flex-shrink: 0;
+}
+
+.docked-terminal-input .input-main-wrap {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  width: 100%;
+}
+
+.docked-terminal-input .chat-textarea {
+  flex: 1;
+  background: rgba(10, 20, 42, 0.85);
+  border: 1px solid rgba(0, 243, 255, 0.35);
+  border-radius: 8px;
+  padding: 9px 12px;
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  font-size: 13px;
+  line-height: 1.45;
+  resize: none;
+  min-height: 42px;
+  max-height: 120px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.docked-terminal-input .chat-textarea:focus {
+  border-color: var(--accent-cyan);
+  box-shadow: 0 0 14px rgba(0, 243, 255, 0.35);
+}
+
+.docked-terminal-input .btn-send {
+  height: 42px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+
+.docked-input-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+}
+
+.docked-input-toolbar .btn-mic {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  padding: 0;
+}
+
+.docked-input-toolbar .toolbar-hint {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+  white-space: nowrap;
 }
 
 .chat-textarea {
@@ -2844,16 +3132,21 @@ body.cyber-hud {
   100% { height: 100%; filter: brightness(1.8); }
 }
 
-/* ==================== RIGHT: LARGE TACTICAL ACTION TILES ==================== */
+/* ==================== RIGHT: DEDICATED CHAT TERMINAL & TOOLS/LOGS ==================== */
 .right-panel {
-  width: var(--actions-width, 220px);
-  min-width: 170px;
-  max-width: 380px;
+  width: var(--chat-panel-width, 440px);
+  min-width: 320px;
+  max-width: 700px;
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   transition: width 0.2s ease, opacity 0.2s ease, min-width 0.2s ease;
+}
+
+.right-panel.chat-terminal-panel {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-cyan);
 }
 
 .right-panel.collapsed {
@@ -2864,6 +3157,203 @@ body.cyber-hud {
   border: none !important;
   opacity: 0 !important;
   pointer-events: none !important;
+}
+
+/* Terminal Header & Tab Navigation */
+.terminal-tab-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 12px;
+  border-bottom: 1px solid var(--border-cyan);
+  background: rgba(4, 10, 24, 0.88);
+  min-height: 42px;
+  flex-shrink: 0;
+}
+
+.terminal-tabs-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.terminal-tab-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-header);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  padding: 5px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s ease;
+}
+
+.terminal-tab-btn:hover {
+  background: rgba(0, 243, 255, 0.08);
+  color: #ffffff;
+  border-color: rgba(0, 243, 255, 0.2);
+}
+
+.terminal-tab-btn.active {
+  background: rgba(0, 243, 255, 0.16);
+  color: var(--accent-cyan);
+  border-color: rgba(0, 243, 255, 0.45);
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.25);
+}
+
+.terminal-tab-badge {
+  background: rgba(255, 158, 27, 0.2);
+  color: var(--accent-amber);
+  border: 1px solid rgba(255, 158, 27, 0.45);
+  border-radius: 10px;
+  font-size: 9px;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  padding: 0 5px;
+  line-height: 14px;
+}
+
+.terminal-header-actions {
+  display: flex;
+  align-items: center;
+}
+
+.terminal-ctrl-btn {
+  background: transparent;
+  border: 1px solid rgba(0, 243, 255, 0.2);
+  color: var(--text-secondary);
+  border-radius: 4px;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 11px;
+  transition: all 0.2s ease;
+}
+
+.terminal-ctrl-btn:hover {
+  background: rgba(255, 51, 102, 0.15);
+  border-color: var(--accent-red);
+  color: var(--accent-red);
+  box-shadow: 0 0 8px rgba(255, 51, 102, 0.35);
+}
+
+/* Terminal Panes Wrapper */
+.terminal-panes-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.terminal-pane {
+  display: none;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  min-height: 0;
+}
+
+.terminal-pane.active {
+  display: flex;
+}
+
+.pane-chat {
+  flex: 1;
+  min-height: 0;
+}
+
+.pane-activity {
+  flex: 1;
+  min-height: 0;
+  background: rgba(2, 6, 14, 0.6);
+}
+
+.activity-terminal-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid rgba(0, 243, 255, 0.15);
+  background: rgba(4, 10, 24, 0.7);
+  flex-shrink: 0;
+}
+
+.activity-status-tag {
+  font-family: var(--font-display);
+  font-size: 9.5px;
+  color: var(--accent-green);
+  letter-spacing: 0.8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.log-clear-btn {
+  font-family: var(--font-header);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  background: rgba(0, 243, 255, 0.08);
+  border: 1px solid rgba(0, 243, 255, 0.25);
+  color: var(--accent-cyan);
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.log-clear-btn:hover {
+  background: rgba(0, 243, 255, 0.22);
+  border-color: var(--accent-cyan);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(0, 243, 255, 0.35);
+}
+
+/* Chat Terminal Panel Welcome Hero Responsiveness */
+.chat-terminal-panel .tactical-welcome-hero {
+  padding: 14px 16px;
+  margin: 4px 0 12px 0;
+  max-width: 100%;
+}
+
+.chat-terminal-panel .welcome-title {
+  font-size: 17px;
+}
+
+.chat-terminal-panel .welcome-desc {
+  font-size: 12px;
+}
+
+.chat-terminal-panel .welcome-readiness-grid {
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.chat-terminal-panel .readiness-card {
+  padding: 6px 8px;
+  gap: 6px;
+}
+
+.chat-terminal-panel .welcome-chips-container {
+  gap: 6px;
+}
+
+.chat-terminal-panel .welcome-chip {
+  padding: 4px 10px;
+  font-size: 10.5px;
 }
 
 .action-tiles-grid {

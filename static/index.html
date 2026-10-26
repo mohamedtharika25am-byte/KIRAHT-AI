@@ -7,7 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700;900&family=Rajdhani:wght@500;600;700&family=Inter:wght@300;400;500;600&family=Share+Tech+Mono&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/css/hud.css?v=5.2">
+  <link rel="stylesheet" href="/static/css/hud.css?v=5.3">
   <link rel="icon" type="image/png" href="/static/img/kiraht_ai_logo.png?v=4.0">
   <link rel="preload" as="image" href="/static/img/user_avatar.jpg">
   <style>
@@ -323,12 +323,33 @@
         <div class="resizer-bar"></div>
       </div>
 
-      <!-- CENTER: PRIMARY CHAT HERO (FULL HEIGHT, CLEANED) -->
-      <section class="panel center-panel tactical-frame" id="center-panel">
-        <!-- Chat Viewport Wrapper -->
-        <div class="chat-viewport-wrapper">
+      <!-- CENTER: PURE 3D ARC REACTOR HOLOGRAPHIC HERO STAGE (UNOBSTRUCTED) -->
+      <section class="panel center-panel arc-reactor-stage tactical-frame" id="center-panel">
+        <!-- Center Stage Top Tactical Bar -->
+        <div class="reactor-stage-header">
+          <div class="stage-header-left">
+            <span class="stage-pulse-dot"></span>
+            <span class="stage-badge-text">SYS.MK-VII • TACTICAL AI CORE</span>
+          </div>
+          <div class="stage-header-center">
+            <span class="stage-coord-tag" id="stage-azimuth-tag">AZIMUTH: 045°</span>
+            <span class="stage-coord-dot">◆</span>
+            <span class="stage-coord-tag text-cyan" id="stage-flux-tag">FLUX: 100%</span>
+            <span class="stage-coord-dot">◆</span>
+            <span class="stage-coord-tag text-green" id="stage-state-tag">STATUS: ONLINE</span>
+          </div>
+          <div class="stage-header-right">
+            <button id="btn-war-room-fullscreen" class="stage-action-btn" title="Toggle War Room Fullscreen Mode (F11)">
+              <span class="stage-btn-icon">⛶</span>
+              <span class="stage-btn-text" id="war-room-btn-text">WAR ROOM</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Central Stage Wrapper -->
+        <div class="chat-viewport-wrapper reactor-stage-canvas">
           <!-- ==================== 3D RUNNING / ROLLING KIRAHT ARC REACTOR ==================== -->
-          <div class="kiraht-reactor-core boot-spin-in" id="reactor-core">
+          <div class="kiraht-reactor-core boot-spin-in" id="reactor-core" title="Click Epicenter to Toggle Voice Recognition">
             <!-- Outer HUD Reticle Coordinates & Brackets -->
             <div class="reactor-hud-brackets">
               <span class="hud-tag top-left">[SYS.MK-VII]</span>
@@ -337,14 +358,14 @@
               <span class="hud-tag btm-right">[AZIMUTH: 045]</span>
             </div>
 
-            <!-- Authentic SVG Holographic Concentric Rings -->
+            <!-- Authentic SVG Holographic Concentric Rings (Cyan + Golden Amber Coils) -->
             <svg class="reactor-svg-rings" viewBox="0 0 500 500">
               <defs>
                 <radialGradient id="reactor-core-glow" cx="50%" cy="50%" r="50%">
-                  <stop offset="0%" stop-color="#ff7700" stop-opacity="0.95" />
-                  <stop offset="25%" stop-color="#ffaa00" stop-opacity="0.65" />
-                  <stop offset="55%" stop-color="#0088ff" stop-opacity="0.35" />
-                  <stop offset="80%" stop-color="#0044aa" stop-opacity="0.12" />
+                  <stop offset="0%" stop-color="#ffaa00" stop-opacity="0.95" />
+                  <stop offset="25%" stop-color="#ff7700" stop-opacity="0.7" />
+                  <stop offset="55%" stop-color="#00f3ff" stop-opacity="0.45" />
+                  <stop offset="80%" stop-color="#0066cc" stop-opacity="0.18" />
                   <stop offset="100%" stop-color="#000000" stop-opacity="0" />
                 </radialGradient>
                 <filter id="glow-cyan" x="-20%" y="-20%" width="140%" height="140%">
@@ -367,7 +388,7 @@
               <circle cx="250" cy="250" r="185" class="svg-ring ring-radar-ticks" />
               <circle cx="250" cy="250" r="172" class="svg-ring ring-hash-marks" />
 
-              <!-- Layer 4: Geometric Hexagonal Circuit Ring -->
+              <!-- Layer 4: Geometric Hexagonal Induction Circuit (Solar Amber) -->
               <polygon points="250,90 388,170 388,330 250,410 112,330 112,170" class="svg-poly ring-hex-circuit" />
 
               <!-- Layer 5: High-Speed Inner Turbine Teeth -->
@@ -383,8 +404,8 @@
               <div class="gyro-ring gyro-ring-inner"></div>
             </div>
 
-            <!-- Central Arc Reactor Epicenter (Audio Reactive Core) -->
-            <div class="reactor-epicenter" id="reactor-epicenter">
+            <!-- Central Arc Reactor Epicenter (Click to Toggle Voice Recognition) -->
+            <div class="reactor-epicenter" id="reactor-epicenter" role="button" tabindex="0" title="Click to engage Voice Mode (Alt+V)">
               <div class="epicenter-voice-waves" id="epicenter-voice-waves">
                 <div class="voice-wave-ring wave-1"></div>
                 <div class="voice-wave-ring wave-2"></div>
@@ -401,96 +422,24 @@
             </div>
           </div>
 
-          <!-- Foreground Chat Messages (Floats over the Core with Glass Backing) -->
-          <div class="chat-viewport" id="chat-viewport">
-            <!-- Tactical Holographic Welcome Hero Container (Sequenced after Arc Reactor spin-in) -->
-            <div class="tactical-welcome-hero delayed-boot" id="tactical-welcome-hero">
-              <!-- Header with Tactical System Badge & Time -->
-              <div class="welcome-header">
-                <div class="welcome-badge">
-                  <span class="welcome-pulse-dot"></span>
-                  <span class="welcome-badge-text">SYS.MK-VII • TACTICAL AI ONLINE</span>
-                </div>
-                <div class="welcome-time-tag" id="welcome-live-date">TACTICAL HUD OPERATIONAL</div>
-              </div>
-
-              <!-- Main Hero Greeting -->
-              <div class="welcome-main">
-                <div class="welcome-avatar-wrap">
-                  <img src="/static/img/kiraht_ai_logo.png?v=4.0" class="welcome-avatar-img" alt="KIRAHT Core">
-                  <div class="welcome-avatar-glow"></div>
-                </div>
-                <div class="welcome-intro">
-                  <h2 class="welcome-title" id="welcome-greeting-title">Good Evening, Sir.</h2>
-                  <p class="welcome-desc">
-                    Welcome to <strong class="text-cyan">KIRAHT Tactical AI Command</strong>. Workstation telemetry, neural models, and background automations are fully synchronized. Ready for directives.
-                  </p>
-                </div>
-              </div>
-
-              <!-- Readiness Telemetry Micro-Cards -->
-              <div class="welcome-readiness-grid">
-                <div class="readiness-card">
-                  <span class="readiness-icon">⚡</span>
-                  <div class="readiness-info">
-                    <span class="readiness-label">Core Engine</span>
-                    <span class="readiness-val text-green">OPERATIONAL</span>
-                  </div>
-                </div>
-                <div class="readiness-card">
-                  <span class="readiness-icon">🧠</span>
-                  <div class="readiness-info">
-                    <span class="readiness-label">Neural Model</span>
-                    <span class="readiness-val text-cyan" id="welcome-active-model">qwen2.5:3b / Gemini</span>
-                  </div>
-                </div>
-                <div class="readiness-card">
-                  <span class="readiness-icon">🛡️</span>
-                  <div class="readiness-info">
-                    <span class="readiness-label">System State</span>
-                    <span class="readiness-val text-green">ARMED &amp; READY</span>
-                  </div>
-                </div>
-                <div class="readiness-card">
-                  <span class="readiness-icon">🎙️</span>
-                  <div class="readiness-info">
-                    <span class="readiness-label">Voice Protocol</span>
-                    <span class="readiness-val text-purple">STANDBY (Alt+V)</span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Interactive Tactical Quick Launch Chips -->
-              <div class="welcome-actions-wrap">
-                <span class="welcome-actions-label">QUICK DIRECTIVES:</span>
-                <div class="welcome-chips-container">
-                  <button class="welcome-chip" type="button" data-prompt="Run full system hardware diagnostics and report status.">
-                    <span>⚡ System Diagnostics</span>
-                  </button>
-                  <button class="welcome-chip" type="button" data-prompt="Search the web for latest AI and technology news today.">
-                    <span>🌐 Web Intelligence</span>
-                  </button>
-                  <button class="welcome-chip" type="button" data-prompt="Help me review and debug the code in my current workspace.">
-                    <span>💻 Code Assistant</span>
-                  </button>
-                  <button class="welcome-chip chip-voice" type="button" id="welcome-chip-voice">
-                    <span>🎙️ Start Voice Mode</span>
-                  </button>
-                  <button class="welcome-chip chip-history" type="button" id="welcome-chip-history">
-                    <span>📜 Load Chat History</span>
-                  </button>
-                  <button class="welcome-chip chip-audio" type="button" id="welcome-chip-audio" title="Play Voice Greeting aloud">
-                    <span>🔊 Voice Greeting</span>
-                  </button>
-                </div>
-              </div>
+          <!-- Bottom Stage Quick Directives Bar -->
+          <div class="reactor-quick-directives">
+            <span class="directives-label">TACTICAL SHORTCUTS:</span>
+            <div class="directives-chips-row">
+              <button class="directive-chip" type="button" data-prompt="Run full system hardware diagnostics and report status.">
+                <span>⚡ Hardware Diagnostics</span>
+              </button>
+              <button class="directive-chip" type="button" data-prompt="Search the web for latest AI and technology news today.">
+                <span>🌐 Web Intelligence</span>
+              </button>
+              <button class="directive-chip" type="button" data-prompt="Help me review and debug the code in my current workspace.">
+                <span>💻 Code Assistant</span>
+              </button>
+              <button class="directive-chip chip-voice-btn" type="button" id="chip-activate-voice">
+                <span>🎙️ Voice Interface</span>
+              </button>
             </div>
           </div>
-
-          <!-- Floating Scroll-To-Bottom Button (ChatGPT Style ↓) -->
-          <button class="chat-scroll-bottom-btn" id="btn-scroll-bottom" title="Scroll to bottom" style="display: none;">
-            <span class="scroll-arrow">↓</span>
-          </button>
 
           <!-- ==================== CENTRAL VOICE INTERFACE (VOICE MODE) ==================== -->
           <div class="central-voice-interface" id="central-voice-interface" style="display:none;">
@@ -560,7 +509,7 @@
               </div>
             </div>
 
-            <!-- Dynamic Voice Live Readout Cards (Holographic user speech & KIRAHT response) -->
+            <!-- Dynamic Voice Live Readout Cards -->
             <div class="voice-live-readout" id="voice-live-readout">
               <div class="live-speech-card user-speech-card" id="user-speech-card">
                 <div class="speech-card-header">
@@ -607,66 +556,176 @@
             </div>
           </div>
         </div>
-
-        <!-- Chat Input Form (Shown in Chat Mode, hidden/minimized in Voice Mode) -->
-        <div class="chat-input-bar" id="chat-input-bar">
-          <textarea
-            id="chat-input"
-            class="chat-textarea"
-            placeholder="Type a message, system command, QR link, calculation, or question..."
-            rows="1"
-          ></textarea>
-          <button id="btn-mic" class="btn-mic" title="Voice Input / Speech Recognition (Alt+V or Click to Speak)">
-            <span class="mic-icon">🎙️</span>
-            <span class="mic-wave-pulse"></span>
-          </button>
-          <button id="btn-voice-lang-chip" class="input-ctrl-chip" title="Toggle Recognition Language: English (EN) / தமிழ் (TA)" type="button">
-            <span id="voice-lang-label">EN</span>
-          </button>
-          <button id="btn-auto-send-chip" class="input-ctrl-chip chip-off" title="Toggle Auto-Transmit: MANUAL (review text before sending, avoids classroom noise) / AUTO" type="button">
-            <span id="auto-send-label">MANUAL</span>
-          </button>
-          <button id="btn-send" class="btn-send" title="Execute Directive (Enter)">
-            <span class="send-text">EXECUTE</span>
-            <span class="send-arrow">➔</span>
-          </button>
-        </div>
       </section>
-    </main>
 
-    <!-- RESIZER: HORIZONTAL BOTTOM SPLITTER (DRAG UP/DOWN TO RESIZE FOOTER CONSOLE) -->
-    <div class="panel-resizer resizer-bottom" id="resizer-bottom" title="Drag to resize Activity Telemetry Console (Double-click to reset)">
-      <div class="resizer-bar-horizontal"></div>
-    </div>
-
-    <!-- ==================== 3. BOTTOM HUD: ACTIVITY TELEMETRY CONSOLE ==================== -->
-    <footer class="hud-footer tactical-frame" id="hud-footer">
-      <!-- Real-Time Activity & Tool Log (Full-Width Tactical Terminal) -->
-      <div class="activity-log-bar">
-        <div class="activity-log-header">
-          <div class="activity-log-header-left">
-            <span class="activity-icon">⚡</span>
-            <span class="activity-title">ACTIVITY TELEMETRY STREAM</span>
-            <span class="log-indicator live-pulse">STREAMING</span>
-          </div>
-          <div class="activity-log-controls">
-            <button id="btn-log-clear" class="log-ctrl-btn" title="Clear Event Log">CLEAR</button>
-            <button id="btn-log-min" class="log-ctrl-btn" title="Compact View (65px)">MIN</button>
-            <button id="btn-log-mid" class="log-ctrl-btn active" title="Standard View (130px)">MID</button>
-            <button id="btn-log-max" class="log-ctrl-btn" title="Expanded Terminal (240px)">MAX</button>
-          </div>
-        </div>
-        <div class="activity-log-stream" id="activity-log-stream">
-          <div class="activity-entry">
-            <span class="log-time">[Init]</span>
-            <span class="log-actor actor-system">System</span>
-            <span class="log-arrow">➔</span>
-            <span class="log-action">Tactical HUD Online</span>
-            <span class="log-detail">(KIRAHT 3D Arc Reactor Synchronized)</span>
-          </div>
-        </div>
+      <!-- RESIZER: RIGHT SPLITTER -->
+      <div class="panel-resizer resizer-right" id="resizer-right" title="Drag to resize Chat panel (Double-click to reset)">
+        <div class="resizer-bar"></div>
       </div>
-    </footer>
+
+      <!-- RIGHT: DEDICATED CHAT TERMINAL & TOOLS/LOGS PANEL -->
+      <aside class="panel right-panel chat-terminal-panel tactical-frame" id="right-panel">
+        <!-- Terminal Header with Tabs (Chat & Activity Tools) -->
+        <div class="terminal-tab-header">
+          <div class="terminal-tabs-group">
+            <button class="terminal-tab-btn active" id="tab-btn-chat" title="View Conversation Stream">
+              <span class="tab-icon">💬</span>
+              <span class="tab-title">CHAT DIRECTIVES</span>
+            </button>
+            <button class="terminal-tab-btn" id="tab-btn-activity" title="View Tools & Activity Log">
+              <span class="tab-icon">⚡</span>
+              <span class="tab-title">TOOLS / LOGS</span>
+              <span class="terminal-tab-badge" id="activity-tab-badge">1</span>
+            </button>
+          </div>
+          <div class="terminal-header-actions">
+            <button class="terminal-ctrl-btn" id="btn-clear-chat" title="Clear Conversation (Alt+C)">🗑️</button>
+          </div>
+        </div>
+
+        <!-- Terminal Panes Container -->
+        <div class="terminal-panes-wrapper">
+          <!-- PANE 1: LIVE CHAT VIEWPORT & DOCKED INPUT -->
+          <div class="terminal-pane pane-chat active" id="pane-chat">
+            <!-- Foreground Chat Messages (Inside Right Panel) -->
+            <div class="chat-viewport" id="chat-viewport">
+              <!-- Tactical Holographic Welcome Hero Container -->
+              <div class="tactical-welcome-hero delayed-boot" id="tactical-welcome-hero">
+                <!-- Header with Tactical System Badge & Time -->
+                <div class="welcome-header">
+                  <div class="welcome-badge">
+                    <span class="welcome-pulse-dot"></span>
+                    <span class="welcome-badge-text">SYS.MK-VII • TACTICAL AI ONLINE</span>
+                  </div>
+                  <div class="welcome-time-tag" id="welcome-live-date">TACTICAL HUD OPERATIONAL</div>
+                </div>
+
+                <!-- Main Hero Greeting -->
+                <div class="welcome-main">
+                  <div class="welcome-avatar-wrap">
+                    <img src="/static/img/kiraht_ai_logo.png?v=4.0" class="welcome-avatar-img" alt="KIRAHT Core">
+                    <div class="welcome-avatar-glow"></div>
+                  </div>
+                  <div class="welcome-intro">
+                    <h2 class="welcome-title" id="welcome-greeting-title">Good Evening, Sir.</h2>
+                    <p class="welcome-desc">
+                      Welcome to <strong class="text-cyan">KIRAHT Tactical AI Command</strong>. Workstation telemetry, neural models, and background automations are fully synchronized. Ready for directives.
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Readiness Telemetry Micro-Cards -->
+                <div class="welcome-readiness-grid">
+                  <div class="readiness-card">
+                    <span class="readiness-icon">⚡</span>
+                    <div class="readiness-info">
+                      <span class="readiness-label">Core Engine</span>
+                      <span class="readiness-val text-green">OPERATIONAL</span>
+                    </div>
+                  </div>
+                  <div class="readiness-card">
+                    <span class="readiness-icon">🧠</span>
+                    <div class="readiness-info">
+                      <span class="readiness-label">Neural Model</span>
+                      <span class="readiness-val text-cyan" id="welcome-active-model">qwen2.5:3b / Gemini</span>
+                    </div>
+                  </div>
+                  <div class="readiness-card">
+                    <span class="readiness-icon">🛡️</span>
+                    <div class="readiness-info">
+                      <span class="readiness-label">System State</span>
+                      <span class="readiness-val text-green">ARMED &amp; READY</span>
+                    </div>
+                  </div>
+                  <div class="readiness-card">
+                    <span class="readiness-icon">🎙️</span>
+                    <div class="readiness-info">
+                      <span class="readiness-label">Voice Protocol</span>
+                      <span class="readiness-val text-purple">STANDBY (Alt+V)</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Interactive Tactical Quick Launch Chips -->
+                <div class="welcome-actions-wrap">
+                  <span class="welcome-actions-label">QUICK DIRECTIVES:</span>
+                  <div class="welcome-chips-container">
+                    <button class="welcome-chip" type="button" data-prompt="Run full system hardware diagnostics and report status.">
+                      <span>⚡ System Diagnostics</span>
+                    </button>
+                    <button class="welcome-chip" type="button" data-prompt="Search the web for latest AI and technology news today.">
+                      <span>🌐 Web Intelligence</span>
+                    </button>
+                    <button class="welcome-chip" type="button" data-prompt="Help me review and debug the code in my current workspace.">
+                      <span>💻 Code Assistant</span>
+                    </button>
+                    <button class="welcome-chip chip-voice" type="button" id="welcome-chip-voice">
+                      <span>🎙️ Start Voice Mode</span>
+                    </button>
+                    <button class="welcome-chip chip-history" type="button" id="welcome-chip-history">
+                      <span>📜 Load Chat History</span>
+                    </button>
+                    <button class="welcome-chip chip-audio" type="button" id="welcome-chip-audio" title="Play Voice Greeting aloud">
+                      <span>🔊 Voice Greeting</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Floating Scroll-To-Bottom Button (ChatGPT Style ↓) -->
+            <button class="chat-scroll-bottom-btn" id="btn-scroll-bottom" title="Scroll to bottom" style="display: none;">
+              <span class="scroll-arrow">↓</span>
+            </button>
+
+            <!-- Docked Chat Input Bar (Inside Right Panel Bottom) -->
+            <div class="chat-input-bar docked-terminal-input" id="chat-input-bar">
+              <div class="input-main-wrap">
+                <textarea
+                  id="chat-input"
+                  class="chat-textarea"
+                  placeholder="Type a directive, system command, or question..."
+                  rows="1"
+                ></textarea>
+                <button id="btn-send" class="btn-send" title="Execute Directive (Enter)">
+                  <span class="send-arrow">➔</span>
+                </button>
+              </div>
+              <div class="docked-input-toolbar">
+                <button id="btn-mic" class="btn-mic" title="Voice Input / Speech Recognition (Alt+V or Click to Speak)">
+                  <span class="mic-icon">🎙️</span>
+                  <span class="mic-wave-pulse"></span>
+                </button>
+                <button id="btn-voice-lang-chip" class="input-ctrl-chip" title="Toggle Recognition Language: English (EN) / தமிழ் (TA)" type="button">
+                  <span id="voice-lang-label">EN</span>
+                </button>
+                <button id="btn-auto-send-chip" class="input-ctrl-chip chip-off" title="Toggle Auto-Transmit: MANUAL / AUTO" type="button">
+                  <span id="auto-send-label">MANUAL</span>
+                </button>
+                <span class="toolbar-hint">Press [Enter] to send • [Ctrl+K] focus</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- PANE 2: TOOLS & ACTIVITY LOG STREAM -->
+          <div class="terminal-pane pane-activity" id="pane-activity">
+            <div class="activity-terminal-controls">
+              <span class="activity-status-tag"><span class="live-pulse-dot">●</span> REAL-TIME EVENT STREAM</span>
+              <button id="btn-log-clear" class="log-clear-btn" title="Clear Event Log">CLEAR LOGS</button>
+            </div>
+            <div class="activity-log-stream" id="activity-log-stream">
+              <div class="activity-entry">
+                <span class="log-time">[Init]</span>
+                <span class="log-actor actor-system">System</span>
+                <span class="log-arrow">➔</span>
+                <span class="log-action">Tactical HUD Online</span>
+                <span class="log-detail">(KIRAHT 3D Arc Reactor Synchronized)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
   </div>
 
   <!-- TACTICAL KEYBOARD SHORTCUTS MODAL OVERLAY -->
@@ -751,6 +810,6 @@
     </div>
   </div>
 
-  <script src="/static/js/hud.js?v=5.2"></script>
+  <script src="/static/js/hud.js?v=5.3"></script>
 </body>
 </html>

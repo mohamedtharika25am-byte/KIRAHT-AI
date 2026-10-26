@@ -3,6 +3,18 @@ All notable changes, version upgrades, bug fixes, UI overhauls, and architectura
 
 Format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), adhering to Semantic Versioning (`vMAJOR.MINOR.PATCH`).
 
+## ⚡ [v2.8.0] — 2026-10-26 04:35 PM IST (Jarvis AI Spark 3-Zone Layout & 3D Arc Reactor Center Stage)
+
+### 📌 Summary (சுருக்கம்):
+Major HUD architectural overhaul inspired by [@jarvis_ai_spark](https://www.instagram.com/jarvis_ai_spark) and Stark Industries aesthetics:
+1. **Center Stage:** Unobstructed 3D Arc Reactor (100% visible, centered, solar amber + electric cyan palette, interactive click-to-voice, tech reticle brackets).
+2. **Left Panel:** Hardware telemetry dials (CPU, RAM, Battery, Storage, Network, Prayer schedule) in deep obsidian dark theme.
+3. **Right Panel:** Transformed into dedicated Chat Directives terminal with docked bottom input and top tab switcher for `[ 💬 CHAT DIRECTIVES ]` and `[ ⚡ TOOLS / LOGS ]`.
+4. **Maximized Viewport:** Removed the bottom footer telemetry bar, moving the event stream into the right panel tabs, allowing the center stage to span the full 100% height.
+5. **War Room Fullscreen Mode:** Toggle button (`#btn-war-room-fullscreen` / F11) collapses sidebars and expands the 3D Arc Reactor to full screen with responsive audio waves.
+
+---
+
 ## ⚡ [v2.7.2] — 2026-10-22 03:08 PM IST (Welcome Hero Startup Glitch & Animation Loop Fix)
 
 ### 📌 Summary (சுருக்கம்):

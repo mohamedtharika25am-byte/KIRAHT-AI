@@ -1482,6 +1482,15 @@
     activityLogStream.appendChild(entry);
     activityLogStream.scrollTop = activityLogStream.scrollHeight;
 
+    // Update unread count badge on activity tab if activity pane is in background
+    const paneActivityEl = document.getElementById('pane-activity');
+    const activityTabBadgeEl = document.getElementById('activity-tab-badge');
+    if (paneActivityEl && !paneActivityEl.classList.contains('active') && activityTabBadgeEl) {
+      let count = parseInt(activityTabBadgeEl.textContent || '0', 10) || 0;
+      count += 1;
+      activityTabBadgeEl.textContent = count > 99 ? '99+' : count;
+    }
+
     // Flash left Telemetry panel Tools status on tool or app execution
     if (coreToolsStatus && (actor === 'Tool' || (action && (action.includes('Tool') || action.includes('APP:') || action.includes('Execute'))))) {
       const toolLabel = detail ? detail.replace(/^Source:\s*/i, '').replace(/[()]/g, '') : action;
@@ -3858,7 +3867,7 @@
       });
     }
 
-    // Comprehensive Keyboard Shortcuts: F1, Esc, Ctrl+K, Ctrl+Shift+S, Ctrl+L, Alt+1..5, Alt+M, Alt+T, Alt+Q
+    // Comprehensive Keyboard Shortcuts: F1, F11, Esc, Ctrl+K, Ctrl+Shift+S, Ctrl+L, Alt+1..5, Alt+M, Alt+T, Alt+Q
     window.addEventListener('keydown', function (e) {
       // 1. F1: Toggle Shortcuts Modal
       if (e.key === 'F1') {
@@ -3867,11 +3876,27 @@
         return;
       }
 
-      // 2. Esc: Close modal if open, cancel speech/generation, or blur chat input
+      // 1.1 F11: Toggle War Room Fullscreen Mode
+      if (e.key === 'F11') {
+        e.preventDefault();
+        if (typeof toggleWarRoomFullscreen === 'function') {
+          toggleWarRoomFullscreen();
+        }
+        return;
+      }
+
+      // 2. Esc: Close modal if open, exit war room, cancel speech/generation, or blur chat input
       if (e.key === 'Escape') {
         if (shortcutsModal && shortcutsModal.style.display === 'flex') {
           e.preventDefault();
           hideShortcutsModal();
+          return;
+        }
+        if (hudMain && hudMain.classList.contains('war-room-fullscreen')) {
+          e.preventDefault();
+          if (typeof toggleWarRoomFullscreen === 'function') {
+            toggleWarRoomFullscreen();
+          }
           return;
         }
         if (isGenerating || (window.speechSynthesis && window.speechSynthesis.speaking)) {
@@ -4004,6 +4029,134 @@
         }
       });
     }
+
+    // 2. Drag Resizer: Right (Dedicated Chat Terminal Panel)
+    const resizerRight = document.getElementById('resizer-right');
+    const rightPanel = document.getElementById('right-panel');
+
+    // Restore saved custom right panel width if any
+    const savedChatWidth = localStorage.getItem('kiraht_chat_panel_width');
+    if (savedChatWidth && hudMain) {
+      hudMain.style.setProperty('--chat-panel-width', savedChatWidth + 'px');
+    }
+
+    if (resizerRight) {
+      let isDraggingRight = false;
+
+      resizerRight.addEventListener('mousedown', function (e) {
+        isDraggingRight = true;
+        resizerRight.classList.add('is-dragging');
+        if (hudMain) hudMain.classList.add('is-resizing');
+        if (rightPanel) rightPanel.style.transition = 'none';
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+      });
+
+      resizerRight.addEventListener('dblclick', function () {
+        hudMain.style.setProperty('--chat-panel-width', '440px');
+        localStorage.removeItem('kiraht_chat_panel_width');
+      });
+
+      window.addEventListener('mousemove', function (e) {
+        if (!isDraggingRight) return;
+        const mainRect = hudMain.getBoundingClientRect();
+        let newWidth = mainRect.right - e.clientX;
+        newWidth = Math.max(320, Math.min(700, newWidth));
+        hudMain.style.setProperty('--chat-panel-width', newWidth + 'px');
+      });
+
+      window.addEventListener('mouseup', function () {
+        if (isDraggingRight) {
+          isDraggingRight = false;
+          resizerRight.classList.remove('is-dragging');
+          if (hudMain) hudMain.classList.remove('is-resizing');
+          if (rightPanel) rightPanel.style.transition = '';
+          document.body.style.cursor = '';
+          document.body.style.userSelect = '';
+          const currentWidth = parseInt(getComputedStyle(hudMain).getPropertyValue('--chat-panel-width'), 10);
+          if (currentWidth) localStorage.setItem('kiraht_chat_panel_width', currentWidth);
+        }
+      });
+    }
+
+    // Right Panel Terminal Tab Switcher (Chat Directives vs Tools & Activity Logs)
+    const tabBtnChat = document.getElementById('tab-btn-chat');
+    const tabBtnActivity = document.getElementById('tab-btn-activity');
+    const paneChat = document.getElementById('pane-chat');
+    const paneActivity = document.getElementById('pane-activity');
+    const activityTabBadge = document.getElementById('activity-tab-badge');
+
+    function switchTerminalTab(tab) {
+      if (tab === 'chat') {
+        if (tabBtnChat) tabBtnChat.classList.add('active');
+        if (tabBtnActivity) tabBtnActivity.classList.remove('active');
+        if (paneChat) paneChat.classList.add('active');
+        if (paneActivity) paneActivity.classList.remove('active');
+      } else if (tab === 'activity') {
+        if (tabBtnActivity) tabBtnActivity.classList.add('active');
+        if (tabBtnChat) tabBtnChat.classList.remove('active');
+        if (paneActivity) paneActivity.classList.add('active');
+        if (paneChat) paneChat.classList.remove('active');
+        if (activityTabBadge) activityTabBadge.textContent = '0';
+      }
+    }
+
+    if (tabBtnChat) tabBtnChat.addEventListener('click', function () { switchTerminalTab('chat'); });
+    if (tabBtnActivity) tabBtnActivity.addEventListener('click', function () { switchTerminalTab('activity'); });
+
+    // War Room Fullscreen Mode Toggle (3D Arc Reactor Stage expands 100%)
+    const btnWarRoomFullscreen = document.getElementById('btn-war-room-fullscreen');
+    const warRoomBtnText = document.getElementById('war-room-btn-text');
+
+    function toggleWarRoomFullscreen() {
+      if (!hudMain) return;
+      const isFullscreen = hudMain.classList.toggle('war-room-fullscreen');
+      if (btnWarRoomFullscreen) {
+        btnWarRoomFullscreen.classList.toggle('active', isFullscreen);
+      }
+      if (warRoomBtnText) {
+        warRoomBtnText.textContent = isFullscreen ? 'EXIT WAR ROOM' : 'WAR ROOM';
+      }
+      logActivity('System', 'War Room', isFullscreen ? 'Engaged Fullscreen 3D Core View' : 'Restored Standard 3-Zone HUD');
+    }
+
+    if (btnWarRoomFullscreen) {
+      btnWarRoomFullscreen.addEventListener('click', toggleWarRoomFullscreen);
+    }
+
+    // Arc Reactor Interactive Click-to-Voice
+    if (reactorEpicenter) {
+      reactorEpicenter.addEventListener('click', function (e) {
+        e.stopPropagation();
+        toggleMicListening();
+      });
+    }
+
+    const chipActivateVoice = document.getElementById('chip-activate-voice');
+    if (chipActivateVoice) {
+      chipActivateVoice.addEventListener('click', function () {
+        toggleMicListening();
+      });
+    }
+
+    // Central Stage Quick Directives Chips
+    const stageChips = document.querySelectorAll('.directive-chip[data-prompt]');
+    stageChips.forEach(chip => {
+      chip.addEventListener('click', function (e) {
+        e.preventDefault();
+        const promptText = chip.getAttribute('data-prompt');
+        if (promptText && promptText.toLowerCase().includes('hardware diagnostics')) {
+          triggerSystemDiagnosticsAction();
+          return;
+        }
+        switchTerminalTab('chat');
+        if (chatInput) {
+          chatInput.value = promptText;
+          if (btnSend) btnSend.click();
+        }
+      });
+    });
 
     // 3. Drag Resizer: Bottom (Activity Telemetry Footer Console)
     const resizerBottom = document.getElementById('resizer-bottom');
