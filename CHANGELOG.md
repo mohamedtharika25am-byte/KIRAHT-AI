@@ -3,6 +3,29 @@ All notable changes, version upgrades, bug fixes, UI overhauls, and architectura
 
 Format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), adhering to Semantic Versioning (`vMAJOR.MINOR.PATCH`).
 
+## ⚡ [v2.8.2] — 2026-10-27 10:35 AM IST (Send Arrow Button, True Fullscreen War Room, Voice Auto-Engage & "FAAAH" Uplink SFX)
+
+### 📌 Summary (சுருக்கம்):
+Addressed all user feedback for clean UX and immersive interaction:
+1. **Send Button (➔ Only, Zero Overlap):**
+   - Removed legacy `▲ EXECUTE` text overwrite from `hud.js` and `hud.css`.
+   - Replaced with a crisp, dedicated neon arrow button `➔` (`flex: 0 0 44px; width: 44px; height: 42px;`), neatly positioned side-by-side with zero collision.
+   - Replaced stop text with a minimal `■` stop icon when generating.
+2. **Textarea Inner Alignment & Padding:**
+   - Corrected textarea inner padding (`10px 14px`), box-sizing, line-height (`1.45`), and font styling.
+   - Refined placeholder to concise `"Type a directive or ask KIRAHT..."` to prevent clumsy multi-line wrapping in narrow viewports.
+3. **True Fullscreen Mode (100% Immersive 3D Arc Reactor):**
+   - Going to fullscreen now completely hides top headers, tabs, time/date pills, footers, and sidebars (`body.war-room-active`).
+   - The entire screen is exclusively the 3D Arc Reactor, scaled up smoothly to `scale(1.52)`.
+   - Floating sleek translucent exit button `✕` in top-right corner allows instant exit with Esc or F11.
+4. **Auto-Engage Voice Mode on Fullscreen:**
+   - Entering Fullscreen immediately turns on Voice Mode (`startMicListening()`), making KIRAHT listen to spoken commands like JARVIS without needing to click mic.
+5. **Authentic Sci-Fi "FAAAH" Transmit Sound:**
+   - Synthesized and installed high-fidelity audio `static/audio/transmit_faah.wav` (resonant bandpass swept noise whoosh + plasma body).
+   - Wired Enter key and Send button to trigger `playTransmitFaahSound()` on message dispatch, with Web Audio synthesizer fallback and SFX mute (`🔊` / `🔇`) support.
+
+---
+
 ## ⚡ [v2.8.1] — 2026-10-26 06:55 PM IST (HUD De-clutter, Minimal Clean Arc Reactor Stage & SFX Sound Control)
 
 ### 📌 Summary (சுருக்கம்):

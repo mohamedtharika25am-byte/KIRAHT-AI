@@ -1024,21 +1024,77 @@ body.cyber-hud {
   overflow: hidden;
 }
 
-/* War Room Fullscreen Mode (Center Arc Reactor Hero Expands 100%) */
-.hud-main.war-room-fullscreen .left-panel,
-.hud-main.war-room-fullscreen .resizer-left,
-.hud-main.war-room-fullscreen .resizer-right,
-.hud-main.war-room-fullscreen .right-panel {
+/* ============================================================
+   TRUE FULLSCREEN / WAR ROOM MODE (100% Immersive 3D Arc Reactor)
+   Hides header, tabs, footer, and sidebars completely. Voice is active.
+   ============================================================ */
+body.war-room-active .hud-header,
+body.war-room-active .hud-footer,
+body.war-room-active .left-panel,
+body.war-room-active .right-panel,
+body.war-room-active .panel-resizer {
   display: none !important;
 }
 
-.hud-main.war-room-fullscreen .center-panel {
-  flex: 1 1 100% !important;
-  border-radius: 12px;
+body.war-room-active .hud-container {
+  padding: 0 !important;
+  margin: 0 !important;
+  width: 100vw !important;
+  max-width: 100vw !important;
+  height: 100vh !important;
+  max-height: 100vh !important;
+  gap: 0 !important;
+  border: none !important;
 }
 
-.hud-main.war-room-fullscreen .kiraht-reactor-core {
-  transform: translate(-50%, -50%) scale(1.32) !important;
+body.war-room-active .hud-main {
+  height: 100vh !important;
+  max-height: 100vh !important;
+  border: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+body.war-room-active .center-panel.arc-reactor-stage {
+  flex: 1 1 100% !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  max-width: 100vw !important;
+  max-height: 100vh !important;
+  border: none !important;
+  border-radius: 0 !important;
+  background: radial-gradient(circle at center, rgba(0, 243, 255, 0.08) 0%, rgba(2, 6, 18, 0.98) 75%) !important;
+}
+
+body.war-room-active .kiraht-reactor-core {
+  transform: translate(-50%, -50%) scale(1.52) !important;
+}
+
+body.war-room-active .stage-fullscreen-fab {
+  top: 24px !important;
+  right: 28px !important;
+  width: 44px !important;
+  height: 44px !important;
+  font-size: 20px !important;
+  background: rgba(4, 10, 26, 0.85) !important;
+  border: 1px solid rgba(0, 243, 255, 0.6) !important;
+  color: var(--accent-cyan) !important;
+  border-radius: 50% !important;
+  backdrop-filter: blur(12px) !important;
+  box-shadow: 0 0 18px rgba(0, 243, 255, 0.5) !important;
+  z-index: 100 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.25s ease !important;
+}
+
+body.war-room-active .stage-fullscreen-fab:hover {
+  background: rgba(0, 243, 255, 0.25) !important;
+  box-shadow: 0 0 28px rgba(0, 243, 255, 0.9) !important;
+  transform: scale(1.1) !important;
 }
 
 .compact-header {
@@ -2791,19 +2847,24 @@ body.cyber-hud {
 .docked-terminal-input .input-main-wrap {
   display: flex;
   gap: 8px;
-  align-items: flex-end;
+  align-items: center;
   width: 100%;
+  box-sizing: border-box;
 }
 
-.docked-terminal-input .chat-textarea {
-  flex: 1;
-  background: rgba(10, 20, 42, 0.85);
+.docked-terminal-input .chat-textarea,
+.chat-textarea {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 0;
+  box-sizing: border-box;
+  background: rgba(10, 20, 42, 0.9);
   border: 1px solid rgba(0, 243, 255, 0.35);
   border-radius: 8px;
-  padding: 9px 12px;
+  padding: 10px 14px;
   color: var(--text-primary);
   font-family: var(--font-body);
-  font-size: 13px;
+  font-size: 13.5px;
   line-height: 1.45;
   resize: none;
   min-height: 42px;
@@ -2812,32 +2873,62 @@ body.cyber-hud {
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.docked-terminal-input .chat-textarea:focus {
+.docked-terminal-input .chat-textarea::placeholder,
+.chat-textarea::placeholder {
+  color: rgba(165, 205, 240, 0.45);
+  font-size: 13px;
+  font-style: normal;
+}
+
+.docked-terminal-input .chat-textarea:focus,
+.chat-textarea:focus {
   border-color: var(--accent-cyan);
   box-shadow: 0 0 14px rgba(0, 243, 255, 0.35);
 }
 
-.docked-terminal-input .btn-send {
-  width: 44px;
-  height: 42px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 8px;
-  flex-shrink: 0;
-  font-size: 17px;
+.docked-terminal-input .btn-send,
+.btn-send {
+  width: 44px !important;
+  min-width: 44px !important;
+  max-width: 44px !important;
+  height: 42px !important;
+  min-height: 42px !important;
+  max-height: 42px !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  border-radius: 8px !important;
+  flex: 0 0 44px !important;
+  flex-shrink: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  background: linear-gradient(135deg, #0077fe, var(--accent-cyan)) !important;
+  color: #040711 !important;
+  cursor: pointer !important;
+  box-shadow: 0 0 12px rgba(0, 243, 255, 0.45) !important;
+  transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease !important;
+}
+
+.docked-terminal-input .btn-send:hover,
+.btn-send:hover {
+  transform: translateY(-1px) scale(1.03);
+  filter: brightness(1.2);
+  box-shadow: 0 0 18px rgba(0, 243, 255, 0.75) !important;
 }
 
 .send-arrow {
-  font-size: 17px;
+  font-size: 18px;
   line-height: 1;
+  color: #040711;
+  font-weight: 900;
   display: inline-block;
   pointer-events: none;
   transition: transform 0.2s ease;
 }
 
-.docked-terminal-input .btn-send:hover .send-arrow {
+.docked-terminal-input .btn-send:hover .send-arrow,
+.btn-send:hover .send-arrow {
   transform: translateX(2px);
 }
 
@@ -2868,50 +2959,6 @@ body.cyber-hud {
   background: rgba(255, 75, 75, 0.15) !important;
   border-color: rgba(255, 75, 75, 0.5) !important;
   color: #ff6b6b !important;
-}
-
-.chat-textarea {
-  flex: 1;
-  background: rgba(15, 24, 46, 0.85);
-  border: 1px solid rgba(0, 243, 255, 0.3);
-  border-radius: 6px;
-  padding: 9px 12px;
-  color: var(--text-primary);
-  font-family: var(--font-body);
-  font-size: 13.5px;
-  resize: none;
-  min-height: 40px;
-  max-height: 110px;
-  outline: none;
-  transition: border-color 0.2s ease;
-}
-
-.chat-textarea:focus {
-  border-color: var(--accent-cyan);
-  box-shadow: 0 0 12px rgba(0, 243, 255, 0.3);
-}
-
-.btn-send {
-  background: linear-gradient(135deg, #0077fe, var(--accent-cyan));
-  color: #040711;
-  border: none;
-  border-radius: 6px;
-  padding: 9px 18px;
-  font-family: var(--font-display);
-  font-weight: 900;
-  font-size: 12px;
-  letter-spacing: 1px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.2s ease;
-  box-shadow: var(--glow-cyan);
-}
-
-.btn-send:hover {
-  transform: translateY(-1px);
-  filter: brightness(1.2);
 }
 
 .btn-send.btn-cancel {
@@ -3754,11 +3801,11 @@ body.cyber-hud {
     padding: 8px 12px;
   }
   .btn-send {
-    padding: 0 12px;
-    height: 38px;
-  }
-  .send-text {
-    display: none; /* In half-screen, show just the arrow ➔ to save space */
+    width: 38px !important;
+    min-width: 38px !important;
+    height: 38px !important;
+    padding: 0 !important;
+    flex: 0 0 38px !important;
   }
   .hud-footer {
     grid-template-columns: 200px 1fr;

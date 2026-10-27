@@ -1528,7 +1528,7 @@
     if (isGenerating) {
       btnSend.classList.add('btn-cancel');
       btnSend.setAttribute('title', 'Stop Generating (Esc)');
-      btnSend.innerHTML = '<span class="btn-cancel-icon" style="font-size:12px;">■</span> <span class="btn-send-text">STOP</span>';
+      btnSend.innerHTML = '<span class="btn-cancel-icon" style="font-size:13px;">■</span>';
       if (typeof setReactorState === 'function') setReactorState('thinking');
 
       // 60-second safety watchdog: Inform user instead of prematurely destroying response
@@ -1546,8 +1546,8 @@
       }, 60000);
     } else {
       btnSend.classList.remove('btn-cancel');
-      btnSend.setAttribute('title', 'Execute Directive (Enter)');
-      btnSend.innerHTML = '<span class="btn-send-icon">▲</span> <span class="btn-send-text">EXECUTE</span>';
+      btnSend.setAttribute('title', 'Send Directive (Enter)');
+      btnSend.innerHTML = '<span class="send-arrow">➔</span>';
       if (typeof setReactorState === 'function' && typeof isListening !== 'undefined' && !isListening) {
         setReactorState('idle');
       }
@@ -1613,6 +1613,9 @@
     const text = chatInput.value.trim();
     if (!text) return;
     dismissWelcomeHero();
+
+    // Trigger sci-fi "FAAAH" uplink sound immediately on enter/transmit
+    playTransmitFaahSound();
 
     if (!isConnected) {
       logActivity('System', 'Warning', 'Not connected to backend. Reconnecting...');
@@ -1900,6 +1903,79 @@
     return audioCtx;
   }
 
+  // Dedicated Sci-Fi "FAAAH" Uplink Transmit Sound
+  const faahAudio = new Audio('/static/audio/transmit_faah.wav');
+  faahAudio.preload = 'auto';
+
+  function playTransmitFaahSound() {
+    if (!isSfxEnabled) return;
+    try {
+      if (faahAudio) {
+        faahAudio.currentTime = 0;
+        const playPromise = faahAudio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(function () {
+            synthesizeFaahSound();
+          });
+        }
+      } else {
+        synthesizeFaahSound();
+      }
+    } catch (e) {
+      synthesizeFaahSound();
+    }
+  }
+
+  function synthesizeFaahSound() {
+    if (!isSfxEnabled) return;
+    try {
+      const ctx = getAudioContext();
+      if (!ctx) return;
+      const now = ctx.currentTime;
+      const bufSize = Math.floor(ctx.sampleRate * 0.35);
+      const buffer = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * 0.75;
+      }
+      const noise = ctx.createBufferSource();
+      noise.buffer = buffer;
+
+      // Resonant swept bandpass filter ("fffaaahhh" swoosh)
+      const filter = ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.Q.setValueAtTime(3.8, now);
+      filter.frequency.setValueAtTime(3400, now);
+      filter.frequency.exponentialRampToValueAtTime(650, now + 0.32);
+
+      const gain = ctx.createGain();
+      gain.gain.setValueAtTime(0.01, now);
+      gain.gain.linearRampToValueAtTime(0.32, now + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(ctx.destination);
+      noise.start(now);
+      noise.stop(now + 0.36);
+
+      // Warm plasma tone body
+      const osc = ctx.createOscillator();
+      const oscGain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(420, now);
+      osc.frequency.exponentialRampToValueAtTime(140, now + 0.22);
+      oscGain.gain.setValueAtTime(0.12, now);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+      osc.connect(oscGain);
+      oscGain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.26);
+    } catch (err) {
+      console.warn('[SFX] Faah sound synth error:', err);
+    }
+  }
+
   function playSciFiTone(type) {
     if (!isSfxEnabled) return;
     try {
@@ -1934,18 +2010,8 @@
         osc.start(now);
         osc.stop(now + 0.2);
       } else if (type === 'transmit') {
-        // Direct uplink transmission pulse (500Hz -> 1100Hz)
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(500, now);
-        osc.frequency.exponentialRampToValueAtTime(1100, now + 0.08);
-        gain.gain.setValueAtTime(0.07, now);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(now);
-        osc.stop(now + 0.1);
+        // Direct uplink transmission "FAAAH" sound
+        playTransmitFaahSound();
       } else if (type === 'interrupt') {
         // Tactical cutoff disengage sound (descending 260Hz -> 70Hz sawtooth burst)
         const osc = ctx.createOscillator();
@@ -2819,9 +2885,9 @@
           }, 1200);
         } else {
           // Manual mode: Spoken words are safely loaded into textarea for user review (prevents classroom noise transmission)
-          setVoicePipelineState('idle', 'SPEECH RECOGNIZED • PRESS EXECUTE');
+          setVoicePipelineState('idle', 'SPEECH RECOGNIZED • PRESS ➔ TO TRANSMIT');
           if (userSpeechStatus) {
-            userSpeechStatus.textContent = 'READY TO EXECUTE';
+            userSpeechStatus.textContent = 'READY TO TRANSMIT';
             userSpeechStatus.className = 'speech-live-tag tag-listening';
           }
           logActivity('Voice', 'Dictation Loaded', `Spoken text placed into input bar: "${finalText}"`);
@@ -3894,7 +3960,7 @@
           hideShortcutsModal();
           return;
         }
-        if (hudMain && hudMain.classList.contains('war-room-fullscreen')) {
+        if (document.body.classList.contains('war-room-active') || (hudMain && hudMain.classList.contains('war-room-fullscreen'))) {
           e.preventDefault();
           if (typeof toggleWarRoomFullscreen === 'function') {
             toggleWarRoomFullscreen();
@@ -4107,20 +4173,43 @@
     if (tabBtnChat) tabBtnChat.addEventListener('click', function () { switchTerminalTab('chat'); });
     if (tabBtnActivity) tabBtnActivity.addEventListener('click', function () { switchTerminalTab('activity'); });
 
-    // War Room Fullscreen Mode Toggle (3D Arc Reactor Stage expands 100%)
+    // War Room True Fullscreen Mode Toggle (3D Arc Reactor Hero Expands 100%, headers/tabs hidden, voice active)
     const btnWarRoomFullscreen = document.getElementById('btn-war-room-fullscreen');
     const btnFullscreenToggle = document.getElementById('btn-fullscreen-toggle');
 
     function toggleWarRoomFullscreen() {
-      if (!hudMain) return;
-      const isFullscreen = hudMain.classList.toggle('war-room-fullscreen');
+      const isFullscreen = document.body.classList.toggle('war-room-active');
+      if (hudMain) hudMain.classList.toggle('war-room-fullscreen', isFullscreen);
+
       if (btnWarRoomFullscreen) {
         btnWarRoomFullscreen.classList.toggle('active', isFullscreen);
+        btnWarRoomFullscreen.setAttribute('title', isFullscreen ? 'Exit Fullscreen (Esc / F11)' : 'Toggle Fullscreen 3D Core View (F11)');
+        btnWarRoomFullscreen.innerHTML = isFullscreen ? '✕' : '⛶';
       }
       if (btnFullscreenToggle) {
         btnFullscreenToggle.classList.toggle('active', isFullscreen);
       }
-      logActivity('System', 'War Room', isFullscreen ? 'Engaged Fullscreen 3D Core View' : 'Restored Standard 3-Zone HUD');
+
+      // Automatically engage Voice Mode when entering fullscreen: "voice active la irukanum"
+      if (isFullscreen) {
+        if (!isListening && typeof startMicListening === 'function') {
+          startMicListening();
+          showVoiceToast('🎙️ Fullscreen Engaged: Voice Mode Online', 'success');
+        }
+        try {
+          if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+            document.documentElement.requestFullscreen().catch(() => {});
+          }
+        } catch (e) {}
+      } else {
+        try {
+          if (document.fullscreenElement && document.exitFullscreen) {
+            document.exitFullscreen().catch(() => {});
+          }
+        } catch (e) {}
+      }
+
+      logActivity('System', 'War Room', isFullscreen ? 'Engaged 100% Fullscreen Holographic Reactor Stage (Voice Online)' : 'Restored Standard 3-Zone HUD');
     }
 
     if (btnWarRoomFullscreen) {
@@ -4129,6 +4218,13 @@
     if (btnFullscreenToggle) {
       btnFullscreenToggle.addEventListener('click', toggleWarRoomFullscreen);
     }
+
+    // Sync state when native browser fullscreen is exited (e.g., via Esc)
+    document.addEventListener('fullscreenchange', function () {
+      if (!document.fullscreenElement && document.body.classList.contains('war-room-active')) {
+        toggleWarRoomFullscreen();
+      }
+    });
 
     // Sound Effects (SFX) Audio Mute Toggle (Simple 🔊 / 🔇)
     const btnSfxToggle = document.getElementById('btn-sfx-toggle');
