@@ -3,6 +3,19 @@ All notable changes, version upgrades, bug fixes, UI overhauls, and architectura
 
 Format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), adhering to Semantic Versioning (`vMAJOR.MINOR.PATCH`).
 
+## ⚡ [v2.8.4] — 2026-10-27 02:05 PM IST (Auto-Shutdown Backend Server When Browser Window/Tab Closes)
+
+### 📌 Summary (சுருக்கம்):
+Added auto-shutdown functionality to eliminate stale/zombie background Python processes:
+1. **Connection Watchdog with 4-Second Refresh Grace Period:**
+   - `ConnectionManager` in `web_server.py` now tracks active browser connections.
+   - When the user closes the browser window or all HUD tabs, the server detects 0 active connections and triggers graceful termination (`os._exit(0)`).
+   - A 4.0s grace period ensures that refreshing the page (`F5` / `Ctrl+R`) does not shut down the server prematurely (the new connection instantly cancels the shutdown countdown).
+2. **Client Unload Beacon (`/api/system/client-exit`):**
+   - Added `pagehide` beacon in `static/js/hud.js` via `navigator.sendBeacon` to signal immediate tab closure.
+
+---
+
 ## ⚡ [v2.8.3] — 2026-10-27 10:58 AM IST (Down Arrow Position Fix, User MP3 Audio, Auto/Manual Voice Send & Chat Alignment)
 
 ### 📌 Summary (சுருக்கம்):

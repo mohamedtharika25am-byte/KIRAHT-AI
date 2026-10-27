@@ -9,7 +9,7 @@ import datetime
 import json
 import os
 import sys
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException, UploadFile, File, Form, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -431,16 +431,52 @@ class ConnectionManager:
     def __init__(self):
         self.active_connections: List[WebSocket] = []
         self._locks: Dict[WebSocket, asyncio.Lock] = {}
+        self._shutdown_task: Optional[asyncio.Task] = None
+        self._has_had_connection: bool = False
 
     async def connect(self, websocket: WebSocket):
         await websocket.accept()
         self.active_connections.append(websocket)
         self._locks[websocket] = asyncio.Lock()
+        self._has_had_connection = True
+        self.cancel_shutdown_timer()
 
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
             self.active_connections.remove(websocket)
         self._locks.pop(websocket, None)
+        # If all browser windows/tabs closed after at least one connected session, schedule auto-shutdown
+        if self._has_had_connection and len(self.active_connections) == 0:
+            self.schedule_shutdown(delay=4.0)
+
+    def cancel_shutdown_timer(self):
+        if self._shutdown_task and not self._shutdown_task.done():
+            self._shutdown_task.cancel()
+            self._shutdown_task = None
+
+    def schedule_shutdown(self, delay: float = 4.0):
+        self.cancel_shutdown_timer()
+        try:
+            loop = asyncio.get_running_loop()
+            self._shutdown_task = loop.create_task(self._delayed_shutdown(delay))
+        except RuntimeError:
+            pass
+
+    async def _delayed_shutdown(self, delay: float):
+        try:
+            await asyncio.sleep(delay)
+            if len(self.active_connections) == 0 and self._has_had_connection:
+                print("\n" + "=" * 64)
+                print("  🔌 All browser windows/tabs closed.")
+                print("  🛑 Shutting down KIRAHT AI server process gracefully...")
+                print("=" * 64 + "\n")
+                try:
+                    save_chat_history(load_chat_history())
+                except Exception:
+                    pass
+                os._exit(0)
+        except asyncio.CancelledError:
+            pass
 
     async def send_json(self, websocket: WebSocket, data: dict):
         lock = self._locks.get(websocket)
@@ -458,6 +494,14 @@ class ConnectionManager:
 
 
 manager = ConnectionManager()
+
+
+@app.post("/api/system/client-exit")
+async def client_exit():
+    """Triggered via navigator.sendBeacon when HUD window/tab unloads."""
+    if manager._has_had_connection and len(manager.active_connections) <= 1:
+        manager.schedule_shutdown(delay=3.5)
+    return {"status": "closing"}
 
 
 @app.websocket("/ws")

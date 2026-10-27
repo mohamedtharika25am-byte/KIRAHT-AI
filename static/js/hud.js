@@ -4425,5 +4425,14 @@
 
     // Initialize Tactical Welcome Hero
     initWelcomeHero();
+
+    // Auto-shutdown beacon when browser window / tab is closed
+    window.addEventListener('pagehide', function () {
+      try {
+        if (navigator.sendBeacon) {
+          navigator.sendBeacon('/api/system/client-exit');
+        }
+      } catch (e) {}
+    });
   });
 })();
