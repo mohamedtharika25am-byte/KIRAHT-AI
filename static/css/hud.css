@@ -1561,16 +1561,16 @@ body.war-room-active .stage-fullscreen-fab:hover {
 /* Floating Scroll-To-Bottom Button (ChatGPT / Claude Style ↓ Centered) */
 .chat-scroll-bottom-btn {
   position: absolute;
-  bottom: 16px;
+  bottom: 114px;
   left: 50%;
   transform: translateX(-50%);
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  background: rgba(4, 18, 42, 0.92);
-  border: 1px solid rgba(0, 243, 255, 0.4);
+  background: rgba(4, 18, 42, 0.94);
+  border: 1px solid rgba(0, 243, 255, 0.45);
   color: var(--accent-cyan);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 10px rgba(0, 243, 255, 0.3);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 12px rgba(0, 243, 255, 0.35);
   backdrop-filter: blur(10px);
   cursor: pointer;
   z-index: 100;
@@ -2847,7 +2847,7 @@ body.war-room-active .stage-fullscreen-fab:hover {
 .docked-terminal-input .input-main-wrap {
   display: flex;
   gap: 8px;
-  align-items: center;
+  align-items: flex-end;
   width: 100%;
   box-sizing: border-box;
 }
@@ -2859,15 +2859,16 @@ body.war-room-active .stage-fullscreen-fab:hover {
   width: 0;
   box-sizing: border-box;
   background: rgba(10, 20, 42, 0.9);
-  border: 1px solid rgba(0, 243, 255, 0.35);
-  border-radius: 8px;
-  padding: 10px 14px;
+  border: 1px solid rgba(0, 243, 255, 0.38);
+  border-radius: 10px;
+  padding: 11px 14px;
   color: var(--text-primary);
   font-family: var(--font-body);
   font-size: 13.5px;
-  line-height: 1.45;
+  line-height: 20px;
   resize: none;
-  min-height: 42px;
+  height: 44px;
+  min-height: 44px;
   max-height: 120px;
   outline: none;
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
@@ -2878,6 +2879,7 @@ body.war-room-active .stage-fullscreen-fab:hover {
   color: rgba(165, 205, 240, 0.45);
   font-size: 13px;
   font-style: normal;
+  line-height: 20px;
 }
 
 .docked-terminal-input .chat-textarea:focus,
@@ -2891,13 +2893,13 @@ body.war-room-active .stage-fullscreen-fab:hover {
   width: 44px !important;
   min-width: 44px !important;
   max-width: 44px !important;
-  height: 42px !important;
-  min-height: 42px !important;
-  max-height: 42px !important;
+  height: 44px !important;
+  min-height: 44px !important;
+  max-height: 44px !important;
   padding: 0 !important;
   margin: 0 !important;
   border: none !important;
-  border-radius: 8px !important;
+  border-radius: 10px !important;
   flex: 0 0 44px !important;
   flex-shrink: 0 !important;
   display: inline-flex !important;
@@ -2906,7 +2908,7 @@ body.war-room-active .stage-fullscreen-fab:hover {
   background: linear-gradient(135deg, #0077fe, var(--accent-cyan)) !important;
   color: #040711 !important;
   cursor: pointer !important;
-  box-shadow: 0 0 12px rgba(0, 243, 255, 0.45) !important;
+  box-shadow: 0 0 14px rgba(0, 243, 255, 0.45) !important;
   transition: transform 0.2s ease, filter 0.2s ease, box-shadow 0.2s ease !important;
 }
 

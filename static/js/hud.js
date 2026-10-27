@@ -32,7 +32,7 @@
   let isUserScrolledUp = false;
   let historyOffset = 0;
   const HISTORY_BATCH_SIZE = 50;
-  let isVoiceAutoSendEnabled = false;
+  let isVoiceAutoSendEnabled = localStorage.getItem('kiraht_voice_auto_send') === 'true';
   let activeVoiceLang = localStorage.getItem('kiraht_voice_lang') || 'en-IN';
   let isSfxEnabled = localStorage.getItem('kiraht_sfx_enabled') !== 'false';
 
@@ -1629,7 +1629,7 @@
     lastOptimisticUserMessage = text;
 
     chatInput.value = '';
-    chatInput.style.height = '42px';
+    chatInput.style.height = '44px';
     chatInput.focus();
 
     // User explicitly entered a message: reset scroll lock and force scroll down to the new message
@@ -1669,10 +1669,10 @@
     });
 
     // Auto-expand textarea without jumping messages
-    let prevInputHeight = 42;
+    let prevInputHeight = 44;
     chatInput.addEventListener('input', function () {
-      this.style.height = '42px';
-      const newHeight = Math.min(this.scrollHeight, 120);
+      this.style.height = '44px';
+      const newHeight = Math.max(44, Math.min(this.scrollHeight, 120));
       this.style.height = newHeight + 'px';
       const heightDelta = newHeight - prevInputHeight;
       prevInputHeight = newHeight;
@@ -1904,7 +1904,7 @@
   }
 
   // Dedicated Sci-Fi "FAAAH" Uplink Transmit Sound
-  const faahAudio = new Audio('/static/audio/transmit_faah.wav');
+  const faahAudio = new Audio('/static/audio/fahhh_KcgAXfs.mp3');
   faahAudio.preload = 'auto';
 
   function playTransmitFaahSound() {
@@ -2755,10 +2755,19 @@
           return;
         }
 
-        playSciFiTone('transmit');
-        isVoiceTriggered = true;
-        setVoicePipelineState('processing', 'COMMAND DISPATCHING');
-        sendMessage();
+        if (isVoiceAutoSendEnabled) {
+          playSciFiTone('transmit');
+          isVoiceTriggered = true;
+          setVoicePipelineState('processing', 'COMMAND DISPATCHING');
+          sendMessage();
+        } else {
+          setVoicePipelineState('idle', 'SPEECH RECOGNIZED • PRESS ➔ TO TRANSMIT');
+          if (userSpeechStatus) {
+            userSpeechStatus.textContent = 'READY TO TRANSMIT';
+            userSpeechStatus.className = 'speech-live-tag tag-listening';
+          }
+          logActivity('Voice', 'Dictation Loaded (MANUAL)', `Spoken text placed into input bar: "${spoken}"`);
+        }
 
       } else {
         setVoicePipelineState('idle', 'NO SPEECH DETECTED');
@@ -3829,20 +3838,32 @@
     });
   }
 
+  function updateAutoSendChipUI() {
+    if (!btnAutoSendChip) return;
+    if (isVoiceAutoSendEnabled) {
+      btnAutoSendChip.classList.remove('chip-off');
+      btnAutoSendChip.classList.add('chip-on');
+      if (autoSendLabel) autoSendLabel.textContent = 'AUTO';
+      btnAutoSendChip.title = 'Voice Auto-Transmit: AUTO (Sends automatically upon speech completion)';
+    } else {
+      btnAutoSendChip.classList.remove('chip-on');
+      btnAutoSendChip.classList.add('chip-off');
+      if (autoSendLabel) autoSendLabel.textContent = 'MANUAL';
+      btnAutoSendChip.title = 'Voice Auto-Transmit: MANUAL (Dictates text to input bar • Click ➔ to send)';
+    }
+  }
+
   if (btnAutoSendChip) {
+    updateAutoSendChipUI();
     btnAutoSendChip.addEventListener('click', function (e) {
       e.preventDefault();
       isVoiceAutoSendEnabled = !isVoiceAutoSendEnabled;
+      localStorage.setItem('kiraht_voice_auto_send', isVoiceAutoSendEnabled ? 'true' : 'false');
+      updateAutoSendChipUI();
       if (isVoiceAutoSendEnabled) {
-        btnAutoSendChip.classList.remove('chip-off');
-        btnAutoSendChip.classList.add('chip-on');
-        if (autoSendLabel) autoSendLabel.textContent = 'AUTO-SEND';
-        showVoiceToast('⚡ Voice Auto-Transmit: ON (Will send automatically)', 'warning');
+        showVoiceToast('⚡ Voice Auto-Transmit: AUTO (Sends automatically upon speech completion)', 'warning');
       } else {
-        btnAutoSendChip.classList.remove('chip-on');
-        btnAutoSendChip.classList.add('chip-off');
-        if (autoSendLabel) autoSendLabel.textContent = 'MANUAL';
-        showVoiceToast('🛡️ Voice Auto-Transmit: MANUAL (Dictates text to input bar - prevents room noise)', 'info');
+        showVoiceToast('🛡️ Voice Auto-Transmit: MANUAL (Loads text to input bar • Click ➔ to send)', 'info');
       }
     });
   }

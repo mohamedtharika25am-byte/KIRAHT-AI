@@ -3,6 +3,24 @@ All notable changes, version upgrades, bug fixes, UI overhauls, and architectura
 
 Format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), adhering to Semantic Versioning (`vMAJOR.MINOR.PATCH`).
 
+## ⚡ [v2.8.3] — 2026-10-27 10:58 AM IST (Down Arrow Position Fix, User MP3 Audio, Auto/Manual Voice Send & Chat Alignment)
+
+### 📌 Summary (சுருக்கம்):
+Refined HUD based on user screenshot and feedback:
+1. **Scroll-To-Bottom Down Arrow (`↓`) Position Fix:**
+   - Changed `#btn-scroll-bottom` position from `bottom: 16px` to `bottom: 114px` so it floats cleanly above the docked chat input bar in the messages area and never obscures the bottom toolbar chips (`MANUAL`, `EN IN`, `🔊`).
+2. **User Transmit Audio (`fahhh_KcgAXfs.mp3`):**
+   - Replaced audio source with user's custom file `/static/audio/fahhh_KcgAXfs.mp3`, loaded with zero latency on message dispatch.
+3. **Fixed Auto / Manual Voice Transmit:**
+   - Offline Whisper transcription callback now strictly checks `isVoiceAutoSendEnabled`. In `MANUAL` mode, spoken text is placed into the textarea for review without auto-sending.
+   - Saved `isVoiceAutoSendEnabled` to `localStorage` (`kiraht_voice_auto_send`) and restored chip state on page load.
+4. **Chat Textarea & Send Arrow Pixel-Perfect Alignment:**
+   - Textarea and `➔` send button calibrated to identical `44px` height with matching `10px` border-radius.
+   - Compact placeholder `"Directive or question..."` ensures single-line presentation without height jumping.
+   - Bottom alignment (`align-items: flex-end`) ensures button remains anchored cleanly even during multi-line expansion.
+
+---
+
 ## ⚡ [v2.8.2] — 2026-10-27 10:35 AM IST (Send Arrow Button, True Fullscreen War Room, Voice Auto-Engage & "FAAAH" Uplink SFX)
 
 ### 📌 Summary (சுருக்கம்):
